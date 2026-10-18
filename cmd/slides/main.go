@@ -75,7 +75,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 	var o options
 	o.register(fs, cmd)
-	if err := fs.Parse(args); err != nil {
+	positional, err := parseInterspersed(fs, args)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
@@ -95,12 +96,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 
-	if fs.NArg() != 1 {
-		return usageError{fmt.Errorf("%s wants one deck (got %d arguments)\n\n%s", cmd, fs.NArg(), usage)}
+	if len(positional) != 1 {
+		return usageError{fmt.Errorf("%s wants one deck (got %d arguments)\n\n%s", cmd, len(positional), usage)}
 	}
-	path := fs.Arg(0)
+	path := positional[0]
 	var src []byte
-	var err error
 	if path == "-" {
 		src, err = io.ReadAll(os.Stdin)
 		path = "stdin.md"
@@ -176,6 +176,27 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintf(stderr, "slides: %s => %s (%d slides)\n", path, o.output, len(b.Slides))
 	}
 	return nil
+}
+
+// parseInterspersed parses flags wherever they appear, before or after the
+// deck ("slides deck.md -o out.html"): Go's flag package stops at the first
+// argument that is not a flag. "--" still ends the flags.
+func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positional []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			return positional, nil
+		}
+		if len(args) > len(rest) && args[len(args)-len(rest)-1] == "--" {
+			return append(positional, rest...), nil
+		}
+		positional = append(positional, rest[0])
+		args = rest[1:]
+	}
 }
 
 func version() string {
