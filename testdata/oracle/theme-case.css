@@ -1,0 +1,16 @@
+/*!
+ * @theme case
+ * @size 4:3 960px 720px
+ */
+@import "https://fonts.example/a.css";
+@charset "UTF-8";
+:root { --accent: #c00; font-size: 30px; }
+section { width: 960px; height: 540px; padding: 2rem; }
+section::after { content: attr(data-marpit-pagination) " / " attr(data-marpit-pagination-total); }
+section.lead::after { content: "x"; }
+h1 { color: var(--accent); margin: 1.5rem 0 .5rem; }
+section.lead h1 { font-size: 2em; }
+* { box-sizing: border-box; }
+@media (max-width: 100px) { p { font-size: 12px; } }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(1turn); } }
+header, footer { position: absolute; left: 1rem; }
