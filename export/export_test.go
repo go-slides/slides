@@ -13,6 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-ooxml/ooxml"
+	"github.com/go-ooxml/opc"
+
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
 )
@@ -165,6 +168,31 @@ func TestEncodeAndPDF(t *testing.T) {
 		if !strings.Contains(s, want) {
 			t.Errorf("PDF lacks %q", want)
 		}
+	}
+}
+
+func TestPPTX(t *testing.T) {
+	b := build(t, "---\ntitle: T\n---\n# One\n\n<!-- say hello -->\n\n---\n\nTwo\n")
+	imgs, err := Rasterize(context.Background(), b, Options{NoFonts: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := PPTX(&buf, b, imgs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(buf.String(), "PK") {
+		t.Fatal("a .pptx is a zip package")
+	}
+	doc, err := ooxml.ParsePresentation(buf.Bytes(), opc.Limits{})
+	if err != nil {
+		t.Fatalf("go-ooxml cannot read it back: %v", err)
+	}
+	if doc == nil {
+		t.Fatal("no document")
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("notesSlide")) {
+		t.Error("the speaker note of slide 1 is missing")
 	}
 }
 

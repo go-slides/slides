@@ -3,6 +3,8 @@ module github.com/go-slides/slides
 go 1.27.2
 
 require (
+	github.com/go-ooxml/ooxml v0.4.0
+	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.13.0
 	github.com/go-pdfkit/pdfkit v0.14.0
 	github.com/go-rouge/rouge v0.5.0
@@ -35,7 +37,7 @@ require (
 	github.com/go-opentype/opentype v0.15.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
 	github.com/go-regexp/engine v0.3.0 // indirect
-	github.com/go-richdoc/richdoc v0.4.0 // indirect
+	github.com/go-richdoc/richdoc v0.6.0 // indirect
 	github.com/go-ruby-regexp/regexp v0.1.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect

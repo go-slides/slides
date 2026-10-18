@@ -23,6 +23,9 @@ func (o *options) format() (string, error) {
 	if o.pdf {
 		chosen = append(chosen, "pdf")
 	}
+	if o.pptx {
+		chosen = append(chosen, "pptx")
+	}
 	for name, v := range map[string]string{"images": o.images, "image": o.image} {
 		if v == "" {
 			continue
@@ -38,11 +41,13 @@ func (o *options) format() (string, error) {
 	case 1:
 		return chosen[0], nil
 	default:
-		return "", fmt.Errorf("--pdf, --images and --image are exclusive")
+		return "", fmt.Errorf("--pdf, --pptx, --images and --image are exclusive")
 	}
 	switch strings.ToLower(filepath.Ext(o.output)) {
 	case ".pdf":
 		return "pdf", nil
+	case ".pptx":
+		return "pptx", nil
 	case ".png":
 		return "image:png", nil
 	case ".jpg", ".jpeg":
@@ -78,6 +83,10 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 	if o.imageScale <= 0 || o.imageScale > 8 {
 		return fmt.Errorf("--image-scale %v: want a value in (0, 8]", o.imageScale)
 	}
+	if format == "pptx" && !cmd.Flags().Changed("image-scale") {
+		// A deck is shown full screen: marp-cli renders PPTX at 2 by default.
+		o.imageScale = 2
+	}
 	opts := export.Options{
 		BaseURL:     "file://" + filepath.ToSlash(dir) + "/",
 		JPEGQuality: o.jpegQuality,
@@ -101,6 +110,12 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 			return err
 		}
 		return o.emit(cmd, path, or(o.output, base+".pdf"), buf.Bytes(), len(images))
+	case "pptx":
+		var buf bytes.Buffer
+		if err := export.PPTX(&buf, b, images); err != nil {
+			return err
+		}
+		return o.emit(cmd, path, or(o.output, base+".pptx"), buf.Bytes(), len(images))
 	case "image":
 		var buf bytes.Buffer
 		if err := encode(&buf, images[0], imgFormat, opts); err != nil {

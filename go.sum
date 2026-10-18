@@ -35,6 +35,10 @@ github.com/go-images/jpeg2000 v0.1.0 h1:SiFAZ6NGvGLU+VmxKji74RiSQDeK6TyjUZr1wjlx
 github.com/go-images/jpeg2000 v0.1.0/go.mod h1:MwSmrbiP6RK7eLphoNyzY60BAXWOD+8LVdBYDPIBrN4=
 github.com/go-images/png v0.1.0 h1:OI4yHotS0lA75sLnG2FTL2Vooh4PWpVWEidre1msSe0=
 github.com/go-images/png v0.1.0/go.mod h1:V9vaEbr2nrZGorUWn4xv9F24Yuu1/qLVtmailM9GBVo=
+github.com/go-ooxml/ooxml v0.4.0 h1:kTob/SV78zeX8cse0fHdxmZBjBzxjam1Mo5NhC2XZlY=
+github.com/go-ooxml/ooxml v0.4.0/go.mod h1:1lP6/YsrlUhXxXJiZkVCFzPyjuex3kIJ5XO+Sy1aF38=
+github.com/go-ooxml/opc v0.2.1 h1:nmdBy61n4M84wLcq/6duANaebB2FOLNCwJOu2E2A87Y=
+github.com/go-ooxml/opc v0.2.1/go.mod h1:WCilIcfGDpa5sRf2uNbXFKYg7MCog6I00ahuWTWXUyw=
 github.com/go-opentype/fonts v0.13.0 h1:zjydWxMSrVJlnV33GIUmXhWkJjDLkOkc/oztNXs90OY=
 github.com/go-opentype/fonts v0.13.0/go.mod h1:UlVK03xtuqYirR5a5HdHq5l/S1BOYv8jCPP19C9Y1o4=
 github.com/go-opentype/opentype v0.15.0 h1:ioE3eCbNZavlk/w073J3uX5FKjqhgOHQw+wZZdJ+gE4=
@@ -45,8 +49,8 @@ github.com/go-pdfkit/pdfkit v0.14.0 h1:b9+F2UjjvdnJ8r3IFv1G4fJVIlYDnI4fEqrnmfqQD
 github.com/go-pdfkit/pdfkit v0.14.0/go.mod h1:5jbuaxXUuiGkvUyJXJoQD0kjtAMPk8hu2OYzr+jrxmY=
 github.com/go-regexp/engine v0.3.0 h1:yoJ9GtIr5YloEuQQ3bb7jjD0Qzmh+Exi+f6CUwBT8H8=
 github.com/go-regexp/engine v0.3.0/go.mod h1:fWnPvSuE4HIVpBQIHMiaPMEE7InDc00KeoPr/QNFGwA=
-github.com/go-richdoc/richdoc v0.4.0 h1:oLhMdRXRRZr3RW6Zqra3N6k5nOX6GFmvgyDpMKEBywM=
-github.com/go-richdoc/richdoc v0.4.0/go.mod h1:aCX8ulqg5CoKqSWgWeEWul1Oj0d2VxQeaQNI0+jsm7c=
+github.com/go-richdoc/richdoc v0.6.0 h1:cema3hE5AAektDXTmvhWyBVnkCcZTVKhnkingwqsN7k=
+github.com/go-richdoc/richdoc v0.6.0/go.mod h1:RhxAcqwoUg1pnTYCiRdKILzOZwOmraO0dMJI4N6yY70=
 github.com/go-rouge/rouge v0.5.0 h1:+xvXRTOczDmQdXU55oe6ODskof/tHaed6oitwZ+LSk8=
 github.com/go-rouge/rouge v0.5.0/go.mod h1:gn2knz19eIpdSDuUo8DZ6XJcvURZEvuZOOD605aBACk=
 github.com/go-ruby-regexp/regexp v0.1.0 h1:KtFfOt6tKiT/UhoZ8GH6liyIVbmqhXTD04uqAiUQBj8=
