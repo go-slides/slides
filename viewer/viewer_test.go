@@ -20,6 +20,10 @@ func TestDocument(t *testing.T) {
 			t.Errorf("missing %q", want)
 		}
 	}
+	fit := Document(Options{Bare: true, Slides: []string{`<h1 data-auto-scaling=""><span data-fit-content="">x</span></h1>`}})
+	if !strings.Contains(fit, "slides-fitting") {
+		t.Error("a page with a fitting heading carries the fit script, bare or not")
+	}
 	bare := Document(Options{Bare: true})
 	if strings.Contains(bare, "<script>") || !strings.Contains(bare, "<title>Slides</title>") || strings.Contains(bare, "<html lang") {
 		t.Error("bare page: no script, default title, no lang")

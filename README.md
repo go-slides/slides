@@ -241,9 +241,17 @@ the deck's title, author, description and keywords. As with marp-cli, the
 slides are pictures, not editable text. It renders at scale 2 unless
 `--image-scale` says otherwise. LibreOffice opens and converts it.
 
+## Fitting headings
+
+`# <!-- fit --> Title` scales the heading so its one line fills the slide's
+width, up or down, as Marp Core does. The HTML page and the image, PDF and
+PPTX outputs all run the same small script: it measures the heading's natural
+width and scales its font size by the ratio. Only slides with a fitting heading
+run a script when exporting.
+
 ## Roadmap
 
-- Emoji, and fitting headings (`<!-- fit -->`).
+- Emoji.
 
 ## Packages
 

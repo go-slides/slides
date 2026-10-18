@@ -57,6 +57,20 @@ func TestMathBlock(t *testing.T) {
 	}
 }
 
+func TestFitHeadingMarkup(t *testing.T) {
+	d := parseDeck(t, "# <!-- fit --> Fit me\n\n## plain\n", Options{})
+	on := d.Render(RenderOptions{Frame: FramePlain, FitHeadings: true})[0].HTML
+	if !strings.Contains(on, `<h1 data-auto-scaling="" style="white-space:nowrap" id="fit-me"><span data-fit-content="" style="white-space:nowrap"> Fit me</span></h1>`) {
+		t.Errorf("fit markup: %s", on)
+	}
+	if strings.Count(on, "data-fit-content") != 1 {
+		t.Error("only the marked heading fits")
+	}
+	if off := d.Render(RenderOptions{Frame: FramePlain})[0].HTML; strings.Contains(off, "data-auto-scaling") {
+		t.Errorf("without FitHeadings, Marpit's plain output: %s", off)
+	}
+}
+
 func TestMathWithoutEngine(t *testing.T) {
 	d := parseDeck(t, "a $x$ b\n\n$$\ny\n$$\n", Options{})
 	html := d.Render(RenderOptions{Frame: FramePlain})[0].HTML

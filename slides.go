@@ -91,6 +91,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		AfterContent:     b.Packed.After,
 		Math:             mathFor(cfg),
 		Highlight:        Highlight,
+		FitHeadings:      true,
 	})
 	return b, nil
 }

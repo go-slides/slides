@@ -67,9 +67,21 @@ func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGB
 	if !opts.NoFonts {
 		fontCSS = bundledFonts()
 	}
+	// Only slides with a fitting heading run a script (deck.FitScript): the
+	// others render without JavaScript, deterministic and faster.
+	var scripted *engine.Engine
 	out := make([]*image.RGBA, len(b.Slides))
 	for i, s := range b.Slides {
-		img, _, err := e.RenderHTML(ctx, page(b.Packed.CSS, fontCSS, s.HTML), opts.BaseURL, view)
+		eng, html := e, page(b.Packed.CSS, fontCSS, s.HTML)
+		if strings.Contains(s.HTML, "data-fit-content") {
+			if scripted == nil {
+				scripted = engine.New()
+				scripted.FileRoot, scripted.DeviceScale = e.FileRoot, e.DeviceScale
+			}
+			eng = scripted
+			html = strings.Replace(html, "</body>", "<script>"+deck.FitScript+"</script></body>", 1)
+		}
+		img, _, err := eng.RenderHTML(ctx, html, opts.BaseURL, view)
 		if err != nil {
 			return nil, fmt.Errorf("slide %d: %w", i+1, err)
 		}

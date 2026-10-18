@@ -50,6 +50,9 @@ type RenderOptions struct {
 	// ::after pseudo-element Marpit paginates with, for layout engines
 	// without generated content: <span data-slides-pseudo="after">.
 	GeneratedContent bool
+	// FitHeadings writes the markup FitScript scales for headings marked
+	// <!-- fit -->. Marpit without inline SVG does not fit headings.
+	FitHeadings bool
 	// Math, when set, typesets a formula ($…$ inline, $$…$$ display) to
 	// HTML; nil leaves formulas as the text they were written as.
 	Math func(tex string, display bool) (string, error)
@@ -600,21 +603,45 @@ func plainText(n ast.Node, source []byte) []byte {
 func (r *slideRenderer) renderHeading(w util.BufWriter, _ []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
 	n := node.(*ast.Heading)
 	tag := "h" + strconv.Itoa(n.Level)
+	i := r.info(n)
+	fit := i.fit && r.opts.FitHeadings
 	if !entering {
+		if fit {
+			_, _ = w.WriteString("</span>")
+		}
 		_, _ = w.WriteString("</" + tag + ">\n")
 		return ast.WalkContinue, nil
 	}
 	_, _ = w.WriteString("<" + tag)
-	i := r.info(n)
-	if i.fit {
-		_, _ = w.WriteString(` data-auto-scaling=""`)
+	if fit {
+		// One line, written in the markup rather than set by FitScript:
+		// go-webengine honours white-space on a block, not yet on an
+		// inline span, and does not yet lay out again before a script
+		// measures what it just changed.
+		_, _ = w.WriteString(` data-auto-scaling="" style="white-space:nowrap"`)
 	}
 	if i.id != "" {
 		_, _ = w.WriteString(` id="` + escapeHTML(i.id) + `"`)
 	}
 	_ = w.WriteByte('>')
+	if fit {
+		// The line FitScript measures and scales.
+		_, _ = w.WriteString(`<span data-fit-content="" style="white-space:nowrap">`)
+	}
 	return ast.WalkContinue, nil
 }
+
+// FitScript scales each fitting heading (# <!-- fit --> Title) so its one
+// line fills the heading's width, up or down, as Marp Core's auto-scaling
+// element does with an SVG viewBox: the font size is multiplied by the
+// ratio of the available width to the line's natural width.
+const FitScript = `(()=>{for(const c of document.querySelectorAll('[data-auto-scaling]>[data-fit-content]')){` +
+	`const h=c.parentElement,s=getComputedStyle(h),` +
+	`avail=h.clientWidth-parseFloat(s.paddingLeft||0)-parseFloat(s.paddingRight||0),` +
+	// offsetWidth is the layout width: getBoundingClientRect would include
+	// the scaling of an inline SVG frame.
+	`natural=c.offsetWidth;` +
+	`if(natural>0&&avail>0)h.style.fontSize=(parseFloat(s.fontSize)*avail/natural)+'px'}})();`
 
 func (r *slideRenderer) renderListItem(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if entering {
