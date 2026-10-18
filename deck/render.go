@@ -50,6 +50,9 @@ type RenderOptions struct {
 	// ::after pseudo-element Marpit paginates with, for layout engines
 	// without generated content: <span data-slides-pseudo="after">.
 	GeneratedContent bool
+	// Math, when set, typesets a formula ($…$ inline, $$…$$ display) to
+	// HTML; nil leaves formulas as the text they were written as.
+	Math func(tex string, display bool) (string, error)
 	// AfterContent is the theme's section::after content expression (see
 	// theme.Packed.After); the element writes its value. Empty means the
 	// page number alone, Marpit's scaffold.
@@ -496,6 +499,42 @@ func (r *slideRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindHTMLBlock, r.renderHTMLBlock)
 	reg.Register(ast.KindRawHTML, r.renderRawHTML)
 	reg.Register(ast.KindFencedCodeBlock, r.renderFencedCode)
+	reg.Register(KindMathInline, r.renderMath)
+	reg.Register(KindMathBlock, r.renderMath)
+}
+
+// renderMath writes a formula through RenderOptions.Math. Without it, or
+// when the formula does not typeset, the source stays visible as written,
+// and the error is kept in a title for whoever inspects the slide.
+func (r *slideRenderer) renderMath(w util.BufWriter, _ []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkSkipChildren, nil
+	}
+	tex, display := "", false
+	switch n := node.(type) {
+	case *MathInline:
+		tex = n.Tex
+	case *MathBlock:
+		tex, display = n.Tex, true
+	}
+	src := "$" + tex + "$"
+	if display {
+		src = "$$\n" + strings.TrimSuffix(tex, "\n") + "\n$$"
+	}
+	if display {
+		_, _ = w.WriteString("<p>")
+	}
+	if r.opts.Math == nil {
+		_, _ = w.WriteString(escapeHTML(src))
+	} else if out, err := r.opts.Math(tex, display); err != nil {
+		_, _ = w.WriteString(`<span class="math-error" title="` + escapeHTML(err.Error()) + `">` + escapeHTML(src) + "</span>")
+	} else {
+		_, _ = w.WriteString(out)
+	}
+	if display {
+		_, _ = w.WriteString("</p>\n")
+	}
+	return ast.WalkSkipChildren, nil
 }
 
 func (r *slideRenderer) info(n ast.Node) *nodeInfo {

@@ -158,6 +158,7 @@ func markdown() goldmark.Markdown {
 		goldmark.WithExtensions(
 			extension.Table,
 			strikethrough{},
+			mathExtension{},
 			extension.NewLinkify(
 				// linkify-it with fuzzyLink off links only URLs that
 				// carry a scheme (and e-mail addresses).
