@@ -49,8 +49,8 @@ github.com/go-sourcemap/sourcemap v2.1.4+incompatible h1:a+iTbH5auLKxaNwQFg0B+TC
 github.com/go-sourcemap/sourcemap v2.1.4+incompatible/go.mod h1:F8jJfvm2KbVjc5NqelyYJmf/v5J0dwNLS2mL4sNA1Jg=
 github.com/go-typeset/bidi v0.3.0 h1:4fjGjejvjE2LzLNzY4si8PkVO321NcsKIiANhWT3jF4=
 github.com/go-typeset/bidi v0.3.0/go.mod h1:ct3cmYT8Qt1FGJQ+2QaakrUxqaP4ZysgdQQg2ym5+Xo=
-github.com/go-webengine/engine v0.5.10 h1:MSFY/DgVyfHv4Ut6JPAnZYKh6zdGjhKCpEjkKH4uWvU=
-github.com/go-webengine/engine v0.5.10/go.mod h1:wSZ/zIfN7rvvWjHtzguSm+2AcUj7U6CrtKyJhIYjEFc=
+github.com/go-webengine/engine v0.7.1 h1:D1wlEJN5vnssbvIjeL/cqsinVCpqkM494sJyJwgOuZw=
+github.com/go-webengine/engine v0.7.1/go.mod h1:wSZ/zIfN7rvvWjHtzguSm+2AcUj7U6CrtKyJhIYjEFc=
 github.com/go-webengine/esbuildsandbox v0.1.0 h1:1LdmX+0/yJarQlxZgJ7JIMu+Qy6P7Yzu4NFcX9+jFl8=
 github.com/go-webengine/esbuildsandbox v0.1.0/go.mod h1:za8oj1vbDfVkTpHLeRk7JfEQjmJfj+GHNq4R47681vQ=
 github.com/go-widgets/mvvm v0.9.0 h1:NwW/hAAsJUGlxmNt0ErQ7fUrud3w5Ys1RWm7hVugdJs=

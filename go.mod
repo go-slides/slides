@@ -5,7 +5,7 @@ go 1.27.2
 require (
 	github.com/go-opentype/fonts v0.12.0
 	github.com/go-pdfkit/pdfkit v0.14.0
-	github.com/go-webengine/engine v0.5.10
+	github.com/go-webengine/engine v0.7.1
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v3 v3.0.5

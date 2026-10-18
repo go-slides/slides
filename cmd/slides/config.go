@@ -33,6 +33,9 @@ type options struct {
 	images      string
 	image       string
 	jpegQuality int
+
+	imageScale      float64
+	allowLocalFiles bool
 }
 
 // fileConfig is slides.yaml.
