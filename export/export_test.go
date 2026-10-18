@@ -196,6 +196,28 @@ func TestPPTX(t *testing.T) {
 	}
 }
 
+// TestFitHeading checks that a fitting heading is scaled: "Hi" alone would
+// cover a small corner, fitted it spans the slide's content width.
+func TestFitHeading(t *testing.T) {
+	b := build(t, "<style scoped>h1 { color: #ff0000; }</style>\n\n# <!-- fit --> Hi\n")
+	imgs, err := Rasterize(context.Background(), b, Options{NoFonts: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxX := -1
+	img := imgs[0]
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			if c := img.RGBAAt(x, y); c.R > 200 && c.G < 80 && c.B < 80 {
+				maxX = max(maxX, x)
+			}
+		}
+	}
+	if maxX < 900 {
+		t.Errorf("the fitted heading should reach across the slide; rightmost red pixel at x=%d", maxX)
+	}
+}
+
 func TestBundledFonts(t *testing.T) {
 	css := bundledFonts()
 	for _, want := range []string{`font-family:"Lato"`, `font-family:"Roboto Mono"`, "data:font/ttf;base64,"} {

@@ -7,6 +7,8 @@ package viewer
 import (
 	"html"
 	"strings"
+
+	"github.com/go-slides/slides/deck"
 )
 
 // Meta is the page's metadata (marp-cli's title, description, author,
@@ -70,6 +72,16 @@ func Document(o Options) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("</div>\n")
+	// Fitting headings are measured with every slide laid out: the
+	// presenting styles hide all but one, so they are lifted for the time
+	// of the measure.
+	for _, s := range o.Slides {
+		if strings.Contains(s, "data-fit-content") {
+			b.WriteString("<script>document.body.classList.add('slides-fitting');" + deck.FitScript +
+				"document.body.classList.remove('slides-fitting');</script>\n")
+			break
+		}
+	}
 	if !o.Bare {
 		b.WriteString("<script>" + presentJS + "</script>\n")
 	}
@@ -86,7 +98,7 @@ div.marpit > svg[data-marpit-svg] { display: block; width: 100%; height: auto; m
 const presentCSS = `
 html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 div.marpit > svg[data-marpit-svg] { display: none; position: absolute; inset: 0; width: 100vw; height: 100vh; }
-div.marpit > svg[data-marpit-svg].active { display: block; }
+div.marpit > svg[data-marpit-svg].active, .slides-fitting div.marpit > svg[data-marpit-svg] { display: block; }
 [data-marpit-fragment] { transition: opacity .2s; }
 [data-marpit-fragment].hidden-fragment { opacity: 0; }
 .slides-progress { position: fixed; left: 0; bottom: 0; height: 3px; background: rgba(128,128,128,.6); transition: width .2s; }
