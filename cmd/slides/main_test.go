@@ -105,3 +105,20 @@ func TestUsage(t *testing.T) {
 		t.Error("a missing deck fails")
 	}
 }
+
+func TestFlagsAfterTheDeck(t *testing.T) {
+	dir := t.TempDir()
+	deckPath := write(t, dir, "talk.md", "# x\n")
+	out := filepath.Join(dir, "elsewhere.html")
+	var o, e bytes.Buffer
+	if err := run([]string{deckPath, "-o", out, "-lang", "fr"}, &o, &e); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil || !strings.Contains(string(b), `lang="fr"`) {
+		t.Fatalf("flags after the deck were ignored: %v", err)
+	}
+	if err := run([]string{"expand", "--", "-o"}, &o, &e); err == nil || strings.Contains(err.Error(), "flag") {
+		t.Errorf("after --, -o is a file name: %v", err)
+	}
+}

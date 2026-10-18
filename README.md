@@ -1,8 +1,16 @@
-# slides
+<p align="center"><img src="https://raw.githubusercontent.com/go-slides/brand/main/social/go-slides-slides.png" alt="go-slides/slides" width="720"></p>
 
+# go-slides/slides
+
+[![Docs](https://img.shields.io/badge/docs-hugo%20%2B%20hextra-4F46E5)](https://go-slides.github.io/docs/)
 [![CI](https://github.com/go-slides/slides/actions/workflows/ci.yml/badge.svg)](https://github.com/go-slides/slides/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/go-slides/slides.svg)](https://pkg.go.dev/github.com/go-slides/slides)
-[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](LICENSE)
+[![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-slides-007d9c?logo=go&logoColor=white)](https://pkg.go.dev/github.com/go-slides/slides)
+![go](https://img.shields.io/badge/Go-1.27.2%2B-00ADD8?logo=go&logoColor=white)
+![cgo](https://img.shields.io/badge/CGO-0-555)
+![status](https://img.shields.io/badge/status-unreleased-9a6700)
+[![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](./LICENSE)
+
+🌐 **[Website](https://go-slides.github.io)** · 📚 **[Documentation](https://go-slides.github.io/docs/)**
 
 Marp-compatible slide decks in pure Go (no cgo, no Node, no browser), with
 two additions:
@@ -36,7 +44,7 @@ data:
 ```
 
 ```sh
-go install github.com/go-slides/slides/cmd/slides@latest
+go install github.com/go-slides/slides/cmd/slides@main   # no release yet
 slides deck.md            # writes deck.html
 ```
 
@@ -143,6 +151,8 @@ slides notes   [flags] deck.md    print the speaker notes
 slides kinds   [flags] deck.md    list the kinds and what they set
 slides themes  [-theme-set ...]   list the themes
 ```
+
+Flags may come before or after the deck.
 
 | flag | |
 |---|---|
