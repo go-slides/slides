@@ -7,7 +7,7 @@
 [![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-slides-007d9c?logo=go&logoColor=white)](https://pkg.go.dev/github.com/go-slides/slides)
 ![go](https://img.shields.io/badge/Go-1.27.2%2B-00ADD8?logo=go&logoColor=white)
 ![cgo](https://img.shields.io/badge/CGO-0-555)
-![status](https://img.shields.io/badge/status-unreleased-9a6700)
+[![release](https://img.shields.io/github/v/release/go-slides/slides)](https://github.com/go-slides/slides/releases)
 [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](./LICENSE)
 
 🌐 **[Website](https://go-slides.github.io)** · 📚 **[Documentation](https://go-slides.github.io/docs/)**
@@ -44,7 +44,7 @@ data:
 ```
 
 ```sh
-go install github.com/go-slides/slides/cmd/slides@main   # no release yet
+go install github.com/go-slides/slides/cmd/slides@latest
 slides deck.md            # writes deck.html
 ```
 
