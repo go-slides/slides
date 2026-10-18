@@ -214,9 +214,9 @@ the go-* libraries instead:
 
 Several and split backgrounds (`![bg left:40%]`) render as Marp's layers do.
 
-Lato Regular, Bold and Black and Roboto Mono Regular and Bold are embedded,
-so gaia's headings get their weight. No italic face is embedded yet, so
-italic text in those families renders upright.
+Lato (Regular, Bold, Black) and Roboto Mono (Regular, Bold) are embedded
+upright and italic, so gaia's headings, code and emphasis render with their
+own faces.
 
 ## Math and code
 
