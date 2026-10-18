@@ -150,6 +150,8 @@ func TestExport(t *testing.T) {
 		{[]string{deckPath, "--images", "png", "-o", filepath.Join(dir, "img", "s")}, []string{"img/s.001.png", "img/s.002.png"}, "\x89PNG"},
 		{[]string{deckPath, "--image", "jpeg"}, []string{"talk.jpg"}, "\xff\xd8"},
 		{[]string{deckPath, "-o", filepath.Join(dir, "first.png")}, []string{"first.png"}, "\x89PNG"},
+		{[]string{deckPath, "--pptx"}, []string{"talk.pptx"}, "PK"},
+		{[]string{deckPath, "-o", filepath.Join(dir, "deck.pptx"), "--image-scale", "1"}, []string{"deck.pptx"}, "PK"},
 	}
 	for _, c := range cases {
 		if _, stderr, err := run(t, c.args...); err != nil {

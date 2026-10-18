@@ -164,6 +164,7 @@ command's flags.
 | `--lang code` | build | the `lang` attribute when the deck sets none |
 | `--bare` | build | stack the slides, without the presenting script |
 | `--pdf` | build | write a PDF, one page per slide, with an outline (also chosen by `-o file.pdf`) |
+| `--pptx` | build | write a PowerPoint deck: a picture per slide with its speaker notes, at scale 2 by default (also chosen by `-o file.pptx`) |
 | `--images png\|jpeg` | build | write one image per slide: `deck.001.png`, … |
 | `--image png\|jpeg` | build | write the first slide as an image (also chosen by `-o file.png` / `.jpg`) |
 | `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
@@ -231,9 +232,17 @@ italic text in those families renders upright.
   which is what Marp's themes style. A language go-rouge does not know is
   written as plain text, as Marp Core does.
 
+## PowerPoint
+
+`--pptx` writes the deck through
+[go-ooxml](https://github.com/go-ooxml/ooxml)'s `WritePresentation`: one
+full-slide picture per slide, at the slide's size, with its speaker notes and
+the deck's title, author, description and keywords. As with marp-cli, the
+slides are pictures, not editable text. It renders at scale 2 unless
+`--image-scale` says otherwise. LibreOffice opens and converts it.
+
 ## Roadmap
 
-- PPTX via [go-ooxml](https://github.com/go-ooxml/ooxml), with speaker notes.
 - Emoji, and fitting headings (`<!-- fit -->`).
 
 ## Packages

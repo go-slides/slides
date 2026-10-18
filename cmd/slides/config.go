@@ -30,6 +30,7 @@ type options struct {
 	strictYAML bool
 
 	pdf         bool
+	pptx        bool
 	images      string
 	image       string
 	jpegQuality int

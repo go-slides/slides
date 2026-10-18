@@ -193,6 +193,7 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.StringVar(&o.lang, "lang", "", "lang attribute when the deck sets none")
 	f.BoolVar(&o.bare, "bare", false, "stack the slides without the presenting script")
 	f.BoolVar(&o.pdf, "pdf", false, "write a PDF, one page per slide (also chosen by -o file.pdf)")
+	f.BoolVar(&o.pptx, "pptx", false, "write a PowerPoint deck, a picture per slide with its speaker notes (also chosen by -o file.pptx)")
 	f.StringVar(&o.images, "images", "", "write one image per slide: `png` or jpeg (deck.001.png, ...)")
 	f.StringVar(&o.image, "image", "", "write the first slide as an image: `png` or jpeg (also chosen by -o file.png)")
 	f.IntVar(&o.jpegQuality, "jpeg-quality", 85, "JPEG quality, 1 to 100")
