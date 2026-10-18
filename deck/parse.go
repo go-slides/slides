@@ -1,0 +1,286 @@
+package deck
+
+import (
+	"bytes"
+	"fmt"
+	"maps"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
+	"go.yaml.in/yaml/v3"
+
+	"github.com/go-slides/slides/interp"
+)
+
+// Options configures Parse.
+type Options struct {
+	// Data is template data; it overrides the front matter's keys and its
+	// data mapping.
+	Data map[string]any
+	// Kinds add to (and override) the built-in kinds; the deck's own
+	// kinds front-matter key overrides these in turn.
+	Kinds Kinds
+	// NoTemplate turns template interpolation off.
+	NoTemplate bool
+	// BaseDir resolves relative paths: included files and kinds files.
+	BaseDir string
+	// StrictYAML turns off loose YAML parsing of directives (Marp Core
+	// turns it on; plain Marpit leaves it off).
+	StrictYAML bool
+	// Now is the template clock; nil means time.Now.
+	Now func() time.Time
+	// Name names the deck in error messages.
+	Name string
+}
+
+// Front-matter keys this tool reads besides directives.
+const (
+	keyKinds    = "kinds"
+	keyData     = "data"
+	keyTemplate = "template"
+	keyDelims   = "delims"
+)
+
+var normalizer = strings.NewReplacer("\r\n", "\n", "\r", "\n", "\x00", "�")
+
+// Parse parses a deck.
+func Parse(src []byte, opts Options) (*Deck, error) {
+	s := normalizer.Replace(string(src))
+	fmText, body, fmLines, hasFM := splitFrontMatter(s)
+
+	loose := !opts.StrictYAML
+	var fmDirs map[string]any
+	front := map[string]any{}
+	if hasFM {
+		fmDirs = parseDirectiveYAML(fmText, loose, looseKeys)
+		// A front matter that is not valid YAML is ignored, as Marpit does.
+		_ = yaml.Unmarshal([]byte(fmText), &front)
+		if front == nil {
+			front = map[string]any{}
+		}
+	}
+
+	d := &Deck{Front: front, opts: opts, frontText: fmText, hasFront: hasFM}
+
+	// Template data: the front matter, its data mapping, then the caller's.
+	data := maps.Clone(front)
+	if m, ok := front[keyData].(map[string]any); ok {
+		maps.Copy(data, m)
+	}
+	maps.Copy(data, opts.Data)
+
+	kinds := BuiltinKinds().Merge(opts.Kinds)
+	if v, ok := fmDirs[keyKinds]; ok && v != nil {
+		k, err := loadKinds(v, opts.BaseDir)
+		if err != nil {
+			return nil, d.errorf(1, "%v", err)
+		}
+		kinds = kinds.Merge(k)
+	}
+
+	// Template interpolation.
+	if !opts.NoTemplate && templateEnabled(fmDirs) {
+		io := interp.Options{
+			Data:    data,
+			Delims:  delims(fmDirs),
+			Code:    fmDirs[keyTemplate] == "code",
+			BaseDir: opts.BaseDir,
+			Name:    opts.Name,
+			Now:     opts.Now,
+		}
+		valueOpts := io
+		valueOpts.Code = true
+		var err error
+		if fmDirs, err = expandValues(fmDirs, valueOpts); err != nil {
+			return nil, d.errorf(1, "front matter: %v", err)
+		}
+		for name, k := range kinds {
+			// Kinds can be shared between decks: expand a copy.
+			c := *k
+			c.Dirs = k.Dirs.Clone()
+			for _, key := range c.Dirs.Keys() {
+				v, err := interp.Expand(c.Dirs.Get(key), valueOpts)
+				if err != nil {
+					return nil, fmt.Errorf("kind %q, %s: %v", name, key, err)
+				}
+				c.Dirs.Set(key, v)
+			}
+			kinds[name] = &c
+		}
+		if d.frontText, err = interp.Expand(fmText, valueOpts); err != nil {
+			return nil, d.errorf(1, "front matter: %v", err)
+		}
+		// Blank lines in place of the front matter make template errors
+		// report the deck file's own line numbers.
+		pad := strings.Repeat("\n", fmLines)
+		if body, err = interp.Expand(pad+body, io); err != nil {
+			return nil, err
+		}
+		body = body[len(pad):]
+	}
+	d.Kinds = kinds
+	d.source = []byte(body)
+
+	doc := markdown().Parser().Parse(text.NewReader(d.source))
+	d.doc = doc
+	comments := collectComments(doc, d.source, loose)
+
+	if err := d.applyGlobals(fmDirs, comments); err != nil {
+		return nil, err
+	}
+	d.split(doc)
+	if err := d.applyLocals(fmDirs, comments, fmLines); err != nil {
+		return nil, err
+	}
+	d.paginate()
+	d.scan()
+	return d, nil
+}
+
+func (d *Deck) errorf(line int, format string, args ...any) error {
+	name := d.opts.Name
+	if name == "" {
+		name = "deck"
+	}
+	return fmt.Errorf("%s:%d: %s", name, line, fmt.Sprintf(format, args...))
+}
+
+// markdown returns a parser configured like Marp Core's markdown-it:
+// CommonMark plus GFM tables, strikethrough and schema-only linkify.
+func markdown() goldmark.Markdown {
+	return goldmark.New(
+		goldmark.WithExtensions(
+			extension.Table,
+			strikethrough{},
+			extension.NewLinkify(
+				// linkify-it with fuzzyLink off links only URLs that
+				// carry a scheme (and e-mail addresses).
+				extension.WithLinkifyWWWRegexp(regexp.MustCompile(`\A\b\B`)),
+			),
+		),
+	)
+}
+
+func templateEnabled(fm map[string]any) bool {
+	v, _ := fm[keyTemplate].(string)
+	return v != "false" && v != "off"
+}
+
+func delims(fm map[string]any) [2]string {
+	if l, ok := fm[keyDelims].([]any); ok && len(l) == 2 {
+		a, _ := l[0].(string)
+		b, _ := l[1].(string)
+		return [2]string{a, b}
+	}
+	return [2]string{}
+}
+
+// expandValues interpolates every string of a decoded front matter except
+// the template data and the kinds, which have their own handling.
+func expandValues(m map[string]any, opts interp.Options) (map[string]any, error) {
+	var walk func(v any) (any, error)
+	walk = func(v any) (any, error) {
+		switch x := v.(type) {
+		case string:
+			return interp.Expand(x, opts)
+		case []any:
+			out := make([]any, len(x))
+			for i, e := range x {
+				var err error
+				if out[i], err = walk(e); err != nil {
+					return nil, err
+				}
+			}
+			return out, nil
+		}
+		return v, nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if k == keyData || k == keyKinds || k == keyDelims || k == orderKey {
+			out[k] = v
+			continue
+		}
+		e, err := walk(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", k, err)
+		}
+		out[k] = e
+	}
+	return out, nil
+}
+
+// loadKinds reads the kinds front-matter key: a mapping of kinds, or the
+// path (or list of paths) of YAML files holding one.
+func loadKinds(v any, baseDir string) (Kinds, error) {
+	switch x := v.(type) {
+	case map[string]any:
+		return ParseKinds(x)
+	case string:
+		return LoadKindsFile(resolvePath(baseDir, x))
+	case []any:
+		k := Kinds{}
+		for _, p := range x {
+			path, ok := p.(string)
+			if !ok {
+				return nil, fmt.Errorf("kinds: want a file path, got %T", p)
+			}
+			f, err := LoadKindsFile(resolvePath(baseDir, path))
+			if err != nil {
+				return nil, err
+			}
+			k = k.Merge(f)
+		}
+		return k, nil
+	}
+	return nil, fmt.Errorf("kinds: want a mapping or file paths, got %T", v)
+}
+
+// LoadKindsFile reads kinds from a YAML file: either a mapping of kinds, or
+// a mapping with a kinds key (so a configuration file can serve as one).
+func LoadKindsFile(path string) (Kinds, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return ParseKindsYAML(b, path)
+}
+
+// ParseKindsYAML reads kinds from YAML source; name is for errors.
+func ParseKindsYAML(src []byte, name string) (Kinds, error) {
+	var n yaml.Node
+	if err := yaml.Unmarshal(src, &n); err != nil {
+		return nil, fmt.Errorf("%s: %v", name, err)
+	}
+	m, _ := failsafe(&n).(map[string]any)
+	if m == nil {
+		return Kinds{}, nil
+	}
+	if inner, ok := m[keyKinds].(map[string]any); ok {
+		m = inner
+	}
+	k, err := ParseKinds(m)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", name, err)
+	}
+	return k, nil
+}
+
+// lineOf returns the 1-based line of a byte offset in source.
+func lineOf(source []byte, offset int) int {
+	return bytes.Count(source[:min(offset, len(source))], []byte("\n")) + 1
+}
+
+// resolvePath joins a relative path to dir and leaves an absolute one alone.
+func resolvePath(dir, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(dir, path)
+}

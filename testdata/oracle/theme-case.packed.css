@@ -1,0 +1,79 @@
+@charset "UTF-8";
+@import "https://fonts.example/a.css";div.marpit > section {
+  width: 1280px;
+  height: 720px;
+
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+
+  scroll-snap-align: center center;
+
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}div.marpit > section::after {
+  bottom: 0;
+  content: attr(data-marpit-pagination);
+  padding: inherit;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}div.marpit > section:not([data-marpit-pagination])::after {
+  display: none;
+}/* Normalization */div.marpit > section :where(h1) {
+  font-size: 2em;
+  margin-block: 0.67em;
+}div.marpit > section section:where(h1) {
+  --marpit-root-font-size: 2em;
+}div.marpit > section video::-webkit-media-controls {
+  will-change: transform;
+}@page {
+  size: 960px 540px;
+  margin: 0;
+}@media print {html, body {
+  background-color: #fff;
+  margin: 0;
+  page-break-inside: avoid;
+  break-inside: avoid-page;
+}
+  div.marpit > section {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  div.marpit > section, div.marpit > section * {
+    -webkit-print-color-adjust: exact !important;
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    transition: none !important;
+  }
+
+  div.marpit > svg[data-marpit-svg] {
+    display: block;
+    height: 100vh;
+    width: 100vw;
+  }
+}
+/*!
+ * @theme case
+ * @size 4:3 960px 720px
+ */
+div.marpit > :where(section):not([\20 root]) { --accent: #c00; font-size: 30px; }
+div.marpit > :where(section):not([\20 root]) { --marpit-root-font-size: 30px;
+}
+div.marpit > section { width: 960px; height: 540px; padding: calc(var(--marpit-root-font-size, 1rem) * 2); }
+div.marpit > section::after { content: attr(data-marpit-pagination) " / " attr(data-marpit-pagination-total); }
+div.marpit > section.lead::after { /* content: "x"; */ }
+div.marpit > section h1 { color: var(--accent); margin: calc(var(--marpit-root-font-size, 1rem) * 1.5) 0 calc(var(--marpit-root-font-size, 1rem) * .5); }
+div.marpit > section.lead h1 { font-size: 2em; }
+div.marpit > section * { box-sizing: border-box; }
+@media (max-width: 100px) { div.marpit > section p { font-size: 12px; } }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(1turn); } }
+div.marpit > section header, div.marpit > section footer { position: absolute; left: calc(var(--marpit-root-font-size, 1rem) * 1); }
+div.marpit > section { color: navy; }
+div.marpit > section p { margin: 0; }
+div.marpit > section[data-marpit-scope-7ckIHpEk] h1 { color: green; }
+div.marpit > section[data-marpit-scope-7ckIHpEk] { background: url("x.png"); }
+
