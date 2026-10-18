@@ -85,7 +85,7 @@ the original.
 The deck body is one Go [`text/template`](https://pkg.go.dev/text/template),
 executed before the Markdown is parsed. Its data (the dot) is the front
 matter, overlaid by the front matter's `data:` mapping, then by `data` in
-`slides.yaml`, `-data` files and `-set key=value` flags. A missing key is an
+`slides.yaml`, `--data` files and `--set key=value` flags. A missing key is an
 error that names the file and line, rather than printing `<no value>`.
 
 | | |
@@ -138,33 +138,36 @@ Built-in kinds: `title` (class `lead`, no header, footer or page number),
 other themes, give `title` and `section` a class your theme knows.
 
 Kinds come from, in increasing priority: the built-ins, `slides.yaml`,
-`-kinds` files, and the deck's front matter `kinds:` key. That key takes either
+`--kinds` files, and the deck's front matter `kinds:` key. That key takes either
 a mapping or the path of a file, or a list of paths, so several decks can share
 one file. `slides kinds deck.md` lists what a deck can use.
 
 ## Command line
 
 ```
-slides [build] [flags] deck.md    write the presentation as HTML
-slides expand  [flags] deck.md    print plain Marp Markdown
-slides notes   [flags] deck.md    print the speaker notes
-slides kinds   [flags] deck.md    list the kinds and what they set
-slides themes  [-theme-set ...]   list the themes
+slides [build] [flags] deck.md     write the presentation as HTML
+slides expand  [flags] deck.md     print plain Marp Markdown
+slides notes   [flags] deck.md     print the speaker notes
+slides kinds   [flags] deck.md     list the kinds and what they set
+slides themes  [--theme-set ...]   list the themes
+slides version                     print the version (also --version)
+slides completion bash|zsh|fish|powershell
 ```
 
-Flags may come before or after the deck.
+Flags may come before or after the deck. `slides <command> --help` lists a
+command's flags.
 
-| flag | |
-|---|---|
-| `-o file` | output file; `-` for standard output (default: `deck.html` next to the deck) |
-| `-theme-set path` | a theme CSS file or a directory of them (repeatable) |
-| `-kinds file` | a YAML file of kinds (repeatable) |
-| `-data file`, `-set k=v` | template data (repeatable) |
-| `-html` | allow all raw HTML |
-| `-lang code` | the `lang` attribute when the deck sets none |
-| `-bare` | stack the slides, without the presenting script |
-| `-no-template`, `-strict-yaml` | plain Marpit behaviour |
-| `-config file`, `-no-config` | `slides.yaml` is read from the deck's directory by default |
+| flag | commands | |
+|---|---|---|
+| `-o`, `--output file` | build, expand, notes | output file; `-` for standard output (build defaults to `deck.html` next to the deck) |
+| `--html` | build | allow all raw HTML |
+| `--lang code` | build | the `lang` attribute when the deck sets none |
+| `--bare` | build | stack the slides, without the presenting script |
+| `--theme-set path` | all | a theme CSS file or a directory of them (repeatable) |
+| `--kinds file` | all | a YAML file of kinds (repeatable) |
+| `--data file`, `--set k=v` | all | template data (repeatable) |
+| `--no-template`, `--strict-yaml` | all | plain Marpit behaviour |
+| `--config file`, `--no-config` | all | `slides.yaml` is read from the deck's directory by default |
 
 ```yaml
 # slides.yaml
