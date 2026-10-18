@@ -28,6 +28,11 @@ type options struct {
 	bare       bool
 	noTemplate bool
 	strictYAML bool
+
+	pdf         bool
+	images      string
+	image       string
+	jpegQuality int
 }
 
 // fileConfig is slides.yaml.

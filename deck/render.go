@@ -50,6 +50,10 @@ type RenderOptions struct {
 	// ::after pseudo-element Marpit paginates with, for layout engines
 	// without generated content: <span data-slides-pseudo="after">.
 	GeneratedContent bool
+	// AfterContent is the theme's section::after content expression (see
+	// theme.Packed.After); the element writes its value. Empty means the
+	// page number alone, Marpit's scaffold.
+	AfterContent string
 }
 
 // Rendered is a rendered slide.
@@ -165,12 +169,41 @@ func (s *styleDecls) String() string {
 	for _, k := range s.keys {
 		v := s.vals[k]
 		// postcss refuses a declaration that would break out of it.
-		if strings.ContainsAny(v, ";{}") {
+		if breaksOut(v) {
 			continue
 		}
 		b.WriteString(k + ":" + v + ";")
 	}
 	return b.String()
+}
+
+// breaksOut reports a ";", "{" or "}" outside quotes and parentheses: in
+// url("data:image/png;base64,…") the semicolon is part of the value.
+func breaksOut(v string) bool {
+	depth := 0
+	var quote byte
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++
+			} else if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '(':
+			depth++
+		case c == ')':
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0 && (c == ';' || c == '{' || c == '}'):
+			return true
+		}
+	}
+	return false
 }
 
 // sectionAttrs builds a slide's <section> attributes the way Marpit's
@@ -247,9 +280,23 @@ func scopeAttr(s *Slide) string {
 // ScopeAttr returns the attribute a slide's scoped styles select on.
 func ScopeAttr(s *Slide) string { return scopeAttr(s) }
 
+// needsLayers reports whether a slide's backgrounds need Marpit's layers:
+// several images, a split, or a filter (which only layers apply).
+func needsLayers(s *Slide) bool {
+	if len(s.Backgrounds) > 1 || s.BackgroundSplit != "" {
+		return true
+	}
+	return len(s.Backgrounds) == 1 && s.Backgrounds[0].Filter != ""
+}
+
 func (r *slideRenderer) slide(s *Slide) string {
 	dirs := s.Dirs.Clone()
 	advanced := r.opts.Frame != FramePlain && len(s.Backgrounds) > 0
+	if r.opts.Frame == FrameBox && !needsLayers(s) {
+		// One unfiltered, unsplit background looks the same as a CSS
+		// background, which asks less of the layout engine.
+		advanced = false
+	}
 	if !advanced && len(s.Backgrounds) > 0 {
 		// Without layers, the last background image becomes the CSS
 		// background (Marpit's background_image/apply.js).
@@ -276,7 +323,7 @@ func (r *slideRenderer) slide(s *Slide) string {
 		content.WriteString("<footer>" + r.inline(f) + "</footer>\n")
 	}
 	if r.opts.GeneratedContent && s.Paginated {
-		content.WriteString(`<span data-slides-pseudo="after">` + strconv.Itoa(s.Page) + "</span>\n")
+		content.WriteString(r.pseudoAfter(s) + "\n")
 	}
 
 	var out string
@@ -361,7 +408,7 @@ func (r *slideRenderer) advanced(s *Slide, a attrs, style *styleDecls, dirs Dirs
 	pseudoAttrs.set("data-marpit-advanced-background", "pseudo")
 	pseudoContent := ""
 	if r.opts.GeneratedContent && s.Paginated {
-		pseudoContent = `<span data-slides-pseudo="after">` + strconv.Itoa(s.Page) + "</span>"
+		pseudoContent = r.pseudoAfter(s)
 		// The content layer must not number the slide a second time.
 		content = strings.Replace(content, pseudoContent+"\n", "", 1)
 	}

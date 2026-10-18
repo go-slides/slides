@@ -137,6 +137,46 @@ func TestUsageAndErrors(t *testing.T) {
 	}
 }
 
+func TestExport(t *testing.T) {
+	dir := t.TempDir()
+	deckPath := write(t, dir, "talk.md", "---\ntitle: T\n---\n# One\n\n---\n\n# Two\n")
+	cases := []struct {
+		args  []string
+		files []string
+		magic string
+	}{
+		{[]string{deckPath, "--pdf"}, []string{"talk.pdf"}, "%PDF-"},
+		{[]string{deckPath, "-o", filepath.Join(dir, "out", "deck.pdf")}, []string{"out/deck.pdf"}, "%PDF-"},
+		{[]string{deckPath, "--images", "png", "-o", filepath.Join(dir, "img", "s")}, []string{"img/s.001.png", "img/s.002.png"}, "\x89PNG"},
+		{[]string{deckPath, "--image", "jpeg"}, []string{"talk.jpg"}, "\xff\xd8"},
+		{[]string{deckPath, "-o", filepath.Join(dir, "first.png")}, []string{"first.png"}, "\x89PNG"},
+	}
+	for _, c := range cases {
+		if _, stderr, err := run(t, c.args...); err != nil {
+			t.Fatalf("%v: %v %s", c.args, err, stderr)
+		}
+		for _, f := range c.files {
+			b, err := os.ReadFile(filepath.Join(dir, f))
+			if err != nil || !strings.HasPrefix(string(b), c.magic) {
+				t.Errorf("%v: %s missing or not %q: %v", c.args, f, c.magic, err)
+			}
+		}
+	}
+	out, _, err := run(t, deckPath, "--pdf", "-o", "-")
+	if err != nil || !strings.HasPrefix(out, "%PDF-") {
+		t.Errorf("-o - writes the PDF to standard output: %v", err)
+	}
+	for _, args := range [][]string{
+		{deckPath, "--pdf", "--images", "png"},
+		{deckPath, "--images", "gif"},
+		{deckPath, "--image", "tiff"},
+	} {
+		if _, _, err := run(t, args...); err == nil {
+			t.Errorf("%v: want an error", args)
+		}
+	}
+}
+
 func TestMainExitsOnError(t *testing.T) {
 	code := 0
 	osExit = func(c int) { code = c }
