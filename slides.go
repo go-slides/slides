@@ -86,6 +86,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		Width:            int(b.Packed.Width),
 		Height:           int(b.Packed.Height),
 		GeneratedContent: frame == deck.FrameBox,
+		AfterContent:     b.Packed.After,
 	})
 	return b, nil
 }

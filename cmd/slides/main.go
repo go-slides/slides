@@ -192,6 +192,10 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.BoolVar(&o.html, "html", false, "allow all raw HTML (default: Marp Core's allowlist)")
 	f.StringVar(&o.lang, "lang", "", "lang attribute when the deck sets none")
 	f.BoolVar(&o.bare, "bare", false, "stack the slides without the presenting script")
+	f.BoolVar(&o.pdf, "pdf", false, "write a PDF, one page per slide (also chosen by -o file.pdf)")
+	f.StringVar(&o.images, "images", "", "write one image per slide: `png` or jpeg (deck.001.png, ...)")
+	f.StringVar(&o.image, "image", "", "write the first slide as an image: `png` or jpeg (also chosen by -o file.png)")
+	f.IntVar(&o.jpegQuality, "jpeg-quality", 85, "JPEG quality, 1 to 100")
 }
 
 // readDeck reads a deck, "-" meaning standard input.
@@ -224,6 +228,11 @@ func build(cmd *cobra.Command, o *options, path string) error {
 	cfg, err := o.config(path)
 	if err != nil {
 		return err
+	}
+	if f, err := o.format(); err != nil {
+		return err
+	} else if f != "html" {
+		return exportDeck(cmd, o, src, path, cfg, f)
 	}
 	page, b, err := slides.HTML(src, cfg)
 	if err != nil {

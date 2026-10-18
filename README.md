@@ -163,6 +163,10 @@ command's flags.
 | `--html` | build | allow all raw HTML |
 | `--lang code` | build | the `lang` attribute when the deck sets none |
 | `--bare` | build | stack the slides, without the presenting script |
+| `--pdf` | build | write a PDF, one page per slide, with an outline (also chosen by `-o file.pdf`) |
+| `--images png\|jpeg` | build | write one image per slide: `deck.001.png`, … |
+| `--image png\|jpeg` | build | write the first slide as an image (also chosen by `-o file.png` / `.jpg`) |
+| `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
 | `--theme-set path` | all | a theme CSS file or a directory of them (repeatable) |
 | `--kinds file` | all | a YAML file of kinds (repeatable) |
 | `--data file`, `--set k=v` | all | template data (repeatable) |
@@ -183,17 +187,35 @@ PageUp/PageDown, `f` toggles full screen, a click advances, and the URL hash
 names the slide. Fragments reveal one at a time. Printing gives one slide per
 page.
 
+## Images and PDF without a browser
+
+Marp CLI drives a headless Chrome for its PDF and image output. `slides` uses
+the go-* libraries instead:
+
+- [go-webengine](https://github.com/go-webengine/engine) lays out and paints
+  each slide. The slides go through the box frame (`deck.FrameBox`), which
+  needs neither `<foreignObject>` nor generated content: the theme's
+  `section::after` is lowered to a real element carrying its evaluated content.
+- [go-pdfkit](https://github.com/go-pdfkit/pdfkit) writes the PDF: one page
+  per slide at the slide's size, and an outline of the slides and their
+  headings.
+- The fonts the built-in themes ask for (Lato, Roboto Mono) come from
+  [go-opentype/fonts](https://github.com/go-opentype/fonts), embedded, so no
+  render touches the network.
+
+Current limits, each tracked in the library it belongs to:
+
+- Images are rendered at one device pixel per CSS pixel (1280×720 for 16:9).
+  A higher scale waits for a device scale factor in go-webengine.
+- Several or split backgrounds (`![bg left]`) need percentage heights in
+  go-webengine. A single background already renders.
+- Local image files need opt-in `file://` loading in go-webengine. `data:`
+  URIs and `http(s)` images render now.
+- go-opentype/fonts carries one regular instance of Lato and Roboto Mono, so
+  gaia and uncover headings are not as heavy as with Lato Black.
+
 ## Roadmap
 
-Marp CLI drives a headless Chrome for its PDF, PPTX and image output; `slides`
-will use the go-* libraries instead:
-
-- PNG/JPEG via [go-webengine](https://github.com/go-webengine/engine). The
-  rendering path already exists: the `FrameBox` frame and the packer's
-  `GeneratedContent` option lay slides out for an engine without
-  `<foreignObject>` or `::after`.
-- PDF via [go-pdfkit](https://github.com/go-pdfkit/pdfkit), with outlines from
-  the headings and speaker notes.
 - PPTX via [go-ooxml/opc](https://github.com/go-ooxml/opc), with speaker
   notes.
 - Math (`$…$`, `$$…$$`) via [go-tex/math](https://github.com/go-tex/math),
@@ -208,6 +230,7 @@ will use the go-* libraries instead:
 | [`interp`](interp) | the template stage |
 | [`theme`](theme) | Marp themes and the Marpit theme pipeline |
 | [`viewer`](viewer) | the HTML page |
+| [`export`](export) | images and PDF, through go-webengine and go-pdfkit |
 | [`slides`](slides.go) | wires them together |
 
 ## License
