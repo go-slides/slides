@@ -117,19 +117,25 @@ func page(themeCSS, fontCSS, slide string) string {
 
 // bundledFonts declares the fonts Marp's built-in themes ask for, embedded,
 // so that a render needs no network: gaia and uncover's Lato and Roboto
-// Mono, from go-opentype/fonts (OFL-1.1). gaia's headings ask for Lato 900
-// and its code for Roboto Mono 700; each weight is declared as its own face
-// so that the engine picks it instead of synthesising one.
+// Mono, from go-opentype/fonts (OFL-1.1). gaia's headings ask for Lato 900,
+// its code for Roboto Mono 700, and comments and emphasis for italics; each
+// weight and style is declared as its own face so that the engine picks it
+// instead of synthesising one.
 func bundledFonts() string {
-	face := func(family, weight string, ttf []byte) string {
-		return "@font-face{font-family:\"" + family + "\";font-weight:" + weight + ";font-style:normal;" +
+	face := func(family, weight, style string, ttf []byte) string {
+		return "@font-face{font-family:\"" + family + "\";font-weight:" + weight + ";font-style:" + style + ";" +
 			"src:url(data:font/ttf;base64," + base64.StdEncoding.EncodeToString(ttf) + ") format(\"truetype\")}"
 	}
-	return face("Lato", "100 599", lato.TTF) +
-		face("Lato", "600 799", lato.Bold) +
-		face("Lato", "800 900", lato.Black) +
-		face("Roboto Mono", "100 599", robotomono.TTF) +
-		face("Roboto Mono", "600 900", robotomono.Bold)
+	return face("Lato", "100 599", "normal", lato.TTF) +
+		face("Lato", "600 799", "normal", lato.Bold) +
+		face("Lato", "800 900", "normal", lato.Black) +
+		face("Lato", "100 599", "italic", lato.Italic) +
+		face("Lato", "600 799", "italic", lato.BoldItalic) +
+		face("Lato", "800 900", "italic", lato.BlackItalic) +
+		face("Roboto Mono", "100 599", "normal", robotomono.TTF) +
+		face("Roboto Mono", "600 900", "normal", robotomono.Bold) +
+		face("Roboto Mono", "100 599", "italic", robotomono.Italic) +
+		face("Roboto Mono", "600 900", "italic", robotomono.BoldItalic)
 }
 
 // PNG encodes an image as PNG.
