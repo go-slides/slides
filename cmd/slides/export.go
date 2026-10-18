@@ -97,28 +97,50 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 		// is meant to be used: a deck from elsewhere cannot read ~/.ssh.
 		opts.FileRoot = dir
 	}
-	images, err := export.Rasterize(cmd.Context(), b, opts)
-	if err != nil {
-		return err
-	}
+	// The slides are rendered a few at a time and each image is written as
+	// soon as it is its turn, so that a deck is never held as images.
+	ctx := cmd.Context()
 	base := strings.TrimSuffix(path, filepath.Ext(path))
 	kind, imgFormat, _ := strings.Cut(format, ":")
 	switch kind {
 	case "pdf":
-		var buf bytes.Buffer
-		if err := export.PDF(&buf, b, images); err != nil {
+		pdf := export.NewPDF(b)
+		if err := export.Each(ctx, b, opts, func(_ int, img *image.RGBA) error {
+			pdf.Add(img)
+			return nil
+		}); err != nil {
 			return err
 		}
-		return o.emit(cmd, path, or(o.output, base+".pdf"), buf.Bytes(), len(images))
+		var buf bytes.Buffer
+		if err := pdf.Write(&buf); err != nil {
+			return err
+		}
+		return o.emit(cmd, path, or(o.output, base+".pdf"), buf.Bytes(), len(b.Slides))
 	case "pptx":
-		var buf bytes.Buffer
-		if err := export.PPTX(&buf, b, images); err != nil {
+		// Each picture is PNG-encoded by the worker that rendered it.
+		pptx := export.NewPPTX(b)
+		if err := export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
+			pptx.Add(png)
+			return nil
+		}); err != nil {
 			return err
 		}
-		return o.emit(cmd, path, or(o.output, base+".pptx"), buf.Bytes(), len(images))
-	case "image":
 		var buf bytes.Buffer
-		if err := encode(&buf, images[0], imgFormat, opts); err != nil {
+		if err := pptx.Write(&buf); err != nil {
+			return err
+		}
+		return o.emit(cmd, path, or(o.output, base+".pptx"), buf.Bytes(), len(b.Slides))
+	case "image":
+		if len(b.Slides) == 0 {
+			return fmt.Errorf("%s: the deck has no slide", path)
+		}
+		// Only the first slide is written, so only it is rendered.
+		first := *b
+		first.Slides = b.Slides[:1]
+		var buf bytes.Buffer
+		if err := export.Each(ctx, &first, opts, func(_ int, img *image.RGBA) error {
+			return encode(&buf, img, imgFormat, opts)
+		}); err != nil {
 			return err
 		}
 		return o.emit(cmd, path, or(o.output, base+"."+ext(imgFormat)), buf.Bytes(), 1)
@@ -131,17 +153,14 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 	if err := os.MkdirAll(filepath.Dir(prefix), 0o755); err != nil {
 		return err
 	}
-	for i, img := range images {
-		var buf bytes.Buffer
-		if err := encode(&buf, img, imgFormat, opts); err != nil {
-			return err
-		}
+	// Each image is encoded by the worker that rendered it.
+	if err := export.EachEncoded(ctx, b, opts, imgFormat, func(i int, data []byte) error {
 		name := fmt.Sprintf("%s.%03d.%s", prefix, i+1, ext(imgFormat))
-		if err := os.WriteFile(name, buf.Bytes(), 0o644); err != nil {
-			return err
-		}
+		return os.WriteFile(name, data, 0o644)
+	}); err != nil {
+		return err
 	}
-	fmt.Fprintf(stderr, "slides: %s => %s.%03d.%s ... (%d slides)\n", path, prefix, 1, ext(imgFormat), len(images))
+	fmt.Fprintf(stderr, "slides: %s => %s.%03d.%s ... (%d slides)\n", path, prefix, 1, ext(imgFormat), len(b.Slides))
 	return nil
 }
 

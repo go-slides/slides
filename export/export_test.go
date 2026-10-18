@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -219,10 +220,18 @@ func TestFitHeading(t *testing.T) {
 }
 
 func TestBundledFonts(t *testing.T) {
-	css := bundledFonts()
-	for _, want := range []string{`font-family:"Lato"`, `font-family:"Roboto Mono"`, "data:font/ttf;base64,"} {
-		if !strings.Contains(css, want) {
-			t.Errorf("missing %q", want)
+	faces, err := bundledFaces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range faces {
+		got[fmt.Sprintf("%s %d %v", f.Family, f.Weight, f.Italic)] = true
+	}
+	for _, want := range []string{"Lato 400 false", "Lato 700 false", "Lato 900 false", "Lato 400 true", "Lato 700 true", "Lato 900 true",
+		"Roboto Mono 400 false", "Roboto Mono 700 false", "Roboto Mono 400 true", "Roboto Mono 700 true"} {
+		if !got[want] {
+			t.Errorf("missing %s", want)
 		}
 	}
 }
