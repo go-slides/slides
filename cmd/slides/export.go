@@ -75,7 +75,19 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 	if err != nil {
 		return err
 	}
-	opts := export.Options{BaseURL: "file://" + filepath.ToSlash(dir) + "/", JPEGQuality: o.jpegQuality}
+	if o.imageScale <= 0 || o.imageScale > 8 {
+		return fmt.Errorf("--image-scale %v: want a value in (0, 8]", o.imageScale)
+	}
+	opts := export.Options{
+		BaseURL:     "file://" + filepath.ToSlash(dir) + "/",
+		JPEGQuality: o.jpegQuality,
+		Scale:       o.imageScale,
+	}
+	if o.allowLocalFiles {
+		// Only the deck's own directory, as marp-cli's --allow-local-files
+		// is meant to be used: a deck from elsewhere cannot read ~/.ssh.
+		opts.FileRoot = dir
+	}
 	images, err := export.Rasterize(cmd.Context(), b, opts)
 	if err != nil {
 		return err

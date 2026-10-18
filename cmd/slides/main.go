@@ -196,6 +196,8 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.StringVar(&o.images, "images", "", "write one image per slide: `png` or jpeg (deck.001.png, ...)")
 	f.StringVar(&o.image, "image", "", "write the first slide as an image: `png` or jpeg (also chosen by -o file.png)")
 	f.IntVar(&o.jpegQuality, "jpeg-quality", 85, "JPEG quality, 1 to 100")
+	f.Float64Var(&o.imageScale, "image-scale", 1, "device pixels per CSS pixel for images and PDF (2 = 2560×1440 for 16:9)")
+	f.BoolVar(&o.allowLocalFiles, "allow-local-files", false, "let images and PDF load local files from under the deck's directory")
 }
 
 // readDeck reads a deck, "-" meaning standard input.

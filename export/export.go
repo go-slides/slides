@@ -35,18 +35,34 @@ type Options struct {
 	NoFonts bool
 	// JPEGQuality is the JPEG quality, 1 to 100; 0 means 85, marp-cli's.
 	JPEGQuality int
+	// Scale is the number of device pixels per CSS pixel: 2 renders a
+	// 1280×720 slide as 2560×1440, text and vectors drawn at that density
+	// rather than enlarged. 0 means 1 (marp-cli's --image-scale).
+	Scale float64
+	// FileRoot, when set, lets the slides load file: URLs from under this
+	// directory and nowhere else; empty refuses every local file, as
+	// marp-cli does without --allow-local-files.
+	FileRoot string
 }
 
 // Rasterize renders every slide of b, which must have been rendered in
-// deck.FrameBox, to an image of the slide's size in CSS pixels.
+// deck.FrameBox, to an image of the slide's size times opts.Scale.
 func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGBA, error) {
 	e := engine.New()
 	e.DisableJS = true
+	e.FileRoot = opts.FileRoot
+	scale := opts.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	e.DeviceScale = scale
 	w, h := int(b.Packed.Width), int(b.Packed.Height)
 	if w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("export: the theme gives the slides no size")
 	}
+	// The viewport is in CSS pixels; the image comes back in device pixels.
 	view := image.Rect(0, 0, w, h)
+	device := image.Rect(0, 0, int(float64(w)*scale+0.5), int(float64(h)*scale+0.5))
 	fontCSS := ""
 	if !opts.NoFonts {
 		fontCSS = bundledFonts()
@@ -59,8 +75,8 @@ func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGB
 		}
 		// The canvas grows with the content; the slide is its top-left
 		// corner.
-		if img.Bounds() != view {
-			c := image.NewRGBA(view)
+		if img.Bounds() != device {
+			c := image.NewRGBA(device)
 			copyRect(c, img)
 			img = c
 		}

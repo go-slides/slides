@@ -8,6 +8,8 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -69,17 +71,63 @@ func TestRasterize(t *testing.T) {
 	}
 }
 
-// TestRasterizeSplitBackground needs percentage heights, which go-webengine
-// v0.5.10 does not resolve: Marpit's background layers are height:100%.
+// TestRasterizeSplitBackground goes through Marpit's background layers,
+// which are height:100% boxes (go-webengine v0.5.12 resolves them).
 func TestRasterizeSplitBackground(t *testing.T) {
 	b := build(t, "---\ntheme: gaia\n---\n![bg left]("+bluePNG(t)+")\n\nB\n")
 	imgs, err := Rasterize(context.Background(), b, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	left, right := imgs[0].RGBAAt(100, 360), imgs[0].RGBAAt(1100, 360)
-	if !near(left, 0, 0, 255) || near(right, 0, 0, 255) {
-		t.Skipf("split backgrounds wait for percentage heights in go-webengine: left %v, right %v", left, right)
+	if c := imgs[0].RGBAAt(100, 360); !near(c, 0, 0, 255) {
+		t.Errorf("left half %v, want the blue background image", c)
+	}
+	if c := imgs[0].RGBAAt(1100, 360); near(c, 0, 0, 255) {
+		t.Errorf("right half %v must hold the content, not the image", c)
+	}
+}
+
+func TestRasterizeScale(t *testing.T) {
+	b := build(t, "<!-- _backgroundColor: #ff0000 -->\n\n# A\n")
+	imgs, err := Rasterize(context.Background(), b, Options{Scale: 2, NoFonts: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := imgs[0].Bounds(); got != image.Rect(0, 0, 2560, 1440) {
+		t.Fatalf("scale 2 renders 2560×1440, got %v", got)
+	}
+	if c := imgs[0].RGBAAt(2500, 1400); !near(c, 255, 0, 0) {
+		t.Errorf("the background fills the scaled slide: %v", c)
+	}
+}
+
+func TestRasterizeLocalFiles(t *testing.T) {
+	dir := t.TempDir()
+	blue := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for i := 0; i < len(blue.Pix); i += 4 {
+		blue.Pix[i+2], blue.Pix[i+3] = 255, 255
+	}
+	f, err := os.Create(filepath.Join(dir, "blue.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, blue); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	b := build(t, "![bg](blue.png)\n\nx\n")
+	base := "file://" + filepath.ToSlash(dir) + "/"
+	for _, c := range []struct {
+		root string
+		blue bool
+	}{{"", false}, {dir, true}, {t.TempDir(), false}} {
+		imgs, err := Rasterize(context.Background(), b, Options{BaseURL: base, FileRoot: c.root, NoFonts: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := near(imgs[0].RGBAAt(640, 600), 0, 0, 255); got != c.blue {
+			t.Errorf("FileRoot %q: local image shown = %v, want %v", c.root, got, c.blue)
+		}
 	}
 }
 

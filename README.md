@@ -167,6 +167,8 @@ command's flags.
 | `--images png\|jpeg` | build | write one image per slide: `deck.001.png`, … |
 | `--image png\|jpeg` | build | write the first slide as an image (also chosen by `-o file.png` / `.jpg`) |
 | `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
+| `--image-scale n` | build | device pixels per CSS pixel for images and PDF (default 1) |
+| `--allow-local-files` | build | let images and PDF read local files, from under the deck's directory only |
 | `--theme-set path` | all | a theme CSS file or a directory of them (repeatable) |
 | `--kinds file` | all | a YAML file of kinds (repeatable) |
 | `--data file`, `--set k=v` | all | template data (repeatable) |
@@ -203,15 +205,15 @@ the go-* libraries instead:
   [go-opentype/fonts](https://github.com/go-opentype/fonts), embedded, so no
   render touches the network.
 
-Current limits, each tracked in the library it belongs to:
+- `--image-scale 2` renders at two device pixels per CSS pixel (2560×1440 for
+  16:9). Text and vectors are drawn at that density, not enlarged.
+- Local images are refused unless `--allow-local-files` is given, as with
+  marp-cli. Even then, only files under the deck's directory are read: a deck
+  from elsewhere cannot reach `~/.ssh`.
 
-- Images are rendered at one device pixel per CSS pixel (1280×720 for 16:9).
-  A higher scale waits for a device scale factor in go-webengine.
-- Several or split backgrounds (`![bg left]`) need percentage heights in
-  go-webengine. A single background already renders.
-- Local image files need opt-in `file://` loading in go-webengine. `data:`
-  URIs and `http(s)` images render now.
-- go-opentype/fonts carries one regular instance of Lato and Roboto Mono, so
+Several and split backgrounds (`![bg left:40%]`) render as Marp's layers do.
+
+Current limit, tracked in the library it belongs to: go-opentype/fonts carries one regular instance of Lato and Roboto Mono, so
   gaia and uncover headings are not as heavy as with Lato Black.
 
 ## Roadmap
