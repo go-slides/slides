@@ -105,14 +105,19 @@ func page(themeCSS, fontCSS, slide string) string {
 
 // bundledFonts declares the fonts Marp's built-in themes ask for, embedded,
 // so that a render needs no network: gaia and uncover's Lato and Roboto
-// Mono, from go-opentype/fonts (OFL-1.1). Each ships one regular instance,
-// declared for every weight.
+// Mono, from go-opentype/fonts (OFL-1.1). gaia's headings ask for Lato 900
+// and its code for Roboto Mono 700; each weight is declared as its own face
+// so that the engine picks it instead of synthesising one.
 func bundledFonts() string {
-	face := func(family string, ttf []byte) string {
-		return "@font-face{font-family:\"" + family + "\";font-weight:100 900;font-style:normal;" +
+	face := func(family, weight string, ttf []byte) string {
+		return "@font-face{font-family:\"" + family + "\";font-weight:" + weight + ";font-style:normal;" +
 			"src:url(data:font/ttf;base64," + base64.StdEncoding.EncodeToString(ttf) + ") format(\"truetype\")}"
 	}
-	return face("Lato", lato.TTF) + face("Roboto Mono", robotomono.TTF)
+	return face("Lato", "100 599", lato.TTF) +
+		face("Lato", "600 799", lato.Bold) +
+		face("Lato", "800 900", lato.Black) +
+		face("Roboto Mono", "100 599", robotomono.TTF) +
+		face("Roboto Mono", "600 900", robotomono.Bold)
 }
 
 // PNG encodes an image as PNG.

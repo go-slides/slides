@@ -3,8 +3,10 @@ module github.com/go-slides/slides
 go 1.27.2
 
 require (
-	github.com/go-opentype/fonts v0.12.0
+	github.com/go-opentype/fonts v0.13.0
 	github.com/go-pdfkit/pdfkit v0.14.0
+	github.com/go-rouge/rouge v0.5.0
+	github.com/go-tex/math v0.50.0
 	github.com/go-webengine/engine v0.7.1
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.6
@@ -14,7 +16,7 @@ require (
 
 require (
 	github.com/ajroetker/go-highway v0.0.4 // indirect
-	github.com/andybalholm/brotli v1.2.5 // indirect
+	github.com/andybalholm/brotli v1.2.6 // indirect
 	github.com/breml/rootcerts v0.3.7 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
@@ -30,9 +32,11 @@ require (
 	github.com/go-images/jpeg v0.2.0 // indirect
 	github.com/go-images/jpeg2000 v0.1.0 // indirect
 	github.com/go-images/png v0.1.0 // indirect
-	github.com/go-opentype/opentype v0.13.1-0.20260927180318-ae6327b14eac // indirect
+	github.com/go-opentype/opentype v0.15.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
+	github.com/go-regexp/engine v0.3.0 // indirect
 	github.com/go-richdoc/richdoc v0.4.0 // indirect
+	github.com/go-ruby-regexp/regexp v0.1.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-webengine/esbuildsandbox v0.1.0 // indirect

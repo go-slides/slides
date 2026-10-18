@@ -213,16 +213,28 @@ the go-* libraries instead:
 
 Several and split backgrounds (`![bg left:40%]`) render as Marp's layers do.
 
-Current limit, tracked in the library it belongs to: go-opentype/fonts carries one regular instance of Lato and Roboto Mono, so
-  gaia and uncover headings are not as heavy as with Lato Black.
+Lato Regular, Bold and Black and Roboto Mono Regular and Bold are embedded,
+so gaia's headings get their weight. No italic face is embedded yet, so
+italic text in those families renders upright.
+
+## Math and code
+
+- **Math**: `$…$` inline and `$$…$$` display, with Marp Core's delimiter
+  rules (a `$` followed by a space does not open, one followed by a digit does
+  not close). Formulas are typeset by
+  [go-tex/math](https://github.com/go-tex/math) (STIX Two Math) into inline
+  SVG sized in `em`, so they follow the text's size and sit on its baseline,
+  in the HTML as in images and PDF. A formula that does not parse stays visible
+  as written.
+- **Code**: fenced blocks are coloured by
+  [go-rouge](https://github.com/go-rouge/rouge) in highlight.js class names,
+  which is what Marp's themes style. A language go-rouge does not know is
+  written as plain text, as Marp Core does.
 
 ## Roadmap
 
-- PPTX via [go-ooxml/opc](https://github.com/go-ooxml/opc), with speaker
-  notes.
-- Math (`$…$`, `$$…$$`) via [go-tex/math](https://github.com/go-tex/math),
-  code highlighting via [go-rouge](https://github.com/go-rouge/rouge) with
-  highlight.js class names, emoji, and fitting headings (`<!-- fit -->`).
+- PPTX via [go-ooxml](https://github.com/go-ooxml/ooxml), with speaker notes.
+- Emoji, and fitting headings (`<!-- fit -->`).
 
 ## Packages
 

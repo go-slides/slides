@@ -27,6 +27,8 @@ type Config struct {
 	Lang string
 	// Bare writes the slides without the presenting script.
 	Bare bool
+	// NoMath leaves $…$ and $$…$$ as text (Marp Core's math: false).
+	NoMath bool
 }
 
 // Build is a parsed and rendered deck.
@@ -87,8 +89,17 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		Height:           int(b.Packed.Height),
 		GeneratedContent: frame == deck.FrameBox,
 		AfterContent:     b.Packed.After,
+		Math:             mathFor(cfg),
+		Highlight:        Highlight,
 	})
 	return b, nil
+}
+
+func mathFor(cfg Config) func(string, bool) (string, error) {
+	if cfg.NoMath {
+		return nil
+	}
+	return Math
 }
 
 // HTML builds the presentation as one self-contained HTML page.
