@@ -3,7 +3,7 @@ module github.com/go-slides/slides
 go 1.27.2
 
 require (
-	github.com/go-gfx/oksvg v0.1.0
+	github.com/go-gfx/oksvg v0.2.0
 	github.com/go-icons/twemoji v0.1.0
 	github.com/go-odf/odf v0.8.0
 	github.com/go-ooxml/ooxml v0.4.0
@@ -12,7 +12,7 @@ require (
 	github.com/go-pdfkit/pdfkit v0.15.0
 	github.com/go-rouge/rouge v0.5.0
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.9.1
+	github.com/go-webengine/engine v0.9.2
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
