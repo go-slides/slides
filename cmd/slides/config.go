@@ -34,6 +34,8 @@ type options struct {
 
 	pdf         bool
 	pdfRaster   bool // --pdf-raster: the PDF's pages as images
+	pptxRaster  bool // --pptx-raster: one picture a slide
+	odpRaster   bool // --odp-raster: one picture a slide
 	pptx        bool
 	odp         bool
 	images      string

@@ -5,14 +5,16 @@ go 1.27.2
 require (
 	github.com/go-gfx/oksvg v0.2.0
 	github.com/go-icons/twemoji v0.1.0
-	github.com/go-odf/odf v0.8.0
-	github.com/go-ooxml/ooxml v0.4.0
+	github.com/go-odf/odf v0.9.0
+	github.com/go-ooxml/ooxml v0.5.0
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
+	github.com/go-opentype/opentype v0.16.0
 	github.com/go-pdfkit/pdfkit v0.15.0
+	github.com/go-richdoc/richdoc v0.7.0
 	github.com/go-rouge/rouge v0.5.0
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.9.2
+	github.com/go-webengine/engine v0.10.1
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
@@ -45,10 +47,8 @@ require (
 	github.com/go-images/jpeg v0.3.0 // indirect
 	github.com/go-images/jpeg2000 v0.13.3 // indirect
 	github.com/go-images/png v0.2.0 // indirect
-	github.com/go-opentype/opentype v0.16.0 // indirect
 	github.com/go-opentype/shape v0.7.0 // indirect
 	github.com/go-regexp/engine v0.3.0 // indirect
-	github.com/go-richdoc/richdoc v0.7.0 // indirect
 	github.com/go-ruby-regexp/regexp v0.1.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-typeset/bidi v0.3.1 // indirect

@@ -242,8 +242,10 @@ command's flags.
 | `--bare` | build | stack the slides, without the presenting script |
 | `--pdf` | build | write a PDF, one page per slide, with an outline — text and shapes as vectors (also chosen by `-o file.pdf`) |
 | `--pdf-raster` | build | write the PDF with each page one image of the slide, as before the vector PDF |
-| `--pptx` | build | write a PowerPoint deck: a picture per slide with its speaker notes, at scale 2 by default (also chosen by `-o file.pptx`) |
-| `--odp` | build | write an OpenDocument presentation: a picture per slide with its speaker notes, at scale 2 by default (also chosen by `-o file.odp`) |
+| `--pptx` | build | write an editable PowerPoint deck — text boxes, shapes, pictures, fonts embedded — with its speaker notes (also chosen by `-o file.pptx`) |
+| `--pptx-raster` | build | write a PowerPoint deck of one picture per slide, at scale 2 by default, as marp-cli does |
+| `--odp` | build | write an editable OpenDocument presentation, with its speaker notes (also chosen by `-o file.odp`) |
+| `--odp-raster` | build | write an OpenDocument presentation of one picture per slide |
 | `--images png\|jpeg` | build | write one image per slide: `deck.001.png`, … |
 | `--image png\|jpeg` | build | write the first slide as an image (also chosen by `-o file.png` / `.jpg`) |
 | `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
@@ -342,11 +344,24 @@ own faces.
 
 `--pptx` writes the deck through
 [go-ooxml](https://github.com/go-ooxml/ooxml)'s `WritePresentation`, and
-`--odp` through [go-odf](https://github.com/go-odf/odf)'s: one full-slide
-picture per slide, at the slide's size, with its speaker notes and the deck's
-title, author, description and keywords. As with marp-cli's PPTX, the slides
-are pictures, not editable text. Both render at scale 2 unless `--image-scale`
-says otherwise, and LibreOffice opens and converts both.
+`--odp` through [go-odf](https://github.com/go-odf/odf)'s, with the speaker
+notes and the deck's title, author, description and keywords.
+
+The slides are **editable** — marp-cli's PPTX is one picture a slide. Each
+slide is drawn from its layout, the one the PNG and PDF exports draw, by
+go-webengine's `officecanvas`: one text box per line of text, in the fonts
+the slide was laid out with (embedded in the file, so the slide looks the
+same on a machine without Lato or Inter), with bold, italic, colours, letter
+spacing and links; backgrounds, borders and rounded boxes as shapes;
+gradients as gradient fills (as pictures in the ODP, whose gradients have two
+colours); pictures stored once however many slides show them. What a slide
+cannot express — an element under `opacity`, a `filter`, a blurred shadow, a
+formula — is a picture of that element, its text kept over it. Rendered back
+by LibreOffice, a slide is within 0.04–2 % of the PNG export's pixels
+(`go run ./internal/cmd/officecheck`).
+
+`--pptx-raster` and `--odp-raster` write one picture a slide instead, as
+before. Pictures render at scale 2 unless `--image-scale` says otherwise.
 
 ## Fitting headings
 
