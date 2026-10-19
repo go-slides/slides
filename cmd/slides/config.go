@@ -30,6 +30,7 @@ type options struct {
 	bare       bool
 	noTemplate bool
 	strictYAML bool
+	noEmoji    bool
 
 	pdf         bool
 	pptx        bool
@@ -70,6 +71,7 @@ func (o *options) config(deckPath string) (slides.Config, error) {
 		Name:       deckPath,
 		NoTemplate: o.noTemplate,
 		StrictYAML: o.strictYAML,
+		NoEmoji:    o.noEmoji,
 		Data:       map[string]any{},
 		Kinds:      deck.Kinds{},
 	}}

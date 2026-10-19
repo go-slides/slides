@@ -124,6 +124,10 @@ html, body {
 
 // PackOptions configures Pack.
 type PackOptions struct {
+	// Before is CSS put ahead of the theme (Marpit's pack option of that
+	// name): what the renderer needs whatever the theme, such as the rule
+	// for emoji images.
+	Before []string
 	// After is CSS appended to the theme: the deck's style directive and
 	// global <style> elements, then its scoped styles (see Scope).
 	After []string
@@ -178,6 +182,9 @@ func (s *Set) Pack(t *Theme, opts PackOptions) Packed {
 	}
 
 	sheet := css.Parse(themeCSS)
+	for i := len(opts.Before) - 1; i >= 0; i-- {
+		sheet.Nodes = append(css.Parse(opts.Before[i]).Nodes, sheet.Nodes...)
+	}
 	for _, extra := range opts.After {
 		x := css.Parse(extra)
 		x.Nodes = css.Flatten(x.Nodes)
