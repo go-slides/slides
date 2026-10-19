@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-odf/odf"
 	"github.com/go-ooxml/ooxml"
 	"github.com/go-ooxml/opc"
+	"rsc.io/pdf"
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
@@ -155,21 +157,135 @@ func TestEncodeAndPDF(t *testing.T) {
 	if _, err := jpeg.Decode(&j); err != nil {
 		t.Errorf("jpeg: %v", err)
 	}
-	var pdf bytes.Buffer
-	if err := PDF(&pdf, b, imgs); err != nil {
+	var buf bytes.Buffer
+	if err := PDF(&buf, b, imgs); err != nil {
 		t.Fatal(err)
 	}
-	s := pdf.String()
-	if !strings.HasPrefix(s, "%PDF-") {
+	r := readPDF(t, buf.Bytes())
+	if r.NumPage() != 2 {
+		t.Errorf("%d pages, want 2", r.NumPage())
+	}
+	checkPage(t, r.Page(1))
+	checkOutline(t, r)
+}
+
+// readPDF opens a PDF with rsc.io/pdf, a reader independent of the writer.
+func readPDF(t *testing.T, data []byte) *pdf.Reader {
+	t.Helper()
+	if !bytes.HasPrefix(data, []byte("%PDF-")) {
 		t.Fatal("not a PDF")
 	}
-	if n := strings.Count(s, "/Type /Page\n") + strings.Count(s, "/Type /Page "); n < 2 && strings.Count(s, "/Type/Page") < 2 {
-		t.Logf("page markers not found in the expected form; checking the outline instead")
+	r, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, want := range []string{"/Outlines", "/MediaBox [0 0 960 540]"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("PDF lacks %q", want)
+	return r
+}
+
+// checkPage checks a page has the slide's size: 1280×720 CSS px at 3/4 pt.
+func checkPage(t *testing.T, p pdf.Page) {
+	t.Helper()
+	mb := p.V.Key("MediaBox")
+	if mb.Len() != 4 || mb.Index(2).Float64() != 960 || mb.Index(3).Float64() != 540 {
+		t.Errorf("MediaBox = %v, want [0 0 960 540]", mb)
+	}
+}
+
+// checkOutline checks the outline lists each slide, the first one's
+// headings nested under it.
+func checkOutline(t *testing.T, r *pdf.Reader) {
+	t.Helper()
+	o := r.Outline()
+	if len(o.Child) != 2 || o.Child[0].Title != "1. One" || o.Child[1].Title != "2" {
+		var got []string
+		for _, c := range o.Child {
+			got = append(got, c.Title)
 		}
+		t.Fatalf("outline %q, want the two slides", got)
+	}
+	if hs := o.Child[0].Child; len(hs) != 2 || hs[0].Title != "One" || hs[1].Title != "Sub" {
+		t.Errorf("slide 1's headings: %+v", hs)
+	}
+}
+
+// TestVectorPDF: the default PDF draws the slides as vectors — text in
+// embedded fonts with a /ToUnicode map, the background image once however
+// many slides show it, links clickable — at the slide's size, with the
+// outline the image PDF has.
+func TestVectorPDF(t *testing.T) {
+	bg := bluePNG(t)
+	b := build(t, "---\ntitle: T\n---\n# One\n\n## Sub\n\nSee [the site](https://example.com/x).\n\n![bg right]("+bg+")\n\n---\n\n![bg right]("+bg+")\n\nno heading\n")
+	var buf bytes.Buffer
+	if err := VectorPDF(context.Background(), &buf, b, Options{NoFonts: true}); err != nil {
+		t.Fatal(err)
+	}
+	r := readPDF(t, buf.Bytes())
+	if r.NumPage() != 2 {
+		t.Fatalf("%d pages, want 2", r.NumPage())
+	}
+	checkPage(t, r.Page(1))
+	checkOutline(t, r)
+	p := r.Page(1)
+	fonts := p.V.Key("Resources").Key("Font")
+	if len(fonts.Keys()) == 0 {
+		t.Fatal("no font: the text is not text")
+	}
+	var cmap strings.Builder
+	for _, k := range fonts.Keys() {
+		f := fonts.Key(k)
+		if f.Key("Subtype").Name() != "Type0" {
+			t.Errorf("font %s is %s, want an embedded Type0 font", k, f.Key("Subtype").Name())
+		}
+		data, err := io.ReadAll(f.Key("ToUnicode").Reader())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmap.Write(data)
+	}
+	for _, u := range []string{"<004F>", "<0053>", "<0073>"} { // O S s
+		if !strings.Contains(cmap.String(), u) {
+			t.Errorf("the /ToUnicode maps lack %s", u)
+		}
+	}
+	// The same bitmap on both slides is one XObject.
+	x1 := p.V.Key("Resources").Key("XObject")
+	x2 := r.Page(2).V.Key("Resources").Key("XObject")
+	if len(x1.Keys()) != 1 || len(x2.Keys()) != 1 || x1.Key(x1.Keys()[0]).Key("Width").Int64() != x2.Key(x2.Keys()[0]).Key("Width").Int64() {
+		t.Errorf("XObjects %v and %v, want the one background image on both", x1.Keys(), x2.Keys())
+	}
+	if !bytes.Equal(objOf(t, x1.Key(x1.Keys()[0])), objOf(t, x2.Key(x2.Keys()[0]))) {
+		t.Error("the background image is embedded twice")
+	}
+	// The link is an annotation with its URI.
+	annots := p.V.Key("Annots")
+	found := false
+	for i := 0; i < annots.Len(); i++ {
+		if annots.Index(i).Key("A").Key("URI").RawString() == "https://example.com/x" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no link annotation to https://example.com/x among %d", annots.Len())
+	}
+}
+
+// objOf is a stream's decoded bytes, to compare two references by content.
+func objOf(t *testing.T, v pdf.Value) []byte {
+	t.Helper()
+	data, err := io.ReadAll(v.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// TestVectorPDFNoSize: a theme that gives the slides no size is refused, as
+// by the image exports.
+func TestVectorPDFNoSize(t *testing.T) {
+	b := build(t, "x")
+	b.Packed.Width = 0
+	if err := VectorPDF(context.Background(), io.Discard, b, Options{}); err == nil {
+		t.Error("a slide without a size cannot be drawn")
 	}
 }
 

@@ -7,10 +7,10 @@ require (
 	github.com/go-ooxml/ooxml v0.4.0
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
-	github.com/go-pdfkit/pdfkit v0.14.1
+	github.com/go-pdfkit/pdfkit v0.15.0
 	github.com/go-rouge/rouge v0.5.0
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.8.5
+	github.com/go-webengine/engine v0.9.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.6
@@ -18,6 +18,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
+	rsc.io/pdf v0.1.1
 )
 
 require (

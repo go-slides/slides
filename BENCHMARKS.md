@@ -5,7 +5,46 @@ tool whose output it reproduces, on the same decks and the same machine.
 Every figure below comes from `internal/cmd/slidesbench` and the Go
 benchmarks in this repository; the commands to reproduce them are at the end.
 
+## Vector PDF
+
+`--pdf` now draws each slide as vectors — text in the embedded fonts the
+slide was laid out with, backgrounds, borders and gradients as paths and
+shadings, each image once (go-webengine `paint.PaintVector` through
+`pdfcanvas`, go-pdfkit v0.15.0). Measured on 2026-10-19 on the same machine
+(load average 3.1 at the start), `slidesbench -modes pdf`, against marp-cli
+4.5.1 and the image PDF of v0.3.0 ("before"); median of 5 interleaved rounds,
+memory the whole process tree:
+
+| Deck | go-slides | marp-cli | before | go-slides size | marp-cli size | before size | go-slides memory | marp-cli memory | before memory |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 slides | **306 ms** | 1,763 ms | 1,147 ms | **758 KiB** | 837 KiB | 10.0 MiB | **161 MiB** | 1,509 MiB | 243 MiB |
+| gaia, 20 | **93 ms** | 1,546 ms | 285 ms | **32 KiB** | 66 KiB | 582 KiB | **134 MiB** | 1,320 MiB | 156 MiB |
+| math and code, 20 | **140 ms** | 1,643 ms | 294 ms | **124 KiB** | 335 KiB | 638 KiB | **153 MiB** | 1,452 MiB | 164 MiB |
+
+The CPU time of the 100-slide PDF falls from 3.3 s to 0.9 s (marp-cli: 2.7 s):
+painting into a PDF is cheaper than painting pixels and compressing them. On
+the seven oracle decks the PDF takes 80–93 ms against marp-cli's 1.37–1.47 s
+and is 1 KiB–14 KiB against 1.1–66 KiB.
+
+**Same layout as the image export.** Both are painted from one layout pass.
+`go run ./internal/cmd/pdfcheck -out DIR` (DIR outside the repository) renders
+every page with poppler's `pdftoppm` at 96 dpi and compares it with
+`export.Rasterize`: on the 100-slide deck 0.46 % of the pixels differ by more
+than 48 in a channel (worst slide 1.2 %), all on glyph edges — the PDF places
+glyphs at the layout's exact advances where the raster rounds them to whole
+pixels. `pdftotext` reads the text back (2,240 words for the 100 slides).
+
+What is still drawn as a bitmap, per element and only where it occurs: a
+subtree under `opacity` < 1, `filter`, `mask-image` or a rotation, a blurred
+`box-shadow`, a gradient whose opacity fades, and formulas (go-tex's SVG is
+rasterised by the engine). The text under such an element is laid over its
+bitmap invisibly, so it can still be selected. `--pdf-raster` writes the PDF
+as before, one image per page.
+
 ## Results
+
+The table below is from before the vector PDF; its PDF rows are the image
+PDF.
 
 Measured on 2026-10-19 on an Apple M4 Max (16 CPUs, macOS 26.6.2, load
 average 7.3 at the start), go1.27.2, GOMAXPROCS unset (16): go-slides at
@@ -35,9 +74,9 @@ against marp-cli's 225–317 ms, and 96–238 ms for PDF, PNG and PPTX against
 
 What go-slides does **not** win:
 
-- **PDF size.** go-slides draws each slide as an image into the PDF; Chrome
-  prints text and vectors. The 100-slide PDF is 10.0 MiB against 837 KiB,
-  gaia's 582 KiB against 66 KiB.
+- **PDF size** — no longer: see [Vector PDF](#vector-pdf). The image PDF
+  measured here was 10.0 MiB against 837 KiB for 100 slides, gaia's 582 KiB
+  against 66 KiB.
 - **CPU time.** Rendering on four workers, go-slides spends more CPU than
   wall time: 3.2 s of CPU for the 100-slide PDF against marp-cli's 2.7 s, and
   12.0 s against 7.9 s for its PPTX (PNG-encoding 100 slides at 2560×1440). On
@@ -299,5 +338,7 @@ once its start time shows the PID was not reused. None was left behind.
 go run ./internal/cmd/slidesbench -calibrate
 go build -o /tmp/slides-base ./cmd/slides     # on the commit to compare with
 go run ./internal/cmd/slidesbench -baseline /tmp/slides-base -rounds 5 -json results.json
+go run ./internal/cmd/slidesbench -modes pdf -baseline /tmp/slides-base -rounds 5
+go run ./internal/cmd/pdfcheck -out /tmp/pdfcheck   # vector PDF against the raster render; needs poppler
 go test -run '^$' -bench . -benchmem . ./export/
 ```

@@ -23,6 +23,8 @@ import (
 	"github.com/go-opentype/fonts/robotomono"
 	"github.com/go-pdfkit/pdfkit"
 	"github.com/go-webengine/engine"
+	"github.com/go-webengine/engine/paint"
+	"github.com/go-webengine/engine/pdfcanvas"
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
@@ -106,6 +108,36 @@ func EachEncoded(ctx context.Context, b *slides.Build, opts Options, format stri
 }
 
 func each[T any](ctx context.Context, b *slides.Build, opts Options, convert func(*image.RGBA) (T, error), emit func(int, T) error) error {
+	scale := opts.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	w, h := int(b.Packed.Width), int(b.Packed.Height)
+	// The viewport is in CSS pixels; the image comes back in device pixels.
+	device := image.Rect(0, 0, int(float64(w)*scale+0.5), int(float64(h)*scale+0.5))
+	return eachLayout(ctx, b, opts, func(l *engine.PageLayout) (T, error) {
+		img := l.Paint()
+		// The canvas grows with the content; the slide is its top-left
+		// corner.
+		if img.Bounds() != device {
+			c := image.NewRGBA(device)
+			copyRect(c, img)
+			img = c
+		}
+		return convert(img)
+	}, emit)
+}
+
+// EachLayout lays every slide of b out, as Each does, and calls emit with
+// each layout in slide order, from one goroutine, unpainted: the caller
+// paints it — as vectors, for a PDF (see PDFWriter.AddLayout). Up to
+// opts.Workers slides are laid out concurrently, and no more layouts than
+// that exist at once.
+func EachLayout(ctx context.Context, b *slides.Build, opts Options, emit func(i int, l *engine.PageLayout) error) error {
+	return eachLayout(ctx, b, opts, func(l *engine.PageLayout) (*engine.PageLayout, error) { return l, nil }, emit)
+}
+
+func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, convert func(*engine.PageLayout) (T, error), emit func(int, T) error) error {
 	e := engine.New()
 	e.DisableJS = true
 	e.FileRoot = opts.FileRoot
@@ -118,9 +150,7 @@ func each[T any](ctx context.Context, b *slides.Build, opts Options, convert fun
 	if w <= 0 || h <= 0 {
 		return fmt.Errorf("export: the theme gives the slides no size")
 	}
-	// The viewport is in CSS pixels; the image comes back in device pixels.
 	view := image.Rect(0, 0, w, h)
-	device := image.Rect(0, 0, int(float64(w)*scale+0.5), int(float64(h)*scale+0.5))
 	if !opts.NoFonts {
 		faces, err := bundledFaces()
 		if err != nil {
@@ -142,19 +172,12 @@ func each[T any](ctx context.Context, b *slides.Build, opts Options, convert fun
 			eng = scripted
 			html = strings.Replace(html, "</body>", "<script>"+deck.FitScript+"</script></body>", 1)
 		}
-		img, _, err := eng.RenderHTML(ctx, html, opts.BaseURL, view)
+		l, err := eng.LayoutHTML(ctx, html, opts.BaseURL, view)
 		if err != nil {
 			var zero T
 			return zero, fmt.Errorf("slide %d: %w", i+1, err)
 		}
-		// The canvas grows with the content; the slide is its top-left
-		// corner.
-		if img.Bounds() != device {
-			c := image.NewRGBA(device)
-			copyRect(c, img)
-			img = c
-		}
-		return convert(img)
+		return convert(l)
 	}
 	workers := opts.Workers
 	if workers <= 0 {
@@ -286,9 +309,11 @@ func JPEG(w io.Writer, img image.Image, opts Options) error {
 	return jpeg.Encode(w, img, &jpeg.Options{Quality: q})
 }
 
-// PDF writes one page per slide. A page is the slide's size, a CSS pixel
-// being 3/4 of a point, as Chrome prints Marp's @page size. The outline
-// lists each slide and, under it, its headings (marp --pdf-outlines).
+// PDF writes one page per slide, each drawn from its image (see
+// PDFWriter.Add; VectorPDF draws them as vectors). A page is the slide's
+// size, a CSS pixel being 3/4 of a point, as Chrome prints Marp's @page
+// size. The outline lists each slide and, under it, its headings (marp
+// --pdf-outlines).
 func PDF(w io.Writer, b *slides.Build, images []*image.RGBA) error {
 	p := NewPDF(b)
 	for _, img := range images {
@@ -297,14 +322,32 @@ func PDF(w io.Writer, b *slides.Build, images []*image.RGBA) error {
 	return p.Write(w)
 }
 
-// PDFWriter builds the PDF PDF writes one slide at a time, so that a deck
-// is never held as images: each page compresses its image when it is
-// added, and the image can be dropped.
+// VectorPDF writes one page per slide drawn as vectors (see
+// PDFWriter.AddLayout), laying the slides out as Each renders them.
+func VectorPDF(ctx context.Context, w io.Writer, b *slides.Build, opts Options) error {
+	p := NewPDF(b)
+	if err := EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+		return p.AddLayout(l)
+	}); err != nil {
+		return err
+	}
+	return p.Write(w)
+}
+
+// PDFWriter builds a PDF one slide at a time, so that a deck is never held
+// whole: each page is drawn when it is added — from an image (Add) or from
+// a layout, as vectors (AddLayout) — and what it was drawn from can be
+// dropped.
 type PDFWriter struct {
-	b    *slides.Build
-	doc  *pdfkit.Document
-	size pdfkit.PageSize
-	n    int
+	b     *slides.Build
+	doc   *pdfkit.Document
+	size  pdfkit.PageSize
+	n     int
+	fonts *pdfcanvas.Fonts
+
+	// Stats adds up what AddLayout drew as vectors and what it had to
+	// draw as bitmaps (paint.VectorStats).
+	Stats paint.VectorStats
 }
 
 // NewPDF starts the PDF of b.
@@ -318,24 +361,80 @@ func NewPDF(b *slides.Build) *PDFWriter {
 			Subject:  g.Get("description"),
 			Keywords: g.Get("keywords"),
 			Producer: "go-slides",
+			// Content and font streams flated, the many small objects of
+			// a vector page (link annotations, font dictionaries) packed
+			// into object streams.
+			Compress:      true,
+			ObjectStreams: true,
 		}),
-		size: pdfkit.NewPageSize(b.Packed.Width*0.75, b.Packed.Height*0.75),
+		size:  pdfkit.NewPageSize(b.Packed.Width*0.75, b.Packed.Height*0.75),
+		fonts: pdfcanvas.NewFonts(),
 	}
 }
 
 // Add adds the next slide's page, drawn from its image.
 func (p *PDFWriter) Add(img image.Image) {
+	pg := p.next()
+	pg.DrawImage(img, pdfkit.Rect{Width: p.size.Width, Height: p.size.Height})
+}
+
+// AddLayout adds the next slide's page, drawn from its layout as vectors:
+// text as text in the fonts the slide was laid out with (subset-embedded,
+// selectable and searchable), backgrounds, borders and gradients as paths
+// and shadings, images placed once per document however many slides show
+// them, and every link a clickable area. What has no vector form here — an
+// element under opacity, a filter, a blurred shadow — is drawn as a bitmap
+// of just that element (paint.PaintVector).
+func (p *PDFWriter) AddLayout(l *engine.PageLayout) error {
+	pg := p.next()
+	dev := l.Page()
+	if dev.Dx() <= 0 {
+		return fmt.Errorf("export: slide %d has no width", p.n)
+	}
+	s := p.size.Width / float64(dev.Dx()) // points per device pixel
+	c := pdfcanvas.New(pg, s, p.fonts)
+	pg.Save()
+	pg.Rectangle(pdfkit.Rect{Width: p.size.Width, Height: p.size.Height})
+	pg.Clip()
+	pg.EndPath()
+	st := l.PaintVector(c)
+	pg.Restore()
+	if c.Err != nil {
+		return fmt.Errorf("export: slide %d: %w", p.n, c.Err)
+	}
+	p.Stats.Rasterized += st.Rasterized
+	p.Stats.RasterPixels += st.RasterPixels
+	p.Stats.Skipped += st.Skipped
+	p.Stats.Images += st.Images
+	p.Stats.Glyphs += st.Glyphs
+	for _, ln := range l.Links() {
+		r := ln.Rect.Intersect(dev)
+		if r.Empty() {
+			continue
+		}
+		pg.AddLink(pdfkit.Rect{
+			X: float64(r.Min.X) * s, Y: p.size.Height - float64(r.Max.Y)*s,
+			Width: float64(r.Dx()) * s, Height: float64(r.Dy()) * s,
+		}, ln.Href)
+	}
+	return nil
+}
+
+// next adds the next slide's page and its outline entries.
+func (p *PDFWriter) next() *pdfkit.Page {
 	i := p.n
 	p.n++
 	pg := p.doc.AddPage(p.size)
-	pg.DrawImage(img, pdfkit.Rect{Width: p.size.Width, Height: p.size.Height})
 	if i < len(p.b.Slides) {
 		s := p.b.Slides[i].Slide
-		p.doc.AddOutlineItem(outlineTitle(s.Headings, i), 0, i)
+		// Level 1 is pdfkit's top level: the slides used to be added at 0,
+		// which it ignores, so the outline held the headings alone.
+		p.doc.AddOutlineItem(outlineTitle(s.Headings, i), 1, i)
 		for _, hd := range s.Headings {
-			p.doc.AddOutlineItem(hd.Text, 1, i)
+			p.doc.AddOutlineItem(hd.Text, 2, i)
 		}
 	}
+	return pg
 }
 
 // Write writes the document.
