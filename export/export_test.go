@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-odf/odf"
 	"github.com/go-ooxml/ooxml"
 	"github.com/go-ooxml/opc"
 
@@ -194,6 +195,25 @@ func TestPPTX(t *testing.T) {
 	}
 	if !bytes.Contains(buf.Bytes(), []byte("notesSlide")) {
 		t.Error("the speaker note of slide 1 is missing")
+	}
+}
+
+func TestODP(t *testing.T) {
+	b := build(t, "---\ntitle: T\n---\n# One\n\n<!-- say hello -->\n\n---\n\nTwo\n")
+	imgs, err := Rasterize(context.Background(), b, Options{NoFonts: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := ODP(&buf, b, imgs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(buf.String(), "PK") || !bytes.Contains(buf.Bytes(), []byte("application/vnd.oasis.opendocument.presentation")) {
+		t.Fatal("an .odp is a zip package with the presentation mimetype")
+	}
+	doc, err := odf.Parse(buf.Bytes())
+	if err != nil || doc == nil {
+		t.Fatalf("go-odf cannot read it back: %v", err)
 	}
 }
 
