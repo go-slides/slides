@@ -1,7 +1,9 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,9 +190,41 @@ func TestExport(t *testing.T) {
 	if fonts(raster) != 0 || fonts(out) == 0 {
 		t.Error("--pdf must embed the fonts its text is set in, --pdf-raster none")
 	}
+	// --pptx and --odp are editable: text boxes; their -raster flags (which
+	// alone choose the format) are one picture a slide.
+	for _, c := range []struct {
+		flag, textBox string
+		editable      bool
+	}{
+		{"--pptx", `txBox="1"`, true}, {"--pptx-raster", `txBox="1"`, false},
+		{"--odp", `<draw:text-box>`, true}, {"--odp-raster", `<draw:text-box>`, false},
+	} {
+		data, _, err := run(t, deckPath, c.flag, "-o", "-", "--image-scale", "1")
+		if err != nil || !strings.HasPrefix(data, "PK") {
+			t.Fatalf("%s: %v", c.flag, err)
+		}
+		zr, err := zip.NewReader(strings.NewReader(data), int64(len(data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range zr.File {
+			if f.Name != "ppt/slides/slide1.xml" && f.Name != "content.xml" {
+				continue
+			}
+			rc, _ := f.Open()
+			b, _ := io.ReadAll(rc)
+			rc.Close()
+			found = strings.Contains(string(b), c.textBox)
+		}
+		if found != c.editable {
+			t.Errorf("%s: text boxes %v, want %v", c.flag, found, c.editable)
+		}
+	}
 	for _, args := range [][]string{
 		{deckPath, "--pdf", "--images", "png"},
 		{deckPath, "--pdf-raster", "--pptx"},
+		{deckPath, "--pptx-raster", "--odp"},
 		{deckPath, "--images", "gif"},
 		{deckPath, "--image", "tiff"},
 	} {

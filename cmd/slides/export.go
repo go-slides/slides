@@ -24,10 +24,10 @@ func (o *options) format() (string, error) {
 	if o.pdf || o.pdfRaster {
 		chosen = append(chosen, "pdf")
 	}
-	if o.pptx {
+	if o.pptx || o.pptxRaster {
 		chosen = append(chosen, "pptx")
 	}
-	if o.odp {
+	if o.odp || o.odpRaster {
 		chosen = append(chosen, "odp")
 	}
 	for name, v := range map[string]string{"images": o.images, "image": o.image} {
@@ -133,12 +133,20 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 		}
 		return o.emit(cmd, path, or(o.output, base+".pdf"), buf.Bytes(), len(b.Slides))
 	case "pptx":
-		// Each picture is PNG-encoded by the worker that rendered it.
 		pptx := export.NewPPTX(b)
-		if err := export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
-			pptx.Add(png)
-			return nil
-		}); err != nil {
+		var err error
+		if o.pptxRaster {
+			// One picture a slide, PNG-encoded by the worker that rendered it.
+			err = export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
+				pptx.Add(png)
+				return nil
+			})
+		} else {
+			err = export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+				return pptx.AddLayout(l)
+			})
+		}
+		if err != nil {
 			return err
 		}
 		var buf bytes.Buffer
@@ -148,10 +156,18 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 		return o.emit(cmd, path, or(o.output, base+".pptx"), buf.Bytes(), len(b.Slides))
 	case "odp":
 		odp := export.NewODP(b)
-		if err := export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
-			odp.Add(png)
-			return nil
-		}); err != nil {
+		var err error
+		if o.odpRaster {
+			err = export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
+				odp.Add(png)
+				return nil
+			})
+		} else {
+			err = export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+				return odp.AddLayout(l)
+			})
+		}
+		if err != nil {
 			return err
 		}
 		var buf bytes.Buffer

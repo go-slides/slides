@@ -5,6 +5,37 @@ tool whose output it reproduces, on the same decks and the same machine.
 Every figure below comes from `internal/cmd/slidesbench` and the Go
 benchmarks in this repository; the commands to reproduce them are at the end.
 
+## Editable PPTX
+
+`--pptx` now writes editable slides — text boxes in the deck's embedded
+fonts, shapes, gradients, pictures stored once (go-webengine `officecanvas`,
+go-ooxml v0.5.0) — where marp-cli's PPTX, and v0.4.0's, is one picture a
+slide. Measured on 2026-10-19 (`slidesbench -modes pptx`, 5 interleaved
+rounds, median [range]); the load average was 7.1 at the start but **9–10
+during the rounds** (other sessions on the machine), so the times are high
+and their ranges wide; the sizes and the ratios are what to read:
+
+| Deck | go-slides (editable) | marp-cli (pictures) | v0.4.0 (pictures) | sizes: go-slides / marp-cli / v0.4.0 | memory: go-slides / marp-cli / v0.4.0 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 100 slides | **484 ms** | 8,159 ms | 4,661 ms | **760 KiB** / 7.2 MiB / 4.8 MiB | **206** / 1,386 / 540 MiB |
+| gaia, 20 | **118 ms** | 4,686 ms | 1,403 ms | **893 KiB** / 4.8 MiB / 965 KiB | **124** / 1,349 / 240 MiB |
+| math and code, 20 | **242 ms** | 3,017 ms | 808 ms | **842 KiB** / 1.5 MiB / 1.5 MiB | **149** / 1,379 / 270 MiB |
+
+CPU time of the 100-slide deck: 1.4 s against marp-cli's 8.3 s and v0.4.0's
+15.7 s (which PNG-encoded 100 slides at 2560×1440). Most of an editable
+deck's size is its fonts, embedded whole so that new text can be typed in
+them (gaia's Lato and Roboto Mono faces); a one-slide oracle deck in Inter
+is already 480 KiB, so the slides themselves are a few KiB each. The ODP is the same drawing (570 KiB for the 100 slides,
+`officecheck`, in-process).
+
+**Same layout as the image export.** `go run ./internal/cmd/officecheck --out
+DIR` (DIR outside the repository) converts the editable PPTX and ODP to PDF
+with LibreOffice 25.8, renders the pages with poppler and compares them with
+`export.Rasterize`: 1.7 % (PPTX) and 1.4 % (ODP) of the pixels differ by more
+than 48 on the 100-slide deck, 0.04–1.9 % on the oracle decks, on glyph edges
+(another rasteriser). LibreOffice renders them in the embedded Lato and Inter
+the machine does not have; `pdftotext` reads 2,240 words back.
+
 ## Vector PDF
 
 `--pdf` now draws each slide as vectors — text in the embedded fonts the
@@ -340,5 +371,7 @@ go build -o /tmp/slides-base ./cmd/slides     # on the commit to compare with
 go run ./internal/cmd/slidesbench -baseline /tmp/slides-base -rounds 5 -json results.json
 go run ./internal/cmd/slidesbench -modes pdf -baseline /tmp/slides-base -rounds 5
 go run ./internal/cmd/pdfcheck -out /tmp/pdfcheck   # vector PDF against the raster render; needs poppler
+go run ./internal/cmd/slidesbench -modes pptx -baseline /tmp/slides-base -rounds 5
+go run ./internal/cmd/officecheck --out /tmp/officecheck   # editable PPTX/ODP through LibreOffice; needs poppler
 go test -run '^$' -bench . -benchmem . ./export/
 ```
