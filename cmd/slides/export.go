@@ -26,6 +26,9 @@ func (o *options) format() (string, error) {
 	if o.pptx {
 		chosen = append(chosen, "pptx")
 	}
+	if o.odp {
+		chosen = append(chosen, "odp")
+	}
 	for name, v := range map[string]string{"images": o.images, "image": o.image} {
 		if v == "" {
 			continue
@@ -41,13 +44,15 @@ func (o *options) format() (string, error) {
 	case 1:
 		return chosen[0], nil
 	default:
-		return "", fmt.Errorf("--pdf, --pptx, --images and --image are exclusive")
+		return "", fmt.Errorf("--pdf, --pptx, --odp, --images and --image are exclusive")
 	}
 	switch strings.ToLower(filepath.Ext(o.output)) {
 	case ".pdf":
 		return "pdf", nil
 	case ".pptx":
 		return "pptx", nil
+	case ".odp":
+		return "odp", nil
 	case ".png":
 		return "image:png", nil
 	case ".jpg", ".jpeg":
@@ -83,8 +88,9 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 	if o.imageScale <= 0 || o.imageScale > 8 {
 		return fmt.Errorf("--image-scale %v: want a value in (0, 8]", o.imageScale)
 	}
-	if format == "pptx" && !cmd.Flags().Changed("image-scale") {
-		// A deck is shown full screen: marp-cli renders PPTX at 2 by default.
+	if (format == "pptx" || format == "odp") && !cmd.Flags().Changed("image-scale") {
+		// A deck is shown full screen: marp-cli renders PPTX at 2 by
+		// default, and an OpenDocument deck is shown the same way.
 		o.imageScale = 2
 	}
 	opts := export.Options{
@@ -130,6 +136,19 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 			return err
 		}
 		return o.emit(cmd, path, or(o.output, base+".pptx"), buf.Bytes(), len(b.Slides))
+	case "odp":
+		odp := export.NewODP(b)
+		if err := export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
+			odp.Add(png)
+			return nil
+		}); err != nil {
+			return err
+		}
+		var buf bytes.Buffer
+		if err := odp.Write(&buf); err != nil {
+			return err
+		}
+		return o.emit(cmd, path, or(o.output, base+".odp"), buf.Bytes(), len(b.Slides))
 	case "image":
 		if len(b.Slides) == 0 {
 			return fmt.Errorf("%s: the deck has no slide", path)

@@ -33,6 +33,7 @@ type options struct {
 
 	pdf         bool
 	pptx        bool
+	odp         bool
 	images      string
 	image       string
 	jpegQuality int
