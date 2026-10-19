@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"runtime/metrics"
 	"testing"
+	"time"
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
@@ -33,6 +35,7 @@ func BenchmarkRasterize(b *testing.B) {
 		for _, workers := range []int{1, 2, 4, 8} {
 			b.Run(fmt.Sprintf("%s/workers-%d", d.name, workers), func(b *testing.B) {
 				bd := benchBuild(b, d.src)
+				peak := heapPeak()
 				b.ReportAllocs()
 				for b.Loop() {
 					if err := Each(context.Background(), bd, Options{Workers: workers}, func(int, *image.RGBA) error { return nil }); err != nil {
@@ -40,8 +43,40 @@ func BenchmarkRasterize(b *testing.B) {
 					}
 				}
 				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(len(bd.Slides))/1e6, "ms/slide")
+				b.ReportMetric(peak()/(1<<20), "peak-heap-MiB")
 			})
 		}
+	}
+}
+
+// heapPeak samples the bytes held by live and not-yet-collected heap
+// objects (runtime/metrics, which does not stop the world) every
+// millisecond until the returned function is called, and returns the
+// largest value seen: what the workers hold at once, garbage included.
+func heapPeak() func() float64 {
+	const name = "/memory/classes/heap/objects:bytes"
+	s := []metrics.Sample{{Name: name}}
+	var peak uint64
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		t := time.NewTicker(time.Millisecond)
+		defer t.Stop()
+		for {
+			metrics.Read(s)
+			peak = max(peak, s[0].Value.Uint64())
+			select {
+			case <-done:
+				return
+			case <-t.C:
+			}
+		}
+	}()
+	return func() float64 {
+		close(done)
+		<-finished
+		return float64(peak)
 	}
 }
 

@@ -9,7 +9,7 @@ require (
 	github.com/go-pdfkit/pdfkit v0.14.1
 	github.com/go-rouge/rouge v0.5.0
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.8.4
+	github.com/go-webengine/engine v0.8.5
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v3 v3.0.5
