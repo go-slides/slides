@@ -214,6 +214,12 @@ the go-* libraries instead:
 
 Several and split backgrounds (`![bg left:40%]`) render as Marp's layers do.
 
+Slides render four at a time and are written as they come, so a long deck is
+never held in memory as images. Against marp-cli 4.5.1 on the same machine, a
+100-slide deck exports to PNG in 0.97 s against 5.4 s and to PDF in 1.1 s
+against 1.9 s, in a sixth of the memory; the PDF is larger, its slides being
+images. See [BENCHMARKS.md](BENCHMARKS.md).
+
 Lato (Regular, Bold, Black) and Roboto Mono (Regular, Bold) are embedded
 upright and italic, so gaia's headings, code and emphasis render with their
 own faces.

@@ -54,8 +54,9 @@ type Options struct {
 // DefaultWorkers is how many slides Each renders at once by default: the
 // number of CPUs Go may use, at most 4. The slides are independent, so more
 // workers render a deck faster; each holds one slide's layout and image, so
-// more workers also hold more memory, and past 4 the time saved no longer
-// pays for it (see BENCHMARKS.md).
+// more workers also hold more memory. Measured on 10 slides (BENCHMARKS.md):
+// 1 → 2 workers saves 47 % of the time, 2 → 4 another 27 %, 4 → 8 only 21 %
+// for 15 % more heap; 4 keeps the heap near one worker's.
 func DefaultWorkers() int { return min(runtime.GOMAXPROCS(0), 4) }
 
 // Rasterize renders every slide of b, which must have been rendered in
