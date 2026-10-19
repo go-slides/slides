@@ -33,6 +33,7 @@ type options struct {
 	noEmoji    bool
 
 	pdf         bool
+	pdfRaster   bool // --pdf-raster: the PDF's pages as images
 	pptx        bool
 	odp         bool
 	images      string

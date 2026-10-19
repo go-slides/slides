@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-webengine/engine"
 	"github.com/spf13/cobra"
 
 	"github.com/go-slides/slides"
@@ -20,7 +21,7 @@ import (
 // file's extension does, as in marp-cli.
 func (o *options) format() (string, error) {
 	var chosen []string
-	if o.pdf {
+	if o.pdf || o.pdfRaster {
 		chosen = append(chosen, "pdf")
 	}
 	if o.pptx {
@@ -111,10 +112,19 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 	switch kind {
 	case "pdf":
 		pdf := export.NewPDF(b)
-		if err := export.Each(ctx, b, opts, func(_ int, img *image.RGBA) error {
-			pdf.Add(img)
-			return nil
-		}); err != nil {
+		var err error
+		if o.pdfRaster {
+			// The escape hatch: every page one image, as before vectors.
+			err = export.Each(ctx, b, opts, func(_ int, img *image.RGBA) error {
+				pdf.Add(img)
+				return nil
+			})
+		} else {
+			err = export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+				return pdf.AddLayout(l)
+			})
+		}
+		if err != nil {
 			return err
 		}
 		var buf bytes.Buffer

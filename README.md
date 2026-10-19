@@ -240,7 +240,8 @@ command's flags.
 | `--html` | build | allow all raw HTML |
 | `--lang code` | build | the `lang` attribute when the deck sets none |
 | `--bare` | build | stack the slides, without the presenting script |
-| `--pdf` | build | write a PDF, one page per slide, with an outline (also chosen by `-o file.pdf`) |
+| `--pdf` | build | write a PDF, one page per slide, with an outline — text and shapes as vectors (also chosen by `-o file.pdf`) |
+| `--pdf-raster` | build | write the PDF with each page one image of the slide, as before the vector PDF |
 | `--pptx` | build | write a PowerPoint deck: a picture per slide with its speaker notes, at scale 2 by default (also chosen by `-o file.pptx`) |
 | `--odp` | build | write an OpenDocument presentation: a picture per slide with its speaker notes, at scale 2 by default (also chosen by `-o file.odp`) |
 | `--images png\|jpeg` | build | write one image per slide: `deck.001.png`, … |
@@ -292,7 +293,15 @@ the go-* libraries instead:
   `section::after` is lowered to a real element carrying its evaluated content.
 - [go-pdfkit](https://github.com/go-pdfkit/pdfkit) writes the PDF: one page
   per slide at the slide's size, and an outline of the slides and their
-  headings.
+  headings. The pages are **vectors**: go-webengine draws the laid-out slide
+  through its `pdfcanvas` instead of into pixels, so the text is text in the
+  fonts it was laid out with (subset-embedded, selectable, searchable),
+  backgrounds, borders and gradients are paths and shadings, an image used
+  on many slides is embedded once, and links are clickable. An element with
+  no vector form here (`opacity`, a `filter`, a blurred shadow, a fading
+  gradient) is drawn as a bitmap of that element only, its text kept
+  selectable over it; formulas are still bitmaps. `--pdf-raster` writes one
+  image per page instead.
 - The fonts the built-in themes ask for (Lato, Roboto Mono) come from
   [go-opentype/fonts](https://github.com/go-opentype/fonts), embedded, so no
   render touches the network.
@@ -307,9 +316,9 @@ Several and split backgrounds (`![bg left:40%]`) render as Marp's layers do.
 
 Slides render four at a time and are written as they come, so a long deck is
 never held in memory as images. Against marp-cli 4.5.1 on the same machine, a
-100-slide deck exports to PNG in 0.97 s against 5.4 s and to PDF in 1.1 s
-against 1.9 s, in a sixth of the memory; the PDF is larger, its slides being
-images. See [BENCHMARKS.md](BENCHMARKS.md).
+100-slide deck exports to PNG in 0.97 s against 5.4 s and to PDF in 0.31 s
+against 1.8 s, in a ninth of the memory; the PDF is 758 KiB against marp-cli's
+837 KiB (10 MiB when its pages were images). See [BENCHMARKS.md](BENCHMARKS.md).
 
 Lato (Regular, Bold, Black) and Roboto Mono (Regular, Bold) are embedded
 upright and italic, so gaia's headings, code and emphasis render with their

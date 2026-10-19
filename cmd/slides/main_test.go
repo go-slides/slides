@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"rsc.io/pdf"
 )
 
 // run drives RootCmd with args, capturing standard output and error.
@@ -170,8 +172,25 @@ func TestExport(t *testing.T) {
 	if err != nil || !strings.HasPrefix(out, "%PDF-") {
 		t.Errorf("-o - writes the PDF to standard output: %v", err)
 	}
+	// --pdf draws vectors: the text is in an embedded font. --pdf-raster
+	// (which alone chooses a PDF) draws each page as one image, no font.
+	raster, _, err := run(t, deckPath, "--pdf-raster", "-o", "-")
+	if err != nil || !strings.HasPrefix(raster, "%PDF-") {
+		t.Fatalf("--pdf-raster: %v", err)
+	}
+	fonts := func(s string) int {
+		r, err := pdf.NewReader(strings.NewReader(s), int64(len(s)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(r.Page(1).V.Key("Resources").Key("Font").Keys())
+	}
+	if fonts(raster) != 0 || fonts(out) == 0 {
+		t.Error("--pdf must embed the fonts its text is set in, --pdf-raster none")
+	}
 	for _, args := range [][]string{
 		{deckPath, "--pdf", "--images", "png"},
+		{deckPath, "--pdf-raster", "--pptx"},
 		{deckPath, "--images", "gif"},
 		{deckPath, "--image", "tiff"},
 	} {
