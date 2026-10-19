@@ -372,7 +372,11 @@ into a PDF cannot fetch; here it is a `data:` URI of the SVG, taken from the
 embedded set of [go-icons/twemoji](https://github.com/go-icons/twemoji) (2 MB
 compressed, read lazily: a deck without emoji pays nothing). The rule that
 sizes the image (`img[data-marp-twemoji]`, one `em`) is added to the theme as
-Marp Core adds it. HTML, images, PDF, PPTX and ODP all draw them.
+Marp Core adds it. HTML, images, PDF, PPTX and ODP all draw them. The SVG is
+rasterised by go-webengine through
+[go-gfx/oksvg](https://github.com/go-gfx/oksvg), the fleet's fork of oksvg with
+`clipPath` and correct multi-set arc commands: all 4,009 graphics are drawn, and
+the ones that srwiley/oksvg got wrong (🪇, about 200 in all) match Chrome.
 
 The rules are Marp Core's, pinned by `testdata/oracle/emoji.md`:
 

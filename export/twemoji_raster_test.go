@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-gfx/oksvg"
 	"github.com/go-icons/twemoji"
-	"github.com/srwiley/oksvg"
 	"github.com/srwiley/rasterx"
 
 	"github.com/go-slides/slides"
@@ -49,6 +49,34 @@ func TestRasterizeEmoji(t *testing.T) {
 				t.Fatalf("yellow at %d,%d with NoEmoji", x, y)
 			}
 		}
+	}
+}
+
+// TestTwemojiMaracas: 🪇 is drawn with arc commands carrying several parameter
+// sets and with a clipPath on every shape. srwiley/oksvg drew huge discs over it
+// (45% of the pixels off Chrome's rendering); go-gfx/oksvg, which engine v0.9.1
+// uses, does not. The pixels checked are those of a rendering by Chrome.
+func TestTwemojiMaracas(t *testing.T) {
+	svg, ok := twemoji.SVG("🪇")
+	if !ok {
+		t.Fatal("no graphic")
+	}
+	const size = 72
+	icon, err := oksvg.ReadIconStream(strings.NewReader(svg), oksvg.StrictErrorMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	icon.SetTarget(0, 0, size, size)
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	icon.Draw(rasterx.NewDasher(size, size, rasterx.NewScannerGV(size, size, img, img.Bounds())), 1)
+	if a := img.RGBAAt(36, 12).A; a != 0 {
+		t.Errorf("alpha %d between the two maracas, where Chrome draws nothing", a)
+	}
+	if a := img.RGBAAt(7, 6).A; a == 0 {
+		t.Error("the red cap of the left maraca is missing")
+	}
+	if a := img.RGBAAt(62, 12).A; a == 0 {
+		t.Error("the red cap of the right maraca is missing")
 	}
 }
 
