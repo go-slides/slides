@@ -23,6 +23,10 @@ type Kind struct {
 	Extends string
 	// Dirs are the kind's own directives, already normalized.
 	Dirs Dirs
+
+	// literal marks a kind read from HCL: its values are already evaluated,
+	// so Go templates must not run over them a second time.
+	literal bool
 }
 
 // Kinds is a set of kinds by name.

@@ -170,11 +170,11 @@ that marp-cli or any Marp tool renders the same slides.`,
 // configuration, themes, kinds and data come from.
 func (o *options) persistentFlags(cmd *cobra.Command) {
 	f := cmd.PersistentFlags()
-	f.StringVar(&o.configFile, "config", "", "configuration file (default: slides.yaml next to the deck, if any)")
+	f.StringVar(&o.configFile, "config", "", "configuration file, HCL if named *.hcl (default: slides.hcl, else slides.yaml, next to the deck)")
 	f.BoolVar(&o.noConfig, "no-config", false, "do not read a configuration file")
 	f.StringArrayVar(&o.themeSets, "theme-set", nil, "theme CSS file or directory (repeatable)")
-	f.StringArrayVar(&o.kindFiles, "kinds", nil, "YAML file of kinds (repeatable)")
-	f.StringArrayVar(&o.dataFiles, "data", nil, "YAML or JSON file of template data (repeatable)")
+	f.StringArrayVar(&o.kindFiles, "kinds", nil, "YAML or HCL (*.hcl) file of kinds (repeatable)")
+	f.StringArrayVar(&o.dataFiles, "data", nil, "YAML, JSON or HCL (*.hcl) file of template data (repeatable)")
 	f.StringArrayVar(&o.sets, "set", nil, "template data `key=value` (repeatable)")
 	f.BoolVar(&o.noTemplate, "no-template", false, "do not expand Go templates")
 	f.BoolVar(&o.strictYAML, "strict-yaml", false, "parse directives as strict YAML, as plain Marpit does")

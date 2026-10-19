@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -54,6 +53,17 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 	s := normalizer.Replace(string(src))
 	fmText, body, fmLines, hasFM := splitFrontMatter(s)
 
+	// An HCL front matter becomes the YAML front matter it stands for;
+	// its values are final, so templates leave them alone.
+	var hclKinds Kinds
+	fromHCL := hasFM && isHCLFrontMatter(s)
+	if fromHCL {
+		var err error
+		if fmText, hclKinds, err = hclFront(fmText, opts); err != nil {
+			return nil, err
+		}
+	}
+
 	loose := !opts.StrictYAML
 	var fmDirs map[string]any
 	front := map[string]any{}
@@ -77,12 +87,14 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 
 	kinds := BuiltinKinds().Merge(opts.Kinds)
 	if v, ok := fmDirs[keyKinds]; ok && v != nil {
-		k, err := loadKinds(v, opts.BaseDir)
+		env := HCLEnv{Data: data, BaseDir: opts.BaseDir, Now: opts.Now}
+		k, err := loadKinds(v, opts.BaseDir, env)
 		if err != nil {
 			return nil, d.errorf(1, "%v", err)
 		}
 		kinds = kinds.Merge(k)
 	}
+	kinds = kinds.Merge(hclKinds)
 
 	// Template interpolation.
 	if !opts.NoTemplate && templateEnabled(fmDirs) {
@@ -97,10 +109,15 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 		valueOpts := io
 		valueOpts.Code = true
 		var err error
-		if fmDirs, err = expandValues(fmDirs, valueOpts); err != nil {
-			return nil, d.errorf(1, "front matter: %v", err)
+		if !fromHCL {
+			if fmDirs, err = expandValues(fmDirs, valueOpts); err != nil {
+				return nil, d.errorf(1, "front matter: %v", err)
+			}
 		}
 		for name, k := range kinds {
+			if k.literal {
+				continue
+			}
 			// Kinds can be shared between decks: expand a copy.
 			c := *k
 			c.Dirs = k.Dirs.Clone()
@@ -113,8 +130,10 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 			}
 			kinds[name] = &c
 		}
-		if d.frontText, err = interp.Expand(fmText, valueOpts); err != nil {
-			return nil, d.errorf(1, "front matter: %v", err)
+		if !fromHCL {
+			if d.frontText, err = interp.Expand(fmText, valueOpts); err != nil {
+				return nil, d.errorf(1, "front matter: %v", err)
+			}
 		}
 		// Blank lines in place of the front matter make template errors
 		// report the deck file's own line numbers.
@@ -218,13 +237,13 @@ func expandValues(m map[string]any, opts interp.Options) (map[string]any, error)
 }
 
 // loadKinds reads the kinds front-matter key: a mapping of kinds, or the
-// path (or list of paths) of YAML files holding one.
-func loadKinds(v any, baseDir string) (Kinds, error) {
+// path (or list of paths) of YAML or HCL files holding some.
+func loadKinds(v any, baseDir string, env HCLEnv) (Kinds, error) {
 	switch x := v.(type) {
 	case map[string]any:
 		return ParseKinds(x)
 	case string:
-		return LoadKindsFile(resolvePath(baseDir, x))
+		return LoadKindsFileEnv(resolvePath(baseDir, x), env)
 	case []any:
 		k := Kinds{}
 		for _, p := range x {
@@ -232,7 +251,7 @@ func loadKinds(v any, baseDir string) (Kinds, error) {
 			if !ok {
 				return nil, fmt.Errorf("kinds: want a file path, got %T", p)
 			}
-			f, err := LoadKindsFile(resolvePath(baseDir, path))
+			f, err := LoadKindsFileEnv(resolvePath(baseDir, path), env)
 			if err != nil {
 				return nil, err
 			}
@@ -243,14 +262,12 @@ func loadKinds(v any, baseDir string) (Kinds, error) {
 	return nil, fmt.Errorf("kinds: want a mapping or file paths, got %T", v)
 }
 
-// LoadKindsFile reads kinds from a YAML file: either a mapping of kinds, or
-// a mapping with a kinds key (so a configuration file can serve as one).
+// LoadKindsFile reads kinds from a file. A YAML file holds either a mapping
+// of kinds, or a mapping with a kinds key (so a configuration file can serve
+// as one); a .hcl file holds kind blocks (see ParseKindsHCL), evaluated
+// without template data — LoadKindsFileEnv provides some.
 func LoadKindsFile(path string) (Kinds, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return ParseKindsYAML(b, path)
+	return LoadKindsFileEnv(path, HCLEnv{})
 }
 
 // ParseKindsYAML reads kinds from YAML source; name is for errors.

@@ -142,6 +142,82 @@ Kinds come from, in increasing priority: the built-ins, `slides.yaml`,
 a mapping or the path of a file, or a list of paths, so several decks can share
 one file. `slides kinds deck.md` lists what a deck can use.
 
+## HCL
+
+Everywhere `slides` reads YAML, it also reads
+[HCL2](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md)'s native
+syntax, for its expressions and functions:
+
+| where | YAML | HCL |
+|---|---|---|
+| front matter | `---` … `---` | `---hcl` … `---` |
+| configuration | `slides.yaml` | `slides.hcl` (looked up first) |
+| kinds files | `--kinds kinds.yaml`, `kinds: kinds.yaml` | any file named `*.hcl` |
+| data files | `--data data.yaml` / `.json` | any file named `*.hcl` |
+
+```hcl
+---hcl
+theme    = "gaia"
+paginate = true
+title    = "Quarterly review"
+data = {
+  company = "ACME"
+  quarter = 3
+}
+header = format("%s — Q%d", data.company, data.quarter)
+footer = "${upper(data.company)} · ${page()}/${total()}"
+date   = formatdate("D MMMM YYYY", now())
+
+kind "chapter" {
+  extends = "section"
+  class   = ["lead", "invert"]
+}
+---
+
+# {{ .title }}
+```
+
+- **Attributes** are the YAML keys under the same names: Marp's directives
+  (`theme`, `paginate`, `header`, `footer`, `class`, `backgroundColor`, …),
+  the metadata (`title`, `author`, …), `template`, `delims`, `kinds` (file
+  paths) and `data`, an object. `kind "<name>" { … }` blocks define kinds,
+  in a front matter, in `slides.hcl` and in kinds files. `slides.hcl` takes
+  `themes`, `html`, `lang`, `data` and `kinds` attributes besides.
+- **Values** reach the directives in the string forms YAML gives them
+  (`true` is `"true"`, a list of classes is a list), so a directive behaves
+  the same whichever syntax set it. `null` leaves a directive unset. `data`
+  keeps its types: in templates an integral number is an `int`, others a
+  `float64`, and lists and objects stay lists and maps.
+- **Variables**: `data` is the template data — the front matter's own `data`
+  overlaid by `slides.hcl`'s, `--data` files and `--set` — so
+  `"${data.company}"` works wherever `{{ .company }}` would. Front-matter
+  attributes may reference `data.*` but not each other; spot directives
+  (`_class`…) are not HCL identifiers, so write them in a comment.
+- **Functions**: `page()` and `total()` (the page number and the last page
+  number, as `{{ page }}` and `{{ total }}`), `now()` and `timestamp()`
+  (RFC 3339, local and UTC), `env(name)`, and `file(path)`, which reads a
+  UTF-8 text file of at most 1 MiB relative to the deck or configuration
+  file. From go-cty's standard library: `abs ceil floor log max min parseint
+  pow signum`, `chomp format formatlist join lower regex regexall
+  regexreplace replace split strlen strrev substr title trim trimprefix
+  trimspace trimsuffix upper`, `chunklist coalesce coalescelist compact
+  concat contains distinct element flatten keys length lookup merge range
+  reverse slice sort values zipmap`, `csvdecode jsondecode jsonencode`,
+  `formatdate timeadd`. None reaches the network.
+- An HCL value is final: Go templates do not run over it a second time. The
+  deck body stays a Go template.
+- **Errors** carry HCL's diagnostics, positioned in the deck file itself.
+  `footer = data.compnay` on the deck's fourth line gives
+  `deck.md:4:14: Unsupported attribute: This object does not have an
+  attribute named "compnay".`
+- **Marp** reads `---hcl` as the start of a front matter too (its rule opens
+  on any first line beginning with three dashes) and, the block not being a
+  YAML mapping, applies none of it:
+  [`testdata/oracle/hcl-frontmatter.md`](testdata/oracle/hcl-frontmatter.md)
+  pins this against Marp Core. `slides expand` writes the front matter back
+  as YAML, so the expanded deck is plain Marp.
+- Directive comments (`<!-- class: invert -->`) stay YAML, as in Marp.
+
 ## Command line
 
 ```
@@ -171,10 +247,10 @@ command's flags.
 | `--image-scale n` | build | device pixels per CSS pixel for images and PDF (default 1) |
 | `--allow-local-files` | build | let images and PDF read local files, from under the deck's directory only |
 | `--theme-set path` | all | a theme CSS file or a directory of them (repeatable) |
-| `--kinds file` | all | a YAML file of kinds (repeatable) |
-| `--data file`, `--set k=v` | all | template data (repeatable) |
+| `--kinds file` | all | a YAML or HCL (`*.hcl`) file of kinds (repeatable) |
+| `--data file`, `--set k=v` | all | template data: YAML, JSON or HCL (`*.hcl`) files (repeatable) |
 | `--no-template`, `--strict-yaml` | all | plain Marpit behaviour |
-| `--config file`, `--no-config` | all | `slides.yaml` is read from the deck's directory by default |
+| `--config file`, `--no-config` | all | `slides.hcl`, else `slides.yaml`, is read from the deck's directory by default |
 
 ```yaml
 # slides.yaml
@@ -183,6 +259,19 @@ themes: [themes/acme.css]
 data: {company: ACME}    # or file paths
 html: false
 lang: en
+```
+
+```hcl
+# slides.hcl, the same in HCL
+kinds  = "kinds.hcl"
+themes = ["themes/acme.css"]
+data   = { company = "ACME", year = 2026 }
+html   = false
+lang   = "en"
+kind "quote" {
+  extends = "blank"
+  footer  = "${data.company} ${data.year}"
+}
 ```
 
 The HTML page is self-contained. Navigate with the arrow keys, Space and
@@ -274,3 +363,7 @@ run a script when exporting.
 
 BSD-3-Clause. The built-in themes in [`theme/marp`](theme/marp) are Marp
 Core's, under its MIT license ([`theme/marp/LICENSE`](theme/marp/LICENSE)).
+
+HCL support links [hashicorp/hcl/v2](https://github.com/hashicorp/hcl)
+(MPL-2.0, used unmodified as a library) and
+[zclconf/go-cty](https://github.com/zclconf/go-cty) (MIT).
