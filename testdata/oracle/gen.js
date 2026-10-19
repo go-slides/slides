@@ -4,7 +4,9 @@
 //     node testdata/oracle/gen.js </dev/null
 //
 // Marp Core runs without inline SVG, math, emoji or highlighting, so that
-// the output isolates what go-slides' deck package reproduces.
+// the output isolates what go-slides' deck package reproduces. The exception
+// is emoji.md, which is the emoji deck: it runs with Marp Core's defaults for
+// emoji (Twemoji SVG images for shortcodes and Unicode emoji).
 const fs = require('fs')
 const path = require('path')
 const { Marp } = require('@marp-team/marp-core')
@@ -15,7 +17,7 @@ for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !f.endsWi
     inlineSVG: false,
     container: false,
     math: false,
-    emoji: { shortcode: false, unicode: false },
+    emoji: f === 'emoji.md' ? undefined : { shortcode: false, unicode: false },
     script: false,
   })
   marp.highlighter = () => ''
@@ -23,6 +25,11 @@ for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !f.endsWi
   const base = path.join(dir, f.replace(/\.md$/, ''))
   fs.writeFileSync(base + '.html', `<!-- marp-core ${pkg.version} -->\n` + html)
   fs.writeFileSync(base + '.notes.json', JSON.stringify(comments, null, 1) + '\n')
+  if (f === 'emoji.md') {
+    // The rule Marp Core adds to the theme for its emoji images.
+    const i = css.indexOf('img[data-marp-twemoji]')
+    fs.writeFileSync(base + '.rule.css', css.slice(i, css.indexOf('}', i) + 1) + '\n')
+  }
 }
 
 // The theme pipeline, through plain Marpit with a custom theme.

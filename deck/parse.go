@@ -36,6 +36,10 @@ type Options struct {
 	Now func() time.Time
 	// Name names the deck in error messages.
 	Name string
+	// NoEmoji leaves :shortcodes: and Unicode emoji as the text they were
+	// written as (Marp Core's emoji: false); by default they become Twemoji
+	// images.
+	NoEmoji bool
 }
 
 // Front-matter keys this tool reads besides directives.

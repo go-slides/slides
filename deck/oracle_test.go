@@ -1,6 +1,7 @@
 package deck
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-icons/twemoji"
 	"golang.org/x/net/html"
 )
 
@@ -44,7 +46,8 @@ func TestOracle(t *testing.T) {
 				}
 				src = []byte(body)
 			}
-			d, err := Parse(src, Options{NoTemplate: true})
+			// gen.js runs Marp Core without emoji, except on emoji.md.
+			d, err := Parse(src, Options{NoTemplate: true, NoEmoji: name != "emoji"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -52,7 +55,7 @@ func TestOracle(t *testing.T) {
 			for _, r := range d.Render(RenderOptions{Frame: FramePlain}) {
 				got.WriteString(r.HTML)
 			}
-			g, w := normalizeHTML(got.String()), normalizeHTML(string(want))
+			g, w := normalizeHTML(got.String()), normalizeHTML(inlineTwemoji(t, string(want)))
 			if g != w {
 				gl, wl := strings.Split(g, "\n"), strings.Split(w, "\n")
 				for i := range max(len(gl), len(wl)) {
@@ -64,7 +67,7 @@ func TestOracle(t *testing.T) {
 						b = wl[i]
 					}
 					if a != b {
-						t.Fatalf("first difference at token %d:\n got: %s\nwant: %s", i, a, b)
+						t.Fatalf("first difference at token %d:\n got: %s\nwant: %s", i, abbreviate(a), abbreviate(b))
 					}
 				}
 			}
@@ -89,6 +92,29 @@ func TestOracle(t *testing.T) {
 }
 
 var scopeKey = regexp.MustCompile(`data-marpit-scope-[A-Za-z0-9]+`)
+
+var twemojiCDN = regexp.MustCompile(`https://cdn\.jsdelivr\.net/gh/jdecked/twemoji@[0-9.]+/assets/svg/([0-9a-f-]+)\.svg`)
+
+var dataURI = regexp.MustCompile(`data:image/svg\+xml;base64,[A-Za-z0-9+/=]{24}[A-Za-z0-9+/=]*`)
+
+// abbreviate shortens the data: URIs of a token for a failure message.
+func abbreviate(s string) string {
+	return dataURI.ReplaceAllStringFunc(s, func(u string) string { return u[:50] + "…" })
+}
+
+// inlineTwemoji turns Marp Core's emoji image URLs, which point at a CDN,
+// into the data: URIs go-slides writes for the same graphics: the one
+// difference that is meant.
+func inlineTwemoji(t *testing.T, html string) string {
+	return twemojiCDN.ReplaceAllStringFunc(html, func(url string) string {
+		stem := twemojiCDN.FindStringSubmatch(url)[1]
+		svg, ok := twemoji.SVGByStem(stem)
+		if !ok {
+			t.Errorf("Marp Core draws %s, which the embedded set lacks", stem)
+		}
+		return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
+	})
+}
 
 // normalizeHTML writes one token per line: tags with sorted attributes,
 // text with its whitespace collapsed, comments dropped.
@@ -132,7 +158,7 @@ func TestOracleSVG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := Parse(src, Options{NoTemplate: true})
+	d, err := Parse(src, Options{NoTemplate: true, NoEmoji: true})
 	if err != nil {
 		t.Fatal(err)
 	}

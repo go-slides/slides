@@ -178,6 +178,7 @@ func (o *options) persistentFlags(cmd *cobra.Command) {
 	f.StringArrayVar(&o.sets, "set", nil, "template data `key=value` (repeatable)")
 	f.BoolVar(&o.noTemplate, "no-template", false, "do not expand Go templates")
 	f.BoolVar(&o.strictYAML, "strict-yaml", false, "parse directives as strict YAML, as plain Marpit does")
+	f.BoolVar(&o.noEmoji, "no-emoji", false, "leave :shortcodes: and Unicode emoji as text instead of drawing them as Twemoji images")
 }
 
 func (o *options) outputFlag(cmd *cobra.Command) {

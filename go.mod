@@ -3,6 +3,7 @@ module github.com/go-slides/slides
 go 1.27.2
 
 require (
+	github.com/go-icons/twemoji v0.1.0
 	github.com/go-odf/odf v0.8.0
 	github.com/go-ooxml/ooxml v0.4.0
 	github.com/go-ooxml/opc v0.2.1
@@ -13,6 +14,8 @@ require (
 	github.com/go-webengine/engine v0.8.5
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/yuin/goldmark v1.8.6
 	github.com/zclconf/go-cty v1.19.0
 	go.yaml.in/yaml/v3 v3.0.5
@@ -60,8 +63,6 @@ require (
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
-	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/tannevaled/gobig2 v0.2.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/image v0.46.0 // indirect

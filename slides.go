@@ -29,6 +29,9 @@ type Config struct {
 	Bare bool
 	// NoMath leaves $…$ and $$…$$ as text (Marp Core's math: false).
 	NoMath bool
+	// NoEmoji leaves :shortcodes: and Unicode emoji as text (Marp Core's
+	// emoji: false) instead of drawing them as Twemoji images.
+	NoEmoji bool
 }
 
 // Build is a parsed and rendered deck.
@@ -43,7 +46,9 @@ type Build struct {
 
 // Render parses and renders a deck for a frame.
 func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
-	d, err := deck.Parse(src, cfg.Parse)
+	popts := cfg.Parse
+	popts.NoEmoji = popts.NoEmoji || cfg.NoEmoji
+	d, err := deck.Parse(src, popts)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +72,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	}
 	opts := theme.PackOptions{
 		After:          after,
+		Before:         emojiCSS(popts),
 		Printable:      true,
 		ContainerQuery: true,
 		Size:           d.Global.Get("size"),
@@ -94,6 +100,14 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		FitHeadings:      true,
 	})
 	return b, nil
+}
+
+// emojiCSS is the rule Marp Core adds to the theme when emoji are images.
+func emojiCSS(o deck.Options) []string {
+	if o.NoEmoji {
+		return nil
+	}
+	return []string{deck.EmojiCSS}
 }
 
 func mathFor(cfg Config) func(string, bool) (string, error) {

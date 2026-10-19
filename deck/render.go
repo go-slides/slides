@@ -75,6 +75,7 @@ func (d *Deck) Render(opts RenderOptions) []Rendered {
 		opts.Width, opts.Height = 1280, 720
 	}
 	r := &slideRenderer{deck: d, opts: opts}
+	r.plain = goldmark.New(goldmark.WithRendererOptions(ghtml.WithHardWraps(), ghtml.WithXHTML(), ghtml.WithUnsafe()))
 	r.md = goldmark.New(
 		goldmark.WithExtensions(extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignStyle))),
 		goldmark.WithRendererOptions(
@@ -95,6 +96,11 @@ type slideRenderer struct {
 	deck *Deck
 	opts RenderOptions
 	md   goldmark.Markdown
+	// plain is goldmark's own HTML rendering, for the nodes whose output
+	// is rewritten after the fact (code spans and blocks).
+	plain goldmark.Markdown
+	// merged holds the texts of a run already written with the first.
+	merged map[*ast.Text]bool
 }
 
 // marpitDirectives are the directives Marpit writes out as data-*
@@ -504,6 +510,11 @@ func (r *slideRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindFencedCodeBlock, r.renderFencedCode)
 	reg.Register(KindMathInline, r.renderMath)
 	reg.Register(KindMathBlock, r.renderMath)
+	if !r.deck.opts.NoEmoji {
+		reg.Register(ast.KindText, r.renderText)
+		reg.Register(ast.KindCodeSpan, r.renderCodeSpan)
+		reg.Register(ast.KindCodeBlock, r.renderCodeBlock)
+	}
 }
 
 // renderMath writes a formula through RenderOptions.Math. Without it, or
@@ -726,19 +737,27 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 		lang, _, _ = strings.Cut(strings.TrimSpace(info), " ")
 		lang = html.UnescapeString(lang)
 	}
-	_, _ = w.WriteString("<pre><code")
+	var out strings.Builder
+	out.WriteString("<pre><code")
 	if lang != "" {
-		_, _ = w.WriteString(` class="language-` + escapeHTML(lang) + `"`)
+		out.WriteString(` class="language-` + escapeHTML(lang) + `"`)
 	}
-	_ = w.WriteByte('>')
+	out.WriteByte('>')
+	highlighted := false
 	if r.opts.Highlight != nil {
-		if out, ok := r.opts.Highlight(code.String(), lang); ok {
-			_, _ = w.WriteString(out)
-			_, _ = w.WriteString("</code></pre>\n")
-			return ast.WalkSkipChildren, nil
+		if h, ok := r.opts.Highlight(code.String(), lang); ok {
+			out.WriteString(h)
+			highlighted = true
 		}
 	}
-	_, _ = w.Write(util.EscapeHTML(code.Bytes()))
-	_, _ = w.WriteString("</code></pre>\n")
+	if !highlighted {
+		out.Write(util.EscapeHTML(code.Bytes()))
+	}
+	out.WriteString("</code></pre>\n")
+	if r.deck.opts.NoEmoji {
+		_, _ = w.WriteString(out.String())
+	} else {
+		_, _ = w.WriteString(emojifyHTML(out.String()))
+	}
 	return ast.WalkSkipChildren, nil
 }

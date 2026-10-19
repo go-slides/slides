@@ -122,20 +122,37 @@ func (d *Deck) scan() {
 // raw alternative text and inline HTML, hidden tokens left out) and a plain
 // text for outlines.
 func (d *Deck) headingText(h *ast.Heading) (slug string, plain string) {
-	var sb, pb strings.Builder
+	var sb, pb, run strings.Builder
+	// A run of texts (goldmark cuts one at every delimiter character) is
+	// read whole, so that a :shortcode: is the emoji it stands for: Marp
+	// Core slugs the emoji, not the name.
+	flush := func() {
+		if run.Len() == 0 {
+			return
+		}
+		t := run.String()
+		run.Reset()
+		if !d.opts.NoEmoji {
+			t = expandShortcodes(t)
+		}
+		sb.WriteString(t)
+		pb.WriteString(t)
+	}
 	_ = ast.Walk(h, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
+		}
+		if _, isText := n.(*ast.Text); !isText {
+			flush()
 		}
 		if i := d.info[n]; i != nil && i.hidden && n.Kind() != ast.KindImage {
 			return ast.WalkSkipChildren, nil
 		}
 		switch x := n.(type) {
 		case *ast.Text:
-			t := string(x.Segment.Value(d.source))
-			sb.WriteString(t)
-			pb.WriteString(t)
+			run.Write(x.Segment.Value(d.source))
 			if x.SoftLineBreak() || x.HardLineBreak() {
+				flush()
 				pb.WriteString(" ")
 			}
 		case *ast.String:
@@ -162,6 +179,7 @@ func (d *Deck) headingText(h *ast.Heading) (slug string, plain string) {
 		}
 		return ast.WalkContinue, nil
 	})
+	flush()
 	return sb.String(), strings.TrimSpace(pb.String())
 }
 

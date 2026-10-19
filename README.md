@@ -72,6 +72,7 @@ against output that marp-cli 4.5.1 (Marp Core 4.4.0) produced; see
   directive (`16:9`, `4:3`), custom themes (`@theme`, `@import`, `@size`).
 - GFM tables, strikethrough, URL linkify, line breaks as `<br>`, heading ids
   slugged as Marp Core does them.
+- Emoji shortcodes and Unicode emoji as Twemoji images (see [Emoji](#emoji)).
 - Raw HTML filtered through Marp Core's allowlist; `--html` allows it all.
 
 `slides expand` writes a deck back out as plain Marp Markdown, with templates
@@ -346,9 +347,42 @@ PPTX outputs all run the same small script: it measures the heading's natural
 width and scales its font size by the ratio. Only slides with a fitting heading
 run a script when exporting.
 
-## Roadmap
+## Emoji
 
-- Emoji.
+Emoji shortcodes (`:smile:`, `:+1:`, `:heart_eyes:`: markdown-it-emoji's 1,903
+names, which are the ones Marp Core knows) and Unicode emoji (😄, 👩‍💻, 🇫🇷, 1️⃣)
+become [Twemoji](https://github.com/jdecked/twemoji) images, exactly as Marp
+Core writes them:
+
+```html
+<img class="emoji" draggable="false" alt="😄" src="data:image/svg+xml;base64,…" data-marp-twemoji=""/>
+```
+
+Marp Core's `src` is a CDN URL, which a deck shown offline, printed or turned
+into a PDF cannot fetch; here it is a `data:` URI of the SVG, taken from the
+embedded set of [go-icons/twemoji](https://github.com/go-icons/twemoji) (2 MB
+compressed, read lazily: a deck without emoji pays nothing). The rule that
+sizes the image (`img[data-marp-twemoji]`, one `em`) is added to the theme as
+Marp Core adds it. HTML, images, PDF, PPTX and ODP all draw them.
+
+The rules are Marp Core's, pinned by `testdata/oracle/emoji.md`:
+
+- Shortcodes are recognized in text, not in code; Unicode emoji are also
+  converted inside code spans and blocks, as Marp Core does.
+- Text-default characters (`©` `™` `✔` `▶`) stay text unless followed by
+  U+FE0F (`✔️`); `❤` is the exception. A U+FE0E after an emoji keeps it text.
+- A heading's `id` and outline use the emoji a shortcode stands for.
+- `--no-emoji` (`Config.NoEmoji`, Marp Core's `emoji: false`) leaves all of it
+  as text.
+
+Where it differs, it converts more: `✌️ ☝️ ✍️ 🏋️` and a few other text-default
+characters that Marp Core's emoji-regex leaves as text. See the
+[twemoji README](https://github.com/go-icons/twemoji#reading-text-the-way-marp-core-does).
+
+**Attribution.** The graphics are Twemoji, Copyright 2020 Twitter, Inc and other
+contributors, licensed [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/),
+continued by the [jdecked/twemoji](https://github.com/jdecked/twemoji) project.
+Decks that show them should credit them.
 
 ## Packages
 
@@ -365,6 +399,7 @@ run a script when exporting.
 
 BSD-3-Clause. The built-in themes in [`theme/marp`](theme/marp) are Marp
 Core's, under its MIT license ([`theme/marp/LICENSE`](theme/marp/LICENSE)).
+The emoji graphics are Twemoji, CC-BY 4.0 (see [Emoji](#emoji)).
 
 HCL support links [hashicorp/hcl/v2](https://github.com/hashicorp/hcl)
 (MPL-2.0, used unmodified as a library) and
