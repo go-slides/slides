@@ -9,13 +9,15 @@ package export
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
 	"io"
+	"runtime"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/go-opentype/fonts/lato"
 	"github.com/go-opentype/fonts/robotomono"
@@ -43,11 +45,67 @@ type Options struct {
 	// directory and nowhere else; empty refuses every local file, as
 	// marp-cli does without --allow-local-files.
 	FileRoot string
+	// Workers is how many slides are rendered at once: 0 means
+	// DefaultWorkers(). It also bounds memory, since Each holds at most
+	// this many slide images at a time.
+	Workers int
 }
 
+// DefaultWorkers is how many slides Each renders at once by default: the
+// number of CPUs Go may use, at most 4. The slides are independent, so more
+// workers render a deck faster; each holds one slide's layout and image, so
+// more workers also hold more memory. Measured on 10 slides (BENCHMARKS.md):
+// 1 → 2 workers saves 47 % of the time, 2 → 4 another 27 %, 4 → 8 only 21 %
+// for 15 % more heap; 4 keeps the heap near one worker's.
+func DefaultWorkers() int { return min(runtime.GOMAXPROCS(0), 4) }
+
 // Rasterize renders every slide of b, which must have been rendered in
-// deck.FrameBox, to an image of the slide's size times opts.Scale.
+// deck.FrameBox, to an image of the slide's size times opts.Scale. It holds
+// every image at once; Each hands them over one at a time.
 func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGBA, error) {
+	out := make([]*image.RGBA, len(b.Slides))
+	err := Each(ctx, b, opts, func(i int, img *image.RGBA) error {
+		out[i] = img
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Each renders every slide of b, which must have been rendered in
+// deck.FrameBox, and calls emit with each image in slide order, from one
+// goroutine. Up to opts.Workers slides are rendered concurrently, and no
+// more images than that exist at once: a slide starts only when the image
+// of the one that many places before it has been emitted. emit may keep
+// the image. An error from a slide or from emit stops the render and is
+// returned.
+func Each(ctx context.Context, b *slides.Build, opts Options, emit func(i int, img *image.RGBA) error) error {
+	return each(ctx, b, opts, func(img *image.RGBA) (*image.RGBA, error) { return img, nil }, emit)
+}
+
+// EachEncoded is Each with every image encoded, as "png" or "jpeg", by the
+// worker that rendered it, so that encoding runs in parallel too and only
+// the encoded bytes wait for their turn.
+func EachEncoded(ctx context.Context, b *slides.Build, opts Options, format string, emit func(i int, data []byte) error) error {
+	var enc func(io.Writer, image.Image) error
+	switch format {
+	case "png":
+		enc = PNG
+	case "jpeg":
+		enc = func(w io.Writer, img image.Image) error { return JPEG(w, img, opts) }
+	default:
+		return fmt.Errorf("export: unknown image format %q", format)
+	}
+	return each(ctx, b, opts, func(img *image.RGBA) ([]byte, error) {
+		var buf bytes.Buffer
+		err := enc(&buf, img)
+		return buf.Bytes(), err
+	}, emit)
+}
+
+func each[T any](ctx context.Context, b *slides.Build, opts Options, convert func(*image.RGBA) (T, error), emit func(int, T) error) error {
 	e := engine.New()
 	e.DisableJS = true
 	e.FileRoot = opts.FileRoot
@@ -58,32 +116,36 @@ func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGB
 	e.DeviceScale = scale
 	w, h := int(b.Packed.Width), int(b.Packed.Height)
 	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("export: the theme gives the slides no size")
+		return fmt.Errorf("export: the theme gives the slides no size")
 	}
 	// The viewport is in CSS pixels; the image comes back in device pixels.
 	view := image.Rect(0, 0, w, h)
 	device := image.Rect(0, 0, int(float64(w)*scale+0.5), int(float64(h)*scale+0.5))
-	fontCSS := ""
 	if !opts.NoFonts {
-		fontCSS = bundledFonts()
+		faces, err := bundledFaces()
+		if err != nil {
+			return err
+		}
+		e.FontFaces = faces
 	}
 	// Only slides with a fitting heading run a script (deck.FitScript): the
-	// others render without JavaScript, deterministic and faster.
+	// others render without JavaScript, deterministic and faster. The engine
+	// that runs it is made before the workers start, since they share it.
 	var scripted *engine.Engine
-	out := make([]*image.RGBA, len(b.Slides))
-	for i, s := range b.Slides {
-		eng, html := e, page(b.Packed.CSS, fontCSS, s.HTML)
-		if strings.Contains(s.HTML, "data-fit-content") {
-			if scripted == nil {
-				scripted = engine.New()
-				scripted.FileRoot, scripted.DeviceScale = e.FileRoot, e.DeviceScale
-			}
+	if slices.ContainsFunc(b.Slides, func(s deck.Rendered) bool { return fits(s.HTML) }) {
+		scripted = engine.New()
+		scripted.FileRoot, scripted.DeviceScale, scripted.FontFaces = e.FileRoot, e.DeviceScale, e.FontFaces
+	}
+	render := func(ctx context.Context, i int) (T, error) {
+		eng, html := e, page(b.Packed.CSS, b.Slides[i].HTML)
+		if fits(b.Slides[i].HTML) {
 			eng = scripted
 			html = strings.Replace(html, "</body>", "<script>"+deck.FitScript+"</script></body>", 1)
 		}
 		img, _, err := eng.RenderHTML(ctx, html, opts.BaseURL, view)
 		if err != nil {
-			return nil, fmt.Errorf("slide %d: %w", i+1, err)
+			var zero T
+			return zero, fmt.Errorf("slide %d: %w", i+1, err)
 		}
 		// The canvas grows with the content; the slide is its top-left
 		// corner.
@@ -92,9 +154,66 @@ func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGB
 			copyRect(c, img)
 			img = c
 		}
-		out[i] = img
+		return convert(img)
 	}
-	return out, nil
+	workers := opts.Workers
+	if workers <= 0 {
+		workers = DefaultWorkers()
+	}
+	return ordered(ctx, len(b.Slides), workers, render, emit)
+}
+
+// fits reports whether a slide has a fitting heading (<!-- fit -->).
+func fits(html string) bool { return strings.Contains(html, "data-fit-content") }
+
+// ordered runs work(0), …, work(n-1) on up to workers goroutines and hands
+// the results to emit in index order. A token is taken before item i starts
+// and given back once emit has had it, so at most workers results exist at
+// any time, being computed or waiting for their turn. No goroutine outlives
+// the call.
+func ordered[T any](ctx context.Context, n, workers int, work func(context.Context, int) (T, error), emit func(int, T) error) error {
+	type result struct {
+		v   T
+		err error
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	defer cancel() // runs first: the producer and the workers stop, then Wait
+	results := make([]chan result, n)
+	for i := range results {
+		results[i] = make(chan result, 1) // a worker never blocks on its send
+	}
+	tokens := make(chan struct{}, workers)
+	wg.Go(func() {
+		for i := range n {
+			select {
+			case tokens <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			wg.Go(func() {
+				v, err := work(ctx, i)
+				results[i] <- result{v, err}
+			})
+		}
+	})
+	for i := range n {
+		var r result
+		select {
+		case r = <-results[i]:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if r.err != nil {
+			return r.err
+		}
+		if err := emit(i, r.v); err != nil {
+			return err
+		}
+		<-tokens
+	}
+	return nil
 }
 
 func copyRect(dst, src *image.RGBA) {
@@ -106,37 +225,54 @@ func copyRect(dst, src *image.RGBA) {
 
 // page is the document one slide is rendered from. The theme comes first in
 // a sheet of its own, since its @import rules must lead a sheet.
-func page(themeCSS, fontCSS, slide string) string {
+func page(themeCSS, slide string) string {
 	var b strings.Builder
 	b.WriteString("<!DOCTYPE html><html><head><meta charset=\"utf-8\">")
 	b.WriteString("<style>" + themeCSS + "</style>")
-	b.WriteString("<style>html,body{margin:0;padding:0;background:#fff}" + fontCSS + "</style>")
+	b.WriteString("<style>html,body{margin:0;padding:0;background:#fff}</style>")
 	b.WriteString("</head><body><div class=\"marpit\">" + slide + "</div></body></html>")
 	return b.String()
 }
 
-// bundledFonts declares the fonts Marp's built-in themes ask for, embedded,
-// so that a render needs no network: gaia and uncover's Lato and Roboto
-// Mono, from go-opentype/fonts (OFL-1.1). gaia's headings ask for Lato 900,
-// its code for Roboto Mono 700, and comments and emphasis for italics; each
-// weight and style is declared as its own face so that the engine picks it
-// instead of synthesising one.
-func bundledFonts() string {
-	face := func(family, weight, style string, ttf []byte) string {
-		return "@font-face{font-family:\"" + family + "\";font-weight:" + weight + ";font-style:" + style + ";" +
-			"src:url(data:font/ttf;base64," + base64.StdEncoding.EncodeToString(ttf) + ") format(\"truetype\")}"
+// bundledFaces are the fonts Marp's built-in themes ask for, embedded, so
+// that a render needs no network: gaia and uncover's Lato and Roboto Mono,
+// from go-opentype/fonts (OFL-1.1). gaia's headings ask for Lato 900, its
+// code for Roboto Mono 700, and comments and emphasis for italics; each
+// weight and style is its own face so that the engine picks it instead of
+// synthesising one (Lato's 700 keeps the bold slot, being nearer 700 than
+// its 900).
+//
+// They are given to the engine as installed fonts (engine.FontFaces),
+// parsed once per process, rather than declared in every slide as @font-face
+// rules with data: URIs, which the engine had to read, decode and parse on
+// every slide.
+var bundledFaces = sync.OnceValues(func() ([]engine.LoadedFontFace, error) {
+	var faces []engine.LoadedFontFace
+	for _, f := range []struct {
+		family string
+		weight int
+		italic bool
+		ttf    []byte
+	}{
+		{"Lato", 400, false, lato.TTF},
+		{"Lato", 700, false, lato.Bold},
+		{"Lato", 900, false, lato.Black},
+		{"Lato", 400, true, lato.Italic},
+		{"Lato", 700, true, lato.BoldItalic},
+		{"Lato", 900, true, lato.BlackItalic},
+		{"Roboto Mono", 400, false, robotomono.TTF},
+		{"Roboto Mono", 700, false, robotomono.Bold},
+		{"Roboto Mono", 400, true, robotomono.Italic},
+		{"Roboto Mono", 700, true, robotomono.BoldItalic},
+	} {
+		face, err := engine.ParseFontFace(f.family, f.weight, f.italic, f.ttf)
+		if err != nil {
+			return nil, fmt.Errorf("export: bundled font %s %d: %w", f.family, f.weight, err)
+		}
+		faces = append(faces, face)
 	}
-	return face("Lato", "100 599", "normal", lato.TTF) +
-		face("Lato", "600 799", "normal", lato.Bold) +
-		face("Lato", "800 900", "normal", lato.Black) +
-		face("Lato", "100 599", "italic", lato.Italic) +
-		face("Lato", "600 799", "italic", lato.BoldItalic) +
-		face("Lato", "800 900", "italic", lato.BlackItalic) +
-		face("Roboto Mono", "100 599", "normal", robotomono.TTF) +
-		face("Roboto Mono", "600 900", "normal", robotomono.Bold) +
-		face("Roboto Mono", "100 599", "italic", robotomono.Italic) +
-		face("Roboto Mono", "600 900", "italic", robotomono.BoldItalic)
-}
+	return faces, nil
+})
 
 // PNG encodes an image as PNG.
 func PNG(w io.Writer, img image.Image) error { return png.Encode(w, img) }
@@ -154,26 +290,58 @@ func JPEG(w io.Writer, img image.Image, opts Options) error {
 // being 3/4 of a point, as Chrome prints Marp's @page size. The outline
 // lists each slide and, under it, its headings (marp --pdf-outlines).
 func PDF(w io.Writer, b *slides.Build, images []*image.RGBA) error {
+	p := NewPDF(b)
+	for _, img := range images {
+		p.Add(img)
+	}
+	return p.Write(w)
+}
+
+// PDFWriter builds the PDF PDF writes one slide at a time, so that a deck
+// is never held as images: each page compresses its image when it is
+// added, and the image can be dropped.
+type PDFWriter struct {
+	b    *slides.Build
+	doc  *pdfkit.Document
+	size pdfkit.PageSize
+	n    int
+}
+
+// NewPDF starts the PDF of b.
+func NewPDF(b *slides.Build) *PDFWriter {
 	g := b.Deck.Global
-	doc := pdfkit.New(pdfkit.Options{
-		Title:    g.Get("title"),
-		Author:   g.Get("author"),
-		Subject:  g.Get("description"),
-		Keywords: g.Get("keywords"),
-		Producer: "go-slides",
-	})
-	size := pdfkit.NewPageSize(b.Packed.Width*0.75, b.Packed.Height*0.75)
-	for i, img := range images {
-		p := doc.AddPage(size)
-		p.DrawImage(img, pdfkit.Rect{Width: size.Width, Height: size.Height})
-		s := b.Slides[i].Slide
-		doc.AddOutlineItem(outlineTitle(s.Headings, i), 0, i)
+	return &PDFWriter{
+		b: b,
+		doc: pdfkit.New(pdfkit.Options{
+			Title:    g.Get("title"),
+			Author:   g.Get("author"),
+			Subject:  g.Get("description"),
+			Keywords: g.Get("keywords"),
+			Producer: "go-slides",
+		}),
+		size: pdfkit.NewPageSize(b.Packed.Width*0.75, b.Packed.Height*0.75),
+	}
+}
+
+// Add adds the next slide's page, drawn from its image.
+func (p *PDFWriter) Add(img image.Image) {
+	i := p.n
+	p.n++
+	pg := p.doc.AddPage(p.size)
+	pg.DrawImage(img, pdfkit.Rect{Width: p.size.Width, Height: p.size.Height})
+	if i < len(p.b.Slides) {
+		s := p.b.Slides[i].Slide
+		p.doc.AddOutlineItem(outlineTitle(s.Headings, i), 0, i)
 		for _, hd := range s.Headings {
-			doc.AddOutlineItem(hd.Text, 1, i)
+			p.doc.AddOutlineItem(hd.Text, 1, i)
 		}
 	}
+}
+
+// Write writes the document.
+func (p *PDFWriter) Write(w io.Writer) error {
 	var buf bytes.Buffer
-	if err := doc.Write(&buf); err != nil {
+	if err := p.doc.Write(&buf); err != nil {
 		return err
 	}
 	_, err := w.Write(buf.Bytes())
