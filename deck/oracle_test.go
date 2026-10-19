@@ -35,6 +35,15 @@ func TestOracle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Marp ignores an HCL front matter: what it renders is
+			// what the body alone renders.
+			if s := normalizer.Replace(string(src)); isHCLFrontMatter(s) {
+				_, body, _, ok := splitFrontMatter(s)
+				if !ok {
+					t.Fatal("no front matter")
+				}
+				src = []byte(body)
+			}
 			d, err := Parse(src, Options{NoTemplate: true})
 			if err != nil {
 				t.Fatal(err)
