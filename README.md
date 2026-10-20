@@ -236,7 +236,10 @@ slides completion bash|zsh|fish|powershell
 
 Flags may come before or after the deck. `slides <command> --help` lists a
 command's flags. `build` takes several decks, a directory (its decks, found
-recursively) or a pattern; `-o` then needs `-I`, or `-`. Unlike marp-cli, standard
+recursively) or a pattern — `*`, `?`, `[a-z]`, `{md,txt}` and `**` (any number
+of directories, after v0.6.0), as marp-cli's glob reads them, quoted so that the
+shell leaves them to `slides`: no dot files, no `node_modules`, and what matches is
+converted whatever its extension; `-o` then needs `-I`, or `-`. Unlike marp-cli, standard
 input is read only for `-`, not whenever it is a pipe.
 
 | flag | commands | |

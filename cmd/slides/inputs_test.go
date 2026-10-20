@@ -154,6 +154,35 @@ func TestSeveralFiles(t *testing.T) {
 	}
 }
 
+// TestDoubleStarPatterns: ** and braces in a file argument, as marp-cli's
+// glob (the sets of files are compared with marp-cli's in internal/glob).
+func TestDoubleStarPatterns(t *testing.T) {
+	dir := decks(t)
+	in := filepath.Join(dir, "in")
+	if _, stderr, err := run(t, "build", filepath.Join(in, "**", "*.md")); err != nil {
+		t.Fatal(err, stderr)
+	}
+	for _, want := range []string{"a.html", "sub/b.html"} {
+		if !exists(filepath.Join(in, filepath.FromSlash(want))) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	for _, bad := range []string{"node_modules/x.html", "sub/deep/c.html", "UPPER.html", ".hidden/not-skipped.html"} {
+		if exists(filepath.Join(in, filepath.FromSlash(bad))) {
+			t.Errorf("%s should not be built", bad)
+		}
+	}
+	if _, stderr, err := run(t, "build", filepath.Join(in, "sub", "**", "*.{md,markdown}")); err != nil {
+		t.Fatal(err, stderr)
+	}
+	if !exists(filepath.Join(in, "sub", "deep", "c.html")) {
+		t.Error("braces and ** find sub/deep/c.markdown")
+	}
+	if _, _, err := run(t, "build", filepath.Join(in, "nothing", "**", "*.md")); err == nil || !strings.Contains(err.Error(), "not found processable") {
+		t.Errorf("no match: %v", err)
+	}
+}
+
 func TestParallelIsTheSameAsSerial(t *testing.T) {
 	dir := t.TempDir()
 	in := filepath.Join(dir, "in")
