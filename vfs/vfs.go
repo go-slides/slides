@@ -65,12 +65,13 @@ type Map struct {
 	mu      sync.Mutex
 	files   map[string][]byte
 	dirs    map[string]bool
+	listed  map[string]bool
 	missing map[string]bool
 }
 
 // NewMap returns a Map holding files, keyed by cleaned name.
 func NewMap(files map[string][]byte) *Map {
-	m := &Map{files: map[string][]byte{}, dirs: map[string]bool{}, missing: map[string]bool{}}
+	m := &Map{files: map[string][]byte{}, dirs: map[string]bool{}, listed: map[string]bool{}, missing: map[string]bool{}}
 	for k, v := range files {
 		m.files[filepath.Clean(k)] = v
 	}
@@ -83,6 +84,16 @@ func (m *Map) Dir(name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.dirs[filepath.Clean(name)] = true
+}
+
+// Listed declares a file the caller has seen in a directory listing but not
+// read: it lists and stats as a file (of unknown size, 0), and reading it
+// records it as missing. A directory listing can then be handed over
+// without the contents of every file in it.
+func (m *Map) Listed(name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.listed[filepath.Clean(name)] = true
 }
 
 // Missing returns the names that were asked for and not found, sorted.
@@ -110,6 +121,11 @@ func (m *Map) isDir(name string) bool {
 	}
 	prefix := name + string(filepath.Separator)
 	for k := range m.files {
+		if strings.HasPrefix(k, prefix) {
+			return true
+		}
+	}
+	for k := range m.listed {
 		if strings.HasPrefix(k, prefix) {
 			return true
 		}
@@ -142,6 +158,9 @@ func (m *Map) Stat(name string) (fs.FileInfo, error) {
 	if b, ok := m.files[name]; ok {
 		return info{name: filepath.Base(name), size: int64(len(b))}, nil
 	}
+	if m.listed[name] {
+		return info{name: filepath.Base(name)}, nil
+	}
 	if m.isDir(name) {
 		return info{name: filepath.Base(name), dir: true}, nil
 	}
@@ -167,6 +186,17 @@ func (m *Map) ReadDir(name string) ([]fs.DirEntry, error) {
 			seen[first] = info{name: first, dir: true}
 		} else {
 			seen[rest] = info{name: rest, size: int64(len(b))}
+		}
+	}
+	for k := range m.listed {
+		rest, ok := strings.CutPrefix(k, prefix)
+		if !ok {
+			continue
+		}
+		if first, _, sub := strings.Cut(rest, string(filepath.Separator)); sub {
+			seen[first] = info{name: first, dir: true}
+		} else if _, held := seen[rest]; !held {
+			seen[rest] = info{name: rest}
 		}
 	}
 	for d := range m.dirs {

@@ -62,6 +62,37 @@ func TestMap(t *testing.T) {
 	}
 }
 
+func TestListed(t *testing.T) {
+	d := filepath.FromSlash("/w/themes")
+	m := NewMap(map[string][]byte{filepath.Join(d, "held.css"): []byte("x")})
+	m.Listed(filepath.Join(d, "a.css"))
+	m.Listed(filepath.Join(d, "held.css"))
+	m.Listed(filepath.Join(d, "sub", "b.css"))
+	entries, err := m.ReadDir(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	if !slices.Equal(names, []string{"a.css", "held.css", "sub"}) {
+		t.Fatalf("ReadDir = %v", names)
+	}
+	if st, err := m.Stat(filepath.Join(d, "a.css")); err != nil || st.IsDir() {
+		t.Fatalf("Stat(listed) = %v, %v", st, err)
+	}
+	if b, err := m.ReadFile(filepath.Join(d, "held.css")); err != nil || string(b) != "x" {
+		t.Fatalf("a held file listed again lost its contents: %q %v", b, err)
+	}
+	if _, err := m.ReadFile(filepath.Join(d, "a.css")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("reading a listed file: %v", err)
+	}
+	if !slices.Equal(m.Missing(), []string{filepath.Join(d, "a.css")}) {
+		t.Fatalf("Missing = %v", m.Missing())
+	}
+}
+
 func TestOr(t *testing.T) {
 	if _, ok := Or(nil).(OS); !ok {
 		t.Fatal("Or(nil) is not the disk")

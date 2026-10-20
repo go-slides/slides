@@ -31,6 +31,13 @@ const KindDirective = "kind"
 // looseKeys are the keys whose values loose YAML quotes.
 var looseKeys = append(append(slices.Clone(globalNames), localNames...), KindDirective)
 
+// GlobalDirectives returns the global directive names, for editors.
+func GlobalDirectives() []string { return slices.Clone(globalNames) }
+
+// LocalDirectives returns the local directive names (kind excluded), for
+// editors.
+func LocalDirectives() []string { return slices.Clone(localNames) }
+
 func isGlobal(name string) bool { return slices.Contains(globalNames, name) }
 func isLocal(name string) bool  { return slices.Contains(localNames, name) }
 

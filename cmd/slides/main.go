@@ -10,6 +10,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/editor"
 )
 
 // osExit allows tests to override os.Exit.
@@ -111,6 +113,7 @@ that marp-cli or any Marp tool renders the same slides.`,
 	}
 	o.outputFlag(notesCmd)
 
+	var kindsJSON bool
 	kindsCmd := &cobra.Command{
 		Use:   "kinds deck.md",
 		Short: "List the kinds a deck can use and the directives they set",
@@ -121,6 +124,15 @@ that marp-cli or any Marp tool renders the same slides.`,
 				return err
 			}
 			out := cmd.OutOrStdout()
+			if kindsJSON {
+				list, err := editor.KindList(d.Kinds)
+				if err != nil {
+					return err
+				}
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(list)
+			}
 			for _, n := range d.Kinds.Names() {
 				dirs, err := d.Kinds.Resolve(n)
 				if err != nil {
@@ -135,6 +147,7 @@ that marp-cli or any Marp tool renders the same slides.`,
 			return nil
 		},
 	}
+	kindsCmd.Flags().BoolVar(&kindsJSON, "json", false, "write the kinds as JSON: name, extends and the resolved directives in order")
 
 	themesCmd := &cobra.Command{
 		Use:   "themes",
