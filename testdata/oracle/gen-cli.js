@@ -73,6 +73,10 @@ const transitionCases = [
   { name: 'transition-unknown-name', md: '<!-- transition: my-own -->\n\n# A\n\n---\n\n# B\n' },
   { name: 'transition-none', md: '<!-- transition: none -->\n\n# A\n\n---\n\n# B\n\n<!-- transition: clockwise -->\n\n---\n\n# C\n' },
   { name: 'transition-three-builtins', md: '<!-- transition: swipe -->\n\n# A\n\n---\n\n<!-- transition: fade -->\n\n# B\n\n---\n\n<!-- transition: swipe -->\n\n# C\n' },
+  { name: 'transition-scoped', md: '# A\n\n<!-- transition: foo 2s -->\n\n<style scoped>\n@keyframes marp-transition-foo { from {opacity:1} to {opacity:0} }\n</style>\n\n---\n\n# B\n\n---\n\n# C\n' },
+  { name: 'transition-scoped-over-builtin', md: '# A\n\n<!-- transition: fade -->\n\n<style scoped>\n@keyframes marp-incoming-transition-fade { from {opacity:0} to {opacity:1} }\n</style>\n\n---\n\n# B\n' },
+  { name: 'transition-scoped-unrelated', md: '# A\n\n<!-- transition: fade -->\n\n<style scoped>\n@keyframes bar { from {opacity:0} to {opacity:1} }\n</style>\n\n---\n\n# B\n' },
+  { name: 'transition-scoped-spot-on-second', md: '# A\n\n---\n\n<!-- _transition: foo -->\n\n<style scoped>\n@keyframes marp-outgoing-transition-backward-foo { from {opacity:0} to {opacity:1} }\n</style>\n\n# B\n' },
   { name: 'transition-extra-words', md: '<!-- transition: fade 2s ignored words -->\n\n# A\n\n---\n\n# B\n' },
   { name: 'transition-no-note', md: '# A\n\n<!-- transition: fade -->\n\n<!-- a real note -->\n' },
 ]

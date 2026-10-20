@@ -282,11 +282,11 @@ func (r *slideRenderer) sectionAttrs(s *Slide, dirs Dirs) (attrs, *styleDecls) {
 // so they come last, and the layers of an advanced background copy them.
 func (r *slideRenderer) setTransition(a *attrs, s *Slide) {
 	if s.Index > 0 {
-		if prev, ok := transitionAttr(r.deck.Slides[s.Index-1].Dirs); ok {
+		if prev, ok := transitionAttr(r.deck.Slides[s.Index-1]); ok {
 			a.set("data-transition-back", prev)
 		}
 	}
-	if cur, ok := transitionAttr(s.Dirs); ok {
+	if cur, ok := transitionAttr(s); ok {
 		a.set("data-transition", cur)
 	}
 }

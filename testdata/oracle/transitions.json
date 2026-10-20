@@ -75,6 +75,51 @@
   "notes": ""
  },
  {
+  "name": "transition-scoped",
+  "md": "# A\n\n<!-- transition: foo 2s -->\n\n<style scoped>\n@keyframes marp-transition-foo { from {opacity:1} to {opacity:0} }\n</style>\n\n---\n\n# B\n\n---\n\n# C\n",
+  "sections": [
+   "<section id=\"1\" data-marpit-scope-C6SdBLyC=\"\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;foo-C6SdBLyC&quot;,&quot;duration&quot;:&quot;2s&quot;,&quot;builtinFallback&quot;:false}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;foo-C6SdBLyC&quot;,&quot;duration&quot;:&quot;2s&quot;,&quot;builtinFallback&quot;:false}\" data-transition=\"{&quot;name&quot;:&quot;foo&quot;,&quot;duration&quot;:&quot;2s&quot;}\">",
+   "<section id=\"3\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;foo&quot;,&quot;duration&quot;:&quot;2s&quot;}\" data-transition=\"{&quot;name&quot;:&quot;foo&quot;,&quot;duration&quot;:&quot;2s&quot;}\">"
+  ],
+  "builtins": [],
+  "notes": ""
+ },
+ {
+  "name": "transition-scoped-over-builtin",
+  "md": "# A\n\n<!-- transition: fade -->\n\n<style scoped>\n@keyframes marp-incoming-transition-fade { from {opacity:0} to {opacity:1} }\n</style>\n\n---\n\n# B\n",
+  "sections": [
+   "<section id=\"1\" data-marpit-scope-QfzVA4bx=\"\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;fade-QfzVA4bx&quot;,&quot;builtinFallback&quot;:false}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;fade-QfzVA4bx&quot;,&quot;builtinFallback&quot;:false}\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "fade"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-scoped-unrelated",
+  "md": "# A\n\n<!-- transition: fade -->\n\n<style scoped>\n@keyframes bar { from {opacity:0} to {opacity:1} }\n</style>\n\n---\n\n# B\n",
+  "sections": [
+   "<section id=\"1\" data-marpit-scope-PaUCME39=\"\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "fade"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-scoped-spot-on-second",
+  "md": "# A\n\n---\n\n<!-- _transition: foo -->\n\n<style scoped>\n@keyframes marp-outgoing-transition-backward-foo { from {opacity:0} to {opacity:1} }\n</style>\n\n# B\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\">",
+   "<section id=\"2\" data-marpit-scope-EN4TNREF=\"\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;foo-EN4TNREF&quot;,&quot;builtinFallback&quot;:false}\">"
+  ],
+  "builtins": [],
+  "notes": ""
+ },
+ {
   "name": "transition-extra-words",
   "md": "<!-- transition: fade 2s ignored words -->\n\n# A\n\n---\n\n# B\n",
   "sections": [

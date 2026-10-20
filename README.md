@@ -317,8 +317,10 @@ API** around the change of slide — leaving the slide that has it, and, going
 back, coming to it — where the browser has the API, with a plain fade when the
 viewer asks for reduced motion. Keyframes of a theme's own
 (`marp-transition-NAME`) are found by name in the page's styles as marp-cli's
-runtime finds them; marp-cli's rewriting of a name for scoped keyframes is not
-done. The on-screen controller (previous, page, next, full screen) shows while
+runtime finds them. A slide's `<style scoped>` may define them too: its keyframes
+are renamed with the slide's key and so is the transition, as marp-cli does
+(`foo` becomes `foo-KEY`, with no built-in to fall back on; after v0.6.0, compared with
+marp-cli's output). The on-screen controller (previous, page, next, full screen) shows while
 the pointer or a key moves and hides after 2.5 s. `--bespoke.progress`,
 `--bespoke.osc=false`, `--bespoke.transition=false` and `--template bare` choose
 what the page has. The page was driven in headless Chrome to check it.

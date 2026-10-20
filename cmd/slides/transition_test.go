@@ -10,6 +10,11 @@ import (
 	"testing"
 )
 
+var (
+	scopeKey  = regexp.MustCompile(`data-marpit-scope-[A-Za-z0-9]+`)
+	keyedName = regexp.MustCompile(`(&quot;(?:foo|fade))-[A-Za-z0-9]+(&quot;)`)
+)
+
 // TestTransitionOracle compares the slides' <section> tags, the speaker notes
 // and the built-in keyframes a page carries with what marp-cli writes for the
 // transition directive (testdata/oracle/gen-cli.js).
@@ -41,9 +46,19 @@ func TestTransitionOracle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// marp-cli draws the scope key at random, here it is the slide's;
+			// what is compared is that it is the same in the attribute and in
+			// the name of the transition
+			norm := func(s string) string {
+				s = scopeKey.ReplaceAllString(s, "data-marpit-scope-K")
+				return keyedName.ReplaceAllString(s, "$1-K$2")
+			}
 			var got []string
 			for _, m := range section.FindAllString(string(page), -1) {
-				got = append(got, m)
+				got = append(got, norm(m))
+			}
+			for i := range c.Sections {
+				c.Sections[i] = norm(c.Sections[i])
 			}
 			if !slices.Equal(got, c.Sections) {
 				t.Errorf("sections\n got %q\nwant %q", got, c.Sections)

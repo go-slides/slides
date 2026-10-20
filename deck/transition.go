@@ -3,6 +3,7 @@ package deck
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 	"strings"
 )
 
@@ -19,7 +20,7 @@ import (
 type transitionSpec struct {
 	Name            string `json:"name"`
 	Duration        string `json:"duration,omitempty"`
-	BuiltinFallback bool   `json:"builtinFallback,omitempty"`
+	BuiltinFallback *bool  `json:"builtinFallback,omitempty"`
 }
 
 // parseTransition reads a transition directive: its first two words, as Marp
@@ -33,13 +34,46 @@ func parseTransition(v string) (transitionSpec, bool) {
 	if len(f) > 1 {
 		t.Duration = f[1]
 	}
-	t.BuiltinFallback = builtinTransitions[t.Name] != ""
+	if builtinTransitions[t.Name] != "" {
+		yes := true
+		t.BuiltinFallback = &yes
+	}
+	return t, true
+}
+
+// transitionKeyframes matches the name of a keyframes rule in a style.
+var transitionKeyframes = regexp.MustCompile(`@keyframes\s+([^\s{]+)`)
+
+// transitionNamed matches the names of the keyframes a transition is made of:
+// marp-[outgoing-|incoming-]transition-[backward-]NAME.
+var transitionNamed = regexp.MustCompile(`^marp-(?:(?:outgoing|incoming)-)?transition-(?:backward-)?(.+)$`)
+
+// slideTransition is the transition in effect on a slide. When the slide's own
+// scoped style defines keyframes of the transition's name, the transition is
+// the slide's own and its name takes the slide's scope key, as marp-cli's
+// does (foo becomes foo-KEY, where Marpit renames the scoped keyframes the
+// same way: see theme.Scope), with no built-in to fall back on.
+func slideTransition(s *Slide) (transitionSpec, bool) {
+	t, ok := parseTransition(s.Dirs.Get("transition"))
+	if !ok {
+		return t, false
+	}
+	for _, css := range s.ScopedStyles {
+		for _, k := range transitionKeyframes.FindAllStringSubmatch(css, -1) {
+			if m := transitionNamed.FindStringSubmatch(k[1]); m != nil && m[1] == t.Name {
+				no := false
+				t.Name += "-" + strings.TrimPrefix(scopeAttr(s), "data-marpit-scope-")
+				t.BuiltinFallback = &no
+				return t, true
+			}
+		}
+	}
 	return t, true
 }
 
 // transitionAttr is the attribute value of the transition in effect.
-func transitionAttr(d Dirs) (string, bool) {
-	t, ok := parseTransition(d.Get("transition"))
+func transitionAttr(s *Slide) (string, bool) {
+	t, ok := slideTransition(s)
 	if !ok {
 		return "", false
 	}
@@ -59,8 +93,10 @@ func (d *Deck) TransitionCSS() string {
 	var b strings.Builder
 	seen := map[string]bool{}
 	for _, s := range d.Slides {
+		// the built-in is collected under the name the directive wrote, even
+		// when scoped keyframes then take the transition over (as marp-cli)
 		t, ok := parseTransition(s.Dirs.Get("transition"))
-		if !ok || !t.BuiltinFallback || seen[t.Name] {
+		if !ok || t.BuiltinFallback == nil || seen[t.Name] {
 			continue
 		}
 		seen[t.Name] = true
