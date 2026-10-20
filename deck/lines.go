@@ -1,6 +1,8 @@
 package deck
 
 import (
+	"slices"
+
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -10,7 +12,22 @@ import (
 // added back, and with Options.LineMap the template stage's line map
 // traces a generated or included line to the source line that produced it.
 func (d *Deck) SourceLine(offset int) int {
-	body := lineOf(d.source, offset) - 1
+	if d.lineStarts == nil {
+		// Where each line of the source starts, once: a binary search
+		// then finds an offset's line, where counting the newlines
+		// before it for every block would be quadratic.
+		d.lineStarts = []int{0}
+		for i, c := range d.source {
+			if c == '\n' {
+				d.lineStarts = append(d.lineStarts, i+1)
+			}
+		}
+	}
+	offset = min(offset, len(d.source))
+	body, found := slices.BinarySearch(d.lineStarts, offset)
+	if !found {
+		body--
+	}
 	if d.lineMap != nil {
 		if body < len(d.lineMap) {
 			return d.lineMap[body]

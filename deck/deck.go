@@ -40,8 +40,9 @@ type Deck struct {
 	// fmLines is how many lines the front matter took, and lineMap the
 	// source line of each line of source when Options.LineMap traced the
 	// templates (see SourceLine).
-	fmLines int
-	lineMap []int
+	fmLines    int
+	lineMap    []int
+	lineStarts []int
 }
 
 // Global holds the global directives.
