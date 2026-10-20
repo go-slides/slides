@@ -14,7 +14,6 @@
 package interp
 
 import (
-	"bytes"
 	"fmt"
 	"maps"
 	"os"
@@ -66,23 +65,11 @@ func Expand(src string, opts Options) (string, error) {
 	if !opts.Code {
 		body, masked = maskCode(src, opts.Delims)
 	}
-	name := opts.Name
-	if name == "" {
-		name = "deck"
-	}
-	t := template.New(name).Option("missingkey=error").Funcs(Funcs(opts))
-	if opts.Delims[0] != "" || opts.Delims[1] != "" {
-		t = t.Delims(opts.Delims[0], opts.Delims[1])
-	}
-	t, err := t.Parse(body)
+	out, err := execute(body, opts)
 	if err != nil {
 		return "", err
 	}
-	var buf bytes.Buffer
-	if err := t.Execute(&buf, opts.Data); err != nil {
-		return "", err
-	}
-	return unmaskCode(buf.String(), masked), nil
+	return unmaskCode(out, masked), nil
 }
 
 // Funcs is the function map available to templates.

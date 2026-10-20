@@ -68,6 +68,9 @@ func (r Request) fs() *vfs.Map {
 // config assembles the build configuration over the request's files.
 func (r Request) config(m *vfs.Map) (slides.Config, error) {
 	cfg, err := project.Load(r.Path, project.Options{FS: m, NoConfig: r.NoConfig})
+	// The preview syncs its scrolling with the editor by source line.
+	cfg.Parse.LineMap = true
+	cfg.SourceLines = true
 	if r.HTML {
 		cfg.HTML = deck.HTMLAll
 	} else {

@@ -44,6 +44,10 @@ type Options struct {
 	// FS is where included files, kinds files and the HCL file function
 	// read; nil means the disk.
 	FS vfs.FS
+	// LineMap traces the lines templates generate back to the source line
+	// that produced them (Slide.Line, Deck.SourceLine), for an editor's
+	// scroll sync. It costs a pass over the template's text.
+	LineMap bool
 }
 
 // Front-matter keys this tool reads besides directives.
@@ -147,13 +151,22 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 		// Blank lines in place of the front matter make template errors
 		// report the deck file's own line numbers.
 		pad := strings.Repeat("\n", fmLines)
-		if body, err = interp.Expand(pad+body, io); err != nil {
+		if opts.LineMap {
+			var lines []int
+			if body, lines, err = interp.ExpandLines(pad+body, io); err != nil {
+				return nil, err
+			}
+			if len(lines) >= fmLines {
+				d.lineMap = lines[fmLines:]
+			}
+		} else if body, err = interp.Expand(pad+body, io); err != nil {
 			return nil, err
 		}
 		body = body[len(pad):]
 	}
 	d.Kinds = kinds
 	d.source = []byte(body)
+	d.fmLines = fmLines
 
 	doc := markdown().Parser().Parse(text.NewReader(d.source))
 	d.doc = doc

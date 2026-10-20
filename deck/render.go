@@ -12,6 +12,7 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	extast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/renderer"
 	ghtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
@@ -61,6 +62,13 @@ type RenderOptions struct {
 	// theme.Packed.After); the element writes its value. Empty means the
 	// page number alone, Marpit's scaffold.
 	AfterContent string
+	// SourceLines marks the slide frames and the blocks in them with the
+	// source line they come from, the way VS Code's Markdown preview syncs
+	// its scrolling with the editor: class="code-line" data-line="N"
+	// (0-based; see Slide.Line and Deck.SourceLine). Marp for VS Code
+	// marks the same elements: the frame, not the <section>, whose class
+	// themes select on.
+	SourceLines bool
 }
 
 // Rendered is a rendered slide.
@@ -102,6 +110,63 @@ type slideRenderer struct {
 	plain goldmark.Markdown
 	// merged holds the texts of a run already written with the first.
 	merged map[*ast.Text]bool
+	// slideLine is the source line of the slide being written, for its
+	// frame (SourceLines).
+	slideLine int
+}
+
+// lineAttrs returns a block's source-line attributes when SourceLines
+// asks for them, "" otherwise.
+func (r *slideRenderer) lineAttrs(n ast.Node) string {
+	if !r.opts.SourceLines {
+		return ""
+	}
+	l := r.deck.nodeLine(n)
+	if l < 0 {
+		return ""
+	}
+	return ` class="code-line" data-line="` + strconv.Itoa(l) + `"`
+}
+
+// markDefaultBlocks gives the blocks goldmark writes itself (lists, block
+// quotes, tables) their source-line attributes, and returns a function
+// that takes them off again: the tree belongs to the deck, which may be
+// rendered again without them.
+func (r *slideRenderer) markDefaultBlocks(n ast.Node) func() {
+	if !r.opts.SourceLines {
+		return func() {}
+	}
+	type saved struct {
+		n     ast.Node
+		attrs []ast.Attribute
+	}
+	var undo []saved
+	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering || c.Type() != ast.TypeBlock {
+			return ast.WalkContinue, nil
+		}
+		switch c.Kind() {
+		case ast.KindList, ast.KindBlockquote, extast.KindTable:
+		default:
+			return ast.WalkContinue, nil
+		}
+		l := r.deck.nodeLine(c)
+		if l < 0 {
+			return ast.WalkContinue, nil
+		}
+		undo = append(undo, saved{c, slices.Clone(c.Attributes())})
+		c.SetAttributeString("class", []byte("code-line"))
+		c.SetAttributeString("data-line", []byte(strconv.Itoa(l)))
+		return ast.WalkContinue, nil
+	})
+	return func() {
+		for _, s := range undo {
+			s.n.RemoveAttributes()
+			for _, a := range s.attrs {
+				s.n.SetAttribute(a.Name, a.Value)
+			}
+		}
+	}
 }
 
 // marpitDirectives are the directives Marpit writes out as data-*
@@ -342,11 +407,14 @@ func (r *slideRenderer) slide(s *Slide) string {
 	if h := dirs.Get("header"); h != "" {
 		content.WriteString("<header>" + r.inline(h) + "</header>\n")
 	}
+	r.slideLine = s.Line
 	for _, n := range s.nodes {
 		var buf bytes.Buffer
+		unmark := r.markDefaultBlocks(n)
 		if err := r.md.Renderer().Render(&buf, r.deck.source, n); err == nil {
 			content.Write(buf.Bytes())
 		}
+		unmark()
 	}
 	if f := dirs.Get("footer"); f != "" {
 		content.WriteString("<footer>" + r.inline(f) + "</footer>\n")
@@ -473,8 +541,12 @@ func (r *slideRenderer) frame(section string, bg, pseudo *layer, content ...laye
 		layers = append(layers, *pseudo)
 	}
 	var b strings.Builder
+	class, line := "", ""
+	if r.opts.SourceLines {
+		class, line = " code-line", ` data-line="`+strconv.Itoa(r.slideLine)+`"`
+	}
 	if r.opts.Frame == FrameBox {
-		b.WriteString(`<div class="marpit-svg" data-marpit-svg="" style="position:relative;width:` + w + `px;height:` + h + `px;overflow:hidden">`)
+		b.WriteString(`<div class="marpit-svg` + class + `" data-marpit-svg=""` + line + ` style="position:relative;width:` + w + `px;height:` + h + `px;overflow:hidden">`)
 		for _, l := range layers {
 			left := or(l.x, "0")
 			width := l.width
@@ -490,7 +562,11 @@ func (r *slideRenderer) frame(section string, bg, pseudo *layer, content ...laye
 		b.WriteString("</div>")
 		return b.String()
 	}
-	b.WriteString(`<svg data-marpit-svg="" viewBox="0 0 ` + w + " " + h + `">`)
+	if class != "" {
+		b.WriteString(`<svg data-marpit-svg="" viewBox="0 0 ` + w + " " + h + `" class="` + class[1:] + `"` + line + `>`)
+	} else {
+		b.WriteString(`<svg data-marpit-svg="" viewBox="0 0 ` + w + " " + h + `">`)
+	}
 	for _, l := range layers {
 		b.WriteString(`<foreignObject width="` + l.width + `" height="` + h + `"`)
 		if l.x != "" {
@@ -555,7 +631,7 @@ func (r *slideRenderer) renderMath(w util.BufWriter, _ []byte, node ast.Node, en
 		src = "$$\n" + strings.TrimSuffix(tex, "\n") + "\n$$"
 	}
 	if display {
-		_, _ = w.WriteString("<p>")
+		_, _ = w.WriteString("<p" + r.lineAttrs(node) + ">")
 	}
 	if r.opts.Math == nil {
 		_, _ = w.WriteString(escapeHTML(src))
@@ -653,6 +729,7 @@ func (r *slideRenderer) renderHeading(w util.BufWriter, _ []byte, node ast.Node,
 	if i.id != "" {
 		_, _ = w.WriteString(` id="` + escapeHTML(i.id) + `"`)
 	}
+	_, _ = w.WriteString(r.lineAttrs(n))
 	_ = w.WriteByte('>')
 	if fit {
 		// The line FitScript measures and scales.
@@ -679,6 +756,7 @@ func (r *slideRenderer) renderListItem(w util.BufWriter, _ []byte, n ast.Node, e
 		if f := r.info(n).fragment; f > 0 {
 			_, _ = w.WriteString(` data-marpit-fragment="` + strconv.Itoa(f) + `"`)
 		}
+		_, _ = w.WriteString(r.lineAttrs(n))
 		_ = w.WriteByte('>')
 		fc := n.FirstChild()
 		if fc != nil {
@@ -699,7 +777,7 @@ func (r *slideRenderer) renderParagraph(w util.BufWriter, source []byte, n ast.N
 		return ast.WalkSkipChildren, nil
 	}
 	if entering {
-		_, _ = w.WriteString("<p>")
+		_, _ = w.WriteString("<p" + r.lineAttrs(n) + ">")
 	} else {
 		_, _ = w.WriteString("</p>\n")
 	}
@@ -757,9 +835,16 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 		lang = html.UnescapeString(lang)
 	}
 	var out strings.Builder
+	// VS Code's preview reads a fenced block's line on its <code>.
 	out.WriteString("<pre><code")
-	if lang != "" {
+	la := r.lineAttrs(n)
+	switch {
+	case lang != "" && la != "":
+		out.WriteString(` class="language-` + escapeHTML(lang) + ` code-line"` + la[len(` class="code-line"`):])
+	case lang != "":
 		out.WriteString(` class="language-` + escapeHTML(lang) + `"`)
+	default:
+		out.WriteString(la)
 	}
 	out.WriteByte('>')
 	highlighted := false
