@@ -141,7 +141,9 @@ other themes, give `title` and `section` a class your theme knows.
 Kinds come from, in increasing priority: the built-ins, `slides.yaml`,
 `--kinds` files, and the deck's front matter `kinds:` key. That key takes either
 a mapping or the path of a file, or a list of paths, so several decks can share
-one file. `slides kinds deck.md` lists what a deck can use.
+one file. `slides kinds deck.md` lists what a deck can use; with `--json`
+(after v0.5.0), as a list of `{name, extends, directives: [{key, value}]}`, the
+directives resolved through `extends`.
 
 ## HCL
 
@@ -468,6 +470,13 @@ Decks that show them should credit them.
 | [`viewer`](viewer) | the HTML page |
 | [`export`](export) | images and PDF, through go-webengine and go-pdfkit |
 | [`slides`](slides.go) | wires them together |
+| [`project`](project) | the configuration a deck is built with: built-ins, `slides.hcl`/`slides.yaml`, then the flags (after v0.5.0) |
+| [`vfs`](vfs) | the files a build reads: the disk, or a map an editor hands over, which reports what it lacked (after v0.5.0) |
+| [`editor`](editor) | for editors, as data: the preview, problems positioned on lines, completion and hover (after v0.5.0) |
+
+The [VS Code extension](https://github.com/go-slides/vscode) runs `editor`
+compiled to WebAssembly: decks preview in VS Code's Markdown preview, on
+vscode.dev too, with problems, completion and export through `slides`.
 
 ## License
 
