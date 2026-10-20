@@ -237,7 +237,7 @@ slides completion bash|zsh|fish|powershell
 Flags may come before or after the deck. `slides <command> --help` lists a
 command's flags. `build` takes several decks, a directory (its decks, found
 recursively) or a pattern — `*`, `?`, `[a-z]`, `{md,txt}` and `**` (any number
-of directories, after v0.6.0), as marp-cli's glob reads them, quoted so that the
+of directories, in v0.7.0), as marp-cli's glob reads them, quoted so that the
 shell leaves them to `slides`: no dot files, no `node_modules`, and what matches is
 converted whatever its extension; `-o` then needs `-I`, or `-`. Unlike marp-cli, standard
 input is read only for `-`, not whenever it is a pipe.
@@ -322,13 +322,13 @@ viewer asks for reduced motion. Keyframes of a theme's own
 (`marp-transition-NAME`) are found by name in the page's styles as marp-cli's
 runtime finds them. A slide's `<style scoped>` may define them too: its keyframes
 are renamed with the slide's key and so is the transition, as marp-cli does
-(`foo` becomes `foo-KEY`, with no built-in to fall back on; after v0.6.0, compared with
+(`foo` becomes `foo-KEY`, with no built-in to fall back on; in v0.7.0, compared with
 marp-cli's output). The on-screen controller (previous, page, next, full screen) shows while
 the pointer or a key moves and hides after 2.5 s. `--bespoke.progress`,
 `--bespoke.osc=false`, `--bespoke.transition=false` and `--template bare` choose
 what the page has. The page was driven in headless Chrome to check it.
 
-**Presenter view** (after v0.6.0). The `p` key, or the controller's last
+**Presenter view** (in v0.7.0). The `p` key, or the controller's last
 button, opens marp-cli's presenter view in a window: the current slide, the
 step after it, the speaker notes, the page, the time and a timer (click it to
 reset; `+` and `-` size the notes; the bar between the slides and the notes
