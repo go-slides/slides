@@ -178,8 +178,8 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 			Image:       g.Get("image"),
 			Lang:        lang,
 		},
-		CSS:    b.Packed.CSS,
-		Slides: slides,
+		CSS:     b.Packed.CSS,
+		Slides:  slides,
 		Bare:    cfg.Bare,
 		WatchWS: cfg.WatchWS,
 	})
