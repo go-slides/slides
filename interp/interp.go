@@ -23,6 +23,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/go-slides/slides/vfs"
 )
 
 // Sentinels stand for values known only after pagination. They live in the
@@ -53,6 +55,8 @@ type Options struct {
 	Name string
 	// Now is the clock behind the now function; nil means time.Now.
 	Now func() time.Time
+	// FS is where the include function reads; nil means the disk.
+	FS vfs.FS
 }
 
 // Expand executes src as a template.
@@ -138,7 +142,7 @@ func Funcs(opts Options) template.FuncMap {
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(opts.BaseDir, path)
 			}
-			b, err := os.ReadFile(path)
+			b, err := vfs.Or(opts.FS).ReadFile(path)
 			if err != nil {
 				return "", err
 			}

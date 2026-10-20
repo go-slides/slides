@@ -33,6 +33,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 
 	"github.com/go-slides/slides/interp"
+	"github.com/go-slides/slides/vfs"
 )
 
 // MaxFileSize bounds what the file function reads, so that a deck cannot
@@ -47,6 +48,8 @@ type Env struct {
 	BaseDir string
 	// Now is the clock behind now and timestamp; nil means time.Now.
 	Now func() time.Time
+	// FS is where the file function reads; nil means the disk.
+	FS vfs.FS
 }
 
 // Context returns the evaluation context: the functions, and the data
@@ -159,7 +162,7 @@ func Functions(e Env) map[string]function.Function {
 			Params: []function.Parameter{{Name: "path", Type: cty.String}},
 			Type:   function.StaticReturnType(cty.String),
 			Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
-				s, err := ReadFile(e.BaseDir, args[0].AsString())
+				s, err := ReadFileFS(e.FS, e.BaseDir, args[0].AsString())
 				return cty.StringVal(s), err
 			},
 		}),
@@ -169,8 +172,30 @@ func Functions(e Env) map[string]function.Function {
 // ReadFile reads a UTF-8 text file of at most MaxFileSize bytes, a relative
 // path being taken from dir. Only regular files are read.
 func ReadFile(dir, path string) (string, error) {
+	return ReadFileFS(nil, dir, path)
+}
+
+// ReadFileFS is ReadFile reading from fsys; nil means the disk.
+func ReadFileFS(fsys vfs.FS, dir, path string) (string, error) {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(dir, path)
+	}
+	if fsys != nil {
+		st, err := fsys.Stat(path)
+		if err != nil {
+			return "", err
+		}
+		if !st.Mode().IsRegular() {
+			return "", fmt.Errorf("%s is not a regular file", path)
+		}
+		if st.Size() > MaxFileSize {
+			return "", fmt.Errorf("%s is larger than %d bytes", path, MaxFileSize)
+		}
+		b, err := fsys.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		return checkText(path, b)
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -188,6 +213,11 @@ func ReadFile(dir, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return checkText(path, b)
+}
+
+// checkText bounds and validates what the file function returns.
+func checkText(path string, b []byte) (string, error) {
 	if len(b) > MaxFileSize {
 		return "", fmt.Errorf("%s is larger than %d bytes", path, MaxFileSize)
 	}
