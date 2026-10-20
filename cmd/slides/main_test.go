@@ -3,9 +3,11 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -100,6 +102,26 @@ func TestExpandNotesKinds(t *testing.T) {
 	out, _, err = run(t, "kinds", deckPath)
 	if err != nil || !strings.Contains(out, `hero       class="hero" footer="config"`) {
 		t.Errorf("kinds:\n%s %v", out, err)
+	}
+	out, _, err = run(t, "kinds", "--json", deckPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list []struct {
+		Name       string
+		Directives []struct{ Key, Value string }
+	}
+	if err := json.Unmarshal([]byte(out), &list); err != nil {
+		t.Fatalf("kinds --json is not JSON: %v\n%s", err, out)
+	}
+	i := slices.IndexFunc(list, func(k struct {
+		Name       string
+		Directives []struct{ Key, Value string }
+	}) bool {
+		return k.Name == "hero"
+	})
+	if i < 0 || len(list[i].Directives) != 2 || list[i].Directives[0].Key != "class" || list[i].Directives[0].Value != "hero" {
+		t.Errorf("kinds --json:\n%s", out)
 	}
 }
 

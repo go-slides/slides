@@ -39,6 +39,16 @@ func TestCodeIsLeftAlone(t *testing.T) {
 	}
 }
 
+// TestErrorLineAfterCode: masking a code block keeps its line breaks, so an
+// error after it names the line the author sees.
+func TestErrorLineAfterCode(t *testing.T) {
+	src := "a\n```\none\ntwo\nthree\n```\n{{ .nope }}\n"
+	_, err := Expand(src, Options{Data: map[string]any{}, Name: "deck.md"})
+	if err == nil || !strings.Contains(err.Error(), "deck.md:7:") {
+		t.Fatalf("error %v, want line 7", err)
+	}
+}
+
 func TestCodeOption(t *testing.T) {
 	got, err := Expand("`{{ .x }}`", Options{Data: map[string]any{"x": "X"}, Code: true})
 	if err != nil || got != "`X`" {

@@ -38,7 +38,9 @@ func maskCode(src string, delims [2]string) (string, []string) {
 		block  strings.Builder
 	)
 	mask := func(s string) {
-		out.WriteString(maskOpen + strconv.Itoa(len(masked)) + maskClose)
+		// The placeholder keeps the code's line breaks, so that template
+		// errors after a code block report the deck's own line numbers.
+		out.WriteString(maskOpen + strconv.Itoa(len(masked)) + strings.Repeat("\n", strings.Count(s, "\n")) + maskClose)
 		masked = append(masked, s)
 	}
 	lines := strings.SplitAfter(src, "\n")
@@ -190,7 +192,7 @@ func unmaskCode(s string, masked []string) string {
 			out.WriteString(s)
 			return out.String()
 		}
-		n, err := strconv.Atoi(s[i+len(maskOpen) : i+j])
+		n, err := strconv.Atoi(strings.TrimRight(s[i+len(maskOpen):i+j], "\n"))
 		out.WriteString(s[:i])
 		if err == nil && n >= 0 && n < len(masked) {
 			out.WriteString(masked[n])
