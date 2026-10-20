@@ -40,6 +40,23 @@ func (c *collector) next(t *testing.T) []string {
 	return out
 }
 
+// settle drops the reports that come until none has come for d: one step of
+// a test (a file created, then written) can be two reports when the runner is
+// slow enough that its events are more than the debounce apart, and a report
+// left over would otherwise be read as the next step's.
+func (c *collector) settle(d time.Duration) {
+	for {
+		select {
+		case <-c.ch:
+		case <-time.After(d):
+			c.mu.Lock()
+			c.got = nil
+			c.mu.Unlock()
+			return
+		}
+	}
+}
+
 // quiet fails if a report comes within d.
 func (c *collector) quiet(t *testing.T, d time.Duration) {
 	t.Helper()
@@ -52,13 +69,18 @@ func (c *collector) quiet(t *testing.T, d time.Duration) {
 	}
 }
 
+// testDebounce is long enough that the writes of one burst, a few file
+// system calls apart, fall within it even under -race on a busy runner; at
+// 30 ms a burst was sometimes reported twice in CI.
+const testDebounce = 150 * time.Millisecond
+
 func startWatch(t *testing.T, c *collector, targets ...string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	// Watch starts its watches before it reads events, but returns only at
 	// the end; give it the time to arm.
-	go func() { done <- Watch(ctx, targets, 30*time.Millisecond, c.onChange) }()
+	go func() { done <- Watch(ctx, targets, testDebounce, c.onChange) }()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -96,6 +118,7 @@ func TestWatchDirectory(t *testing.T) {
 	if got := c.next(t); !contains(got, a) {
 		t.Errorf("a new file: %v", got)
 	}
+	c.settle(3 * testDebounce)
 	// a burst is one report
 	for i := 0; i < 5; i++ {
 		os.WriteFile(a, []byte("# a\n"+string(rune('0'+i))), 0o644)
@@ -103,7 +126,7 @@ func TestWatchDirectory(t *testing.T) {
 	if got := c.next(t); !contains(got, a) {
 		t.Errorf("a changed file: %v", got)
 	}
-	c.quiet(t, 300*time.Millisecond)
+	c.quiet(t, 3*testDebounce)
 
 	// a file in a subdirectory, and in a directory made later
 	b := filepath.Join(dir, "sub", "b.md")
@@ -120,11 +143,13 @@ func TestWatchDirectory(t *testing.T) {
 		got = append(got, c.next(t)...)
 	}
 
+	c.settle(3 * testDebounce)
+
 	// what an editor leaves, a dotfile and node_modules are not reported
 	os.WriteFile(filepath.Join(dir, "a.md~"), []byte("x"), 0o644)
 	os.WriteFile(filepath.Join(dir, ".a.md.swp"), []byte("x"), 0o644)
 	os.WriteFile(filepath.Join(dir, "node_modules", "m", "x.md"), []byte("x"), 0o644)
-	c.quiet(t, 400*time.Millisecond)
+	c.quiet(t, 3*testDebounce)
 
 	// removal is a change
 	os.Remove(a)
