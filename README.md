@@ -222,7 +222,8 @@ kind "chapter" {
 ## Command line
 
 ```
-slides [build] [flags] deck.md     write the presentation as HTML
+slides [build] [flags] deck.md...  write the presentation as HTML
+slides [build] [flags] -I dir      ... every deck under dir, mirrored under -o
 slides expand  [flags] deck.md     print plain Marp Markdown
 slides notes   [flags] deck.md     print the speaker notes
 slides kinds   [flags] deck.md     list the kinds and what they set
@@ -232,11 +233,15 @@ slides completion bash|zsh|fish|powershell
 ```
 
 Flags may come before or after the deck. `slides <command> --help` lists a
-command's flags.
+command's flags. `build` takes several decks, a directory (its decks, found
+recursively) or a pattern; `-o` then needs `-I`, or `-`. Unlike marp-cli, standard
+input is read only for `-`, not whenever it is a pipe.
 
 | flag | commands | |
 |---|---|---|
 | `-o`, `--output file` | build, expand, notes | output file; `-` for standard output (build defaults to `deck.html` next to the deck) |
+| `-I`, `--input-dir dir` | build | convert the Markdown files (`.md`, `.mdown`, `.markdown`, `.markdn`) under `dir`, recursively, as marp-cli does — node_modules, dot directories and `UPPER.MD` left out. With `-o out/` each deck is written at its path under `dir`, mirrored under `out/` (`dir/sub/b.md` gives `out/sub/b.html`); without `-o`, next to the deck. Naming decks as well is an error |
+| `-P`, `--parallel n` | build | decks built at once (default 5, at most the number of cores; 1 for one after the other). Messages stay together per deck; one failing deck does not stop the others and the exit status says how many failed |
 | `--html` | build | allow all raw HTML |
 | `--lang code` | build | the `lang` attribute when the deck sets none |
 | `--bare` | build | stack the slides, without the presenting script |

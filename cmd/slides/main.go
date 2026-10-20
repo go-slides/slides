@@ -11,6 +11,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -50,23 +51,22 @@ Run with a deck and no command, it builds the deck to HTML.`,
 		Version:       version(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Args:          cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
-			return build(cmd, o, args[0])
-		},
+		Args:          cobra.ArbitraryArgs,
+		RunE:          func(cmd *cobra.Command, args []string) error { return runBuild(cmd, o, args) },
 	}
 	root.SetVersionTemplate("slides {{.Version}}\n")
 	o.persistentFlags(root)
 	o.buildFlags(root)
 
 	buildCmd := &cobra.Command{
-		Use:   "build deck.md",
+		Use:   "build [deck.md...] | -I dir",
 		Short: "Write the presentation as HTML (the default command)",
-		Args:  cobra.ExactArgs(1),
-		RunE:  func(cmd *cobra.Command, args []string) error { return build(cmd, o, args[0]) },
+		Long: `build converts each Markdown deck to HTML, or to what the flags and the
+output's extension say. Name decks, or a directory (its Markdown files, found
+recursively), or give --input-dir to mirror a tree: the decks found under it
+are written under --output at the same relative paths. - is standard input.`,
+		Args: cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error { return runBuild(cmd, o, args) },
 	}
 	o.buildFlags(buildCmd)
 
@@ -228,6 +228,8 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	for _, n := range []string{"no-pdf-outlines", "no-pdf-outlines.pages", "no-pdf-outlines.headings"} {
 		_ = f.MarkHidden(n)
 	}
+	f.StringVarP(&o.inputDir, "input-dir", "I", "", "convert the Markdown files under this directory, written under --output at the same relative paths (next to the decks without --output)")
+	f.IntVarP(&o.parallel, "parallel", "P", 5, "decks built at once, at most the number of cores (1 builds them one after the other)")
 	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name, or a CSS file (use --theme-set to add themes)")
 	f.StringVar(&o.meta.Title, "title", "", "title of the page, over the deck's title directive")
 	f.StringVar(&o.meta.Description, "description", "", "description of the page, over the deck's description directive")
@@ -259,8 +261,42 @@ func parse(o *options, path string) (*deck.Deck, error) {
 	return deck.Parse(src, cfg.Parse)
 }
 
-func build(cmd *cobra.Command, o *options, path string) error {
-	src, path, err := readDeck(path)
+// runBuild is the build command: it lists the decks and builds them, up to
+// --parallel at once.
+func runBuild(cmd *cobra.Command, o *options, args []string) error {
+	fl := cmd.Flags()
+	o.imageScaleSet = fl.Changed("image-scale")
+	// marp-cli 4.5.1 takes --pdf-outlines.pages or .headings alone for
+	// nothing (the parent option is what its type choice reads), and so do
+	// we.
+	o.pdfOptionsAsked = o.pdfNotes || (fl.Changed("pdf-outlines") && o.pdfOutlines)
+	jobs, err := o.inputs(args)
+	if err != nil {
+		return err
+	}
+	if len(jobs) == 0 {
+		if len(args) > 0 {
+			return errors.New("not found processable Markdown file(s)")
+		}
+		if o.inputDir != "" {
+			fmt.Fprintf(cmd.ErrOrStderr(), "slides: no Markdown file under %s\n", o.inputDir)
+			return nil
+		}
+		return cmd.Help()
+	}
+	if o.inputDir == "" && o.output != "" && o.output != "-" && len(jobs) > 1 {
+		return errors.New("output path cannot specify with processing multiple files")
+	}
+	e := env{ctx: cmd.Context(), stdout: cmd.OutOrStdout(), stderr: cmd.ErrOrStderr()}
+	if len(jobs) > 1 {
+		fmt.Fprintf(e.stderr, "slides: converting %d decks (up to %d at once)\n", len(jobs), o.workers(len(jobs)))
+	}
+	return runJobs(e, o, jobs, buildOne)
+}
+
+// buildOne builds the deck of j to HTML, or what the options say.
+func buildOne(e env, o *options, j job) error {
+	src, path, err := readDeck(j.path)
 	if err != nil {
 		return err
 	}
@@ -268,34 +304,30 @@ func build(cmd *cobra.Command, o *options, path string) error {
 	if err != nil {
 		return err
 	}
-	fl := cmd.Flags()
-	// marp-cli 4.5.1 takes --pdf-outlines.pages or .headings alone for
-	// nothing (the parent option is what its type choice reads), and so do
-	// we.
-	o.pdfOptionsAsked = o.pdfNotes || (fl.Changed("pdf-outlines") && o.pdfOutlines)
-	if f, err := o.format(); err != nil {
+	f, err := o.format()
+	if err != nil {
 		return err
-	} else if f == "notes" {
-		return writeNotes(cmd, o, src, path, cfg)
-	} else if f != "html" {
-		return exportDeck(cmd, o, src, path, cfg, f)
+	}
+	switch f {
+	case "notes":
+		return writeNotes(e, o, src, path, cfg)
+	case "html":
+	default:
+		return exportDeck(e, o, src, path, cfg, f)
 	}
 	page, b, err := slides.HTML(src, cfg)
 	if err != nil {
 		return err
 	}
-	stderr := cmd.ErrOrStderr()
-	for _, w := range b.Warnings {
-		fmt.Fprintln(stderr, "slides: warning:", w)
-	}
+	e.warn(b.Warnings)
 	if o.output == "" && path != "stdin.md" {
-		o.output = strings.TrimSuffix(path, filepath.Ext(path)) + ".html"
+		o.output = o.base(path) + ".html"
 	}
-	if err := o.write(cmd.OutOrStdout(), page); err != nil {
+	if err := o.write(e.stdout, page); err != nil {
 		return err
 	}
 	if o.output != "" && o.output != "-" {
-		fmt.Fprintf(stderr, "slides: %s => %s (%d slides)\n", path, o.output, len(b.Slides))
+		fmt.Fprintf(e.stderr, "slides: %s => %s (%d slides)\n", path, o.output, len(b.Slides))
 	}
 	return nil
 }
@@ -303,6 +335,9 @@ func build(cmd *cobra.Command, o *options, path string) error {
 func (o *options) write(stdout io.Writer, s string) error {
 	if o.output == "" || o.output == "-" {
 		_, err := io.WriteString(stdout, s)
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(o.output), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(o.output, []byte(s), 0o644)
