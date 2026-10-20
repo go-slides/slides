@@ -16,14 +16,14 @@ func TestBespokeOptions(t *testing.T) {
 	}
 	// marp-cli's defaults: the controller, no progress bar, transitions
 	d := page(DefaultBespoke(), "@keyframes marp-incoming-transition-__builtin__fade{}")
-	for _, want := range []string{`{"osc":true,"progress":false}`, "startViewTransition", "::view-transition-group(*)", "@keyframes marp-incoming-transition-__builtin__fade{}"} {
+	for _, want := range []string{`{"osc":true,"progress":false`, "startViewTransition", "::view-transition-group(*)", "@keyframes marp-incoming-transition-__builtin__fade{}"} {
 		if !strings.Contains(d, want) {
 			t.Errorf("default page lacks %q", want)
 		}
 	}
 	// no transition option: no script for it and no styles
 	o := page(Bespoke{OSC: true, Progress: true}, "")
-	if !strings.Contains(o, `{"osc":true,"progress":true}`) || strings.Contains(o, "startViewTransition") || strings.Contains(o, "view-transition") {
+	if !strings.Contains(o, `{"osc":true,"progress":true`) || strings.Contains(o, "startViewTransition") || strings.Contains(o, "view-transition") {
 		t.Errorf("osc and progress without transitions:\n%.400s", o)
 	}
 	// the bare template has none of it
@@ -33,7 +33,7 @@ func TestBespokeOptions(t *testing.T) {
 	}
 	// the zero value is a page with neither
 	z := Document(Options{Slides: slides})
-	if !strings.Contains(z, `{"osc":false,"progress":false}`) {
+	if !strings.Contains(z, `{"osc":false,"progress":false`) {
 		t.Errorf("zero Bespoke: %.200s", z)
 	}
 }

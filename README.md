@@ -323,6 +323,25 @@ the pointer or a key moves and hides after 2.5 s. `--bespoke.progress`,
 `--bespoke.osc=false`, `--bespoke.transition=false` and `--template bare` choose
 what the page has. The page was driven in headless Chrome to check it.
 
+**Presenter view** (after v0.6.0). The `p` key, or the controller's last
+button, opens marp-cli's presenter view in a window: the current slide, the
+step after it, the speaker notes, the page, the time and a timer (click it to
+reset; `+` and `-` size the notes; the bar between the slides and the notes
+drags). Same URLs and sync as marp-cli's bespoke template, read from its
+4.5.1 sources: `?view=presenter&sync=KEY` for the window, `?view=next` for the
+frame that shows the next step (told by `postMessage`, `navigate:i,f`), and
+the windows follow one another through `localStorage`, key
+`bespoke-marp-sync-KEY`, `{index, fragmentIndex, reference}`, the other
+window's `storage` event carrying a change — in both directions. It needs no
+network and does not work where `localStorage` does not (the button says so).
+The notes are in the page as `<div class="slides-note">` of the slides that
+have some, one `<p>` for each comment, **escaped** (`&`, `<`, `>`: a note is
+text, never markup) and hidden by `display: none`, so they are not in what the
+audience's screen reader reads; the presenter view takes them. `--bare` has
+none of it. The view adds about 10 KB to a page (a test keeps it under 11 000
+bytes; marp-cli's bespoke.js is 25 KB alone). There is no overview view yet,
+and the page counter of the presenter view does not open one.
+
 **Configuration files.** marp-cli's `.marprc`, `.marprc.json`, `.marprc.yaml`,
 `package.json` (the `marp` key) and the `--config-file` file are read when they
 are JSON or YAML, from the working directory only (marp-cli's search does not
