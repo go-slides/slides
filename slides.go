@@ -33,6 +33,10 @@ type Config struct {
 	// NoEmoji leaves :shortcodes: and Unicode emoji as text (Marp Core's
 	// emoji: false) instead of drawing them as Twemoji images.
 	NoEmoji bool
+	// SourceLines marks slides and blocks with their source lines for an
+	// editor's scroll sync (deck.RenderOptions.SourceLines); set it with
+	// Parse.LineMap so that lines trace back through templates.
+	SourceLines bool
 	// Override holds the global directives the command line sets, which win
 	// over the deck's own, as marp-cli's --title, --theme ... do.
 	Override Override
@@ -141,6 +145,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		Math:             mathFor(cfg),
 		Highlight:        Highlight,
 		FitHeadings:      true,
+		SourceLines:      cfg.SourceLines,
 	})
 	return b, nil
 }

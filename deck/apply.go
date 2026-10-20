@@ -78,6 +78,7 @@ func (d *Deck) split(doc ast.Node) {
 	}
 	for i, s := range d.Slides {
 		s.Index = i
+		s.Line = d.SourceLine(s.start)
 	}
 }
 
@@ -151,7 +152,7 @@ func (d *Deck) applyLocals(fm map[string]any, comments []*comment, fmLines int) 
 				if c.dirs != nil {
 					recognized, err := d.applyObject(st, c.dirs)
 					if err != nil {
-						return ast.WalkStop, d.errorf(fmLines+lineOf(d.source, c.offset), "%v", err)
+						return ast.WalkStop, d.errorf(d.SourceLine(c.offset)+1, "%v", err)
 					}
 					if recognized {
 						c.parsed = true

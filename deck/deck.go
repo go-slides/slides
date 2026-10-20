@@ -37,6 +37,12 @@ type Deck struct {
 	// hasFront whether there was one.
 	frontText string
 	hasFront  bool
+	// fmLines is how many lines the front matter took, and lineMap the
+	// source line of each line of source when Options.LineMap traced the
+	// templates (see SourceLine).
+	fmLines    int
+	lineMap    []int
+	lineStarts []int
 }
 
 // Global holds the global directives.
@@ -83,6 +89,10 @@ type Slide struct {
 	ScopedStyles []string
 	// Headings are the slide's headings, for outlines.
 	Headings []Heading
+	// Line is the 0-based line of the deck's source file where the slide
+	// begins: the line after its "---", or its dividing heading's line.
+	// With Options.LineMap it traces back through templates.
+	Line int
 
 	nodes []ast.Node
 	// start is where the slide's content begins in the deck source.
