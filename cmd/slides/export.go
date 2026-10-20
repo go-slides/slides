@@ -2,19 +2,35 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-webengine/engine"
-	"github.com/spf13/cobra"
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
 	"github.com/go-slides/slides/export"
 )
+
+// env is what a conversion needs of the command that runs it: a context and
+// the two streams. Conversions run in parallel, so each gets streams of its
+// own (see runJobs).
+type env struct {
+	ctx            context.Context
+	stdout, stderr io.Writer
+}
+
+// warn prints the warnings of a build.
+func (e env) warn(ws []string) {
+	for _, w := range ws {
+		fmt.Fprintln(e.stderr, "slides: warning:", w)
+	}
+}
 
 // format is what build writes: "html", "pdf", "images:png", "images:jpeg",
 // "image:png" or "image:jpeg". The flags say it; without them, the output
@@ -50,21 +66,25 @@ func (o *options) format() (string, error) {
 	default:
 		return "", fmt.Errorf("--pdf, --pptx, --odp, --notes, --images and --image are exclusive")
 	}
-	switch strings.ToLower(filepath.Ext(o.output)) {
-	case ".html", ".htm":
-		return "html", nil
-	case ".txt":
-		return "notes", nil
-	case ".pdf":
-		return "pdf", nil
-	case ".pptx":
-		return "pptx", nil
-	case ".odp":
-		return "odp", nil
-	case ".png":
-		return "image:png", nil
-	case ".jpg", ".jpeg":
-		return "image:jpeg", nil
+	// With --input-dir the output is a directory, whose extension, if it has
+	// one, says nothing about the format.
+	if !o.mirrored {
+		switch strings.ToLower(filepath.Ext(o.output)) {
+		case ".html", ".htm":
+			return "html", nil
+		case ".txt":
+			return "notes", nil
+		case ".pdf":
+			return "pdf", nil
+		case ".pptx":
+			return "pptx", nil
+		case ".odp":
+			return "odp", nil
+		case ".png":
+			return "image:png", nil
+		case ".jpg", ".jpeg":
+			return "image:jpeg", nil
+		}
 	}
 	if o.pdfOptionsAsked {
 		// As marp-cli: --pdf-notes or --pdf-outlines asks for a PDF when
@@ -99,43 +119,40 @@ func imageFormat(v string) (string, error) {
 	return "", fmt.Errorf("%q is not png or jpeg", v)
 }
 
-// exportDeck renders the deck with go-webengine and writes images or a PDF.
-func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg slides.Config, format string) error {
-	b, err := slides.Render(src, cfg, deck.FrameBox)
-	if err != nil {
-		return err
-	}
-	stderr := cmd.ErrOrStderr()
-	for _, w := range b.Warnings {
-		fmt.Fprintln(stderr, "slides: warning:", w)
-	}
+// exportOptions are the rendering options for the deck at path.
+func (o *options) exportOptions(path, format string) (export.Options, error) {
 	dir, err := filepath.Abs(filepath.Dir(path))
 	if err != nil {
-		return err
+		return export.Options{}, err
 	}
 	if o.imageScale <= 0 || o.imageScale > 8 {
-		return fmt.Errorf("--image-scale %v: want a value in (0, 8]", o.imageScale)
+		return export.Options{}, fmt.Errorf("--image-scale %v: want a value in (0, 8]", o.imageScale)
 	}
-	if (format == "pptx" || format == "odp") && !cmd.Flags().Changed("image-scale") {
+	scale := o.imageScale
+	if (format == "pptx" || format == "odp") && !o.imageScaleSet {
 		// A deck is shown full screen: marp-cli renders PPTX at 2 by
 		// default, and an OpenDocument deck is shown the same way.
-		o.imageScale = 2
+		scale = 2
 	}
 	opts := export.Options{
 		BaseURL:     "file://" + filepath.ToSlash(dir) + "/",
 		JPEGQuality: o.jpegQuality,
-		Scale:       o.imageScale,
+		Scale:       scale,
 	}
 	if o.allowLocalFiles {
 		// Only the deck's own directory, as marp-cli's --allow-local-files
 		// is meant to be used: a deck from elsewhere cannot read ~/.ssh.
 		opts.FileRoot = dir
 	}
-	// The slides are rendered a few at a time and each image is written as
-	// soon as it is its turn, so that a deck is never held as images.
-	ctx := cmd.Context()
-	base := strings.TrimSuffix(path, filepath.Ext(path))
+	return opts, nil
+}
+
+// exportBytes renders the deck as one document: "pdf", "pptx", "odp" or
+// "image:png" / "image:jpeg", the first slide. It is what the server answers
+// with, and what a build writes.
+func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.Options, path, format string) ([]byte, error) {
 	kind, imgFormat, _ := strings.Cut(format, ":")
+	var buf bytes.Buffer
 	switch kind {
 	case "pdf":
 		pdf := export.NewPDFWith(b, o.pdfOptions())
@@ -152,13 +169,11 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 			})
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
-		var buf bytes.Buffer
 		if err := pdf.Write(&buf); err != nil {
-			return err
+			return nil, err
 		}
-		return o.emit(cmd, path, or(o.output, base+".pdf"), buf.Bytes(), len(b.Slides))
 	case "pptx":
 		pptx := export.NewPPTX(b)
 		var err error
@@ -174,13 +189,11 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 			})
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
-		var buf bytes.Buffer
 		if err := pptx.Write(&buf); err != nil {
-			return err
+			return nil, err
 		}
-		return o.emit(cmd, path, or(o.output, base+".pptx"), buf.Bytes(), len(b.Slides))
 	case "odp":
 		odp := export.NewODP(b)
 		var err error
@@ -195,28 +208,55 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 			})
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
-		var buf bytes.Buffer
 		if err := odp.Write(&buf); err != nil {
-			return err
+			return nil, err
 		}
-		return o.emit(cmd, path, or(o.output, base+".odp"), buf.Bytes(), len(b.Slides))
 	case "image":
 		if len(b.Slides) == 0 {
-			return fmt.Errorf("%s: the deck has no slide", path)
+			return nil, fmt.Errorf("%s: the deck has no slide", path)
 		}
 		// Only the first slide is written, so only it is rendered.
 		first := *b
 		first.Slides = b.Slides[:1]
-		var buf bytes.Buffer
 		if err := export.Each(ctx, &first, opts, func(_ int, img *image.RGBA) error {
 			return encode(&buf, img, imgFormat, opts)
 		}); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("cannot export %q as one document", format)
+	}
+	return buf.Bytes(), nil
+}
+
+// exportDeck renders the deck with go-webengine and writes images or a PDF.
+func exportDeck(e env, o *options, src []byte, path string, cfg slides.Config, format string) error {
+	b, err := slides.Render(src, cfg, deck.FrameBox)
+	if err != nil {
+		return err
+	}
+	e.warn(b.Warnings)
+	opts, err := o.exportOptions(path, format)
+	if err != nil {
+		return err
+	}
+	base := o.base(path)
+	kind, imgFormat, _ := strings.Cut(format, ":")
+	if kind != "images" {
+		data, err := exportBytes(e.ctx, o, b, opts, path, format)
+		if err != nil {
 			return err
 		}
-		return o.emit(cmd, path, or(o.output, base+"."+ext(imgFormat)), buf.Bytes(), 1)
+		n, name := len(b.Slides), "."+kind
+		if kind == "image" {
+			n, name = 1, "."+ext(imgFormat)
+		}
+		return o.emit(e, path, or(o.output, base+name), data, n)
 	}
+	// The slides are rendered a few at a time and each image is written as
+	// soon as it is its turn, so that a deck is never held as images.
 	// One file per slide: deck.001.png, deck.002.png, ...
 	prefix := base
 	if o.output != "" && o.output != "-" {
@@ -226,13 +266,13 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 		return err
 	}
 	// Each image is encoded by the worker that rendered it.
-	if err := export.EachEncoded(ctx, b, opts, imgFormat, func(i int, data []byte) error {
+	if err := export.EachEncoded(e.ctx, b, opts, imgFormat, func(i int, data []byte) error {
 		name := fmt.Sprintf("%s.%03d.%s", prefix, i+1, ext(imgFormat))
 		return os.WriteFile(name, data, 0o644)
 	}); err != nil {
 		return err
 	}
-	fmt.Fprintf(stderr, "slides: %s => %s.%03d.%s ... (%d slides)\n", path, prefix, 1, ext(imgFormat), len(b.Slides))
+	fmt.Fprintf(e.stderr, "slides: %s => %s.%03d.%s ... (%d slides)\n", path, prefix, 1, ext(imgFormat), len(b.Slides))
 	return nil
 }
 
@@ -251,9 +291,9 @@ func ext(format string) string {
 }
 
 // emit writes one output file, or standard output for "-".
-func (o *options) emit(cmd *cobra.Command, src, name string, data []byte, slides int) error {
+func (o *options) emit(e env, src, name string, data []byte, slides int) error {
 	if name == "-" {
-		_, err := cmd.OutOrStdout().Write(data)
+		_, err := e.stdout.Write(data)
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
@@ -262,7 +302,7 @@ func (o *options) emit(cmd *cobra.Command, src, name string, data []byte, slides
 	if err := os.WriteFile(name, data, 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.ErrOrStderr(), "slides: %s => %s (%d slides)\n", src, name, slides)
+	fmt.Fprintf(e.stderr, "slides: %s => %s (%d slides)\n", src, name, slides)
 	return nil
 }
 

@@ -51,6 +51,15 @@ type options struct {
 	// otherwise.
 	pdfOptionsAsked bool
 
+	inputDir string // -I, --input-dir
+	parallel int    // -P, --parallel
+	// imageScaleSet is whether --image-scale was given.
+	imageScaleSet bool
+	// mirrorBase and mirrored say where the output of one deck found under
+	// --input-dir goes: see forJob.
+	mirrorBase string
+	mirrored   bool
+
 	// themeOverride is --theme: a theme name or a CSS file.
 	themeOverride string
 	// meta are the metadata global directives of the command line.
