@@ -240,6 +240,10 @@ input is read only for `-`, not whenever it is a pipe.
 | flag | commands | |
 |---|---|---|
 | `-o`, `--output file` | build, expand, notes | output file; `-` for standard output (build defaults to `deck.html` next to the deck) |
+| `-w`, `--watch` | build | build again when a deck, a `--theme-set` file, a kinds or data file or the configuration changes, and tell the open pages to reload (a socket on the loopback; see below) |
+| `-s`, `--server dir` | build | serve `dir` (or `-I dir`): its decks converted on request — `deck.md` as HTML, `deck.md?pdf`, `?pptx`, `?png`, `?jpg`, `?notes` — an index of each directory, live reload of the pages. Listens on **127.0.0.1**, port 8080 or `$PORT` |
+| `-p`, `--preview` | build | open the result in the default browser: the HTML pages with `--watch` (implied), the server with `--server` |
+| `--host addr` | build | the address `--server` listens on (default `127.0.0.1`); anything else serves the directory to the network, with a warning |
 | `-I`, `--input-dir dir` | build | convert the Markdown files (`.md`, `.mdown`, `.markdown`, `.markdn`) under `dir`, recursively, as marp-cli does — node_modules, dot directories and `UPPER.MD` left out. With `-o out/` each deck is written at its path under `dir`, mirrored under `out/` (`dir/sub/b.md` gives `out/sub/b.html`); without `-o`, next to the deck. Naming decks as well is an error |
 | `-P`, `--parallel n` | build | decks built at once (default 5, at most the number of cores; 1 for one after the other). Messages stay together per deck; one failing deck does not stop the others and the exit status says how many failed |
 | `--html` | build | allow all raw HTML |
@@ -293,6 +297,38 @@ The HTML page is self-contained. Navigate with the arrow keys, Space and
 PageUp/PageDown, `f` toggles full screen, a click advances, and the URL hash
 names the slide. Fragments reveal one at a time. Printing gives one slide per
 page.
+
+## Watch, serve, preview
+
+`--watch`, `--server` and `--preview` are marp-cli's, with its routes, query
+keys and live reload protocol (read from its 4.5.1 sources), and with the
+security a local server needs:
+
+- **`--server dir`** serves the directory: files as they are, decks converted
+  per request (`?pdf`, `?pptx`, `?png`, `?jpg`, `?notes`; the PPTX comes as an
+  attachment; a failing deck answers 503 with its message), `index.md` or
+  `PITCHME.md` as a directory's page, else a listing with links to each deck's
+  PDF and PPTX. Pages open a WebSocket to `/.__marp-cli-watch-notifier__/<id>`
+  and reload when the deck, or anything under the directory, changes. At most a
+  few decks are converted at once.
+- **Bound to the loopback** (marp-cli listens on every interface). `--host`
+  changes it and warns. The **Host** header must be a loopback name (or the
+  host it listens on), which stops DNS rebinding; a WebSocket's **Origin** must
+  be the server's own; cross-site subresource requests (`<script src>`,
+  `fetch`) are refused by their `Sec-Fetch-*` headers. A path is cleaned,
+  its symbolic links are resolved and the result must be inside the directory
+  (`..` and a link out of it are refused, `?pdf` included); dotfiles
+  (`.git`, `.env`) are never served; only GET and HEAD are answered.
+- **`--watch`** builds again the deck that changes and, if a theme, kinds,
+  data or configuration file changed, all of them; a deck that fails is
+  reported and watched still. The pages it writes open a socket on a loopback
+  port (37717 or the next free one) whose address holds the SHA-256 of the
+  deck's path; the socket accepts the `null` origin of a file page and the
+  loopback's, nothing else.
+- **`--preview`** opens the default browser (`open`, `xdg-open`,
+  `rundll32`) on the server, or on the HTML pages just built (the first only
+  when there are more than three decks). There is no window of its own: unlike
+  marp-cli's, which drives Chrome, `slides` has none to drive.
 
 ## Images and PDF without a browser
 

@@ -5,6 +5,7 @@
 package viewer
 
 import (
+	"encoding/json"
 	"html"
 	"strings"
 
@@ -27,6 +28,9 @@ type Options struct {
 	// Bare leaves the script out: the slides stack vertically, as in
 	// marp-cli's bare template.
 	Bare bool
+	// WatchWS, when not empty, is the address of the live reload socket the
+	// page opens (see serve.Hub): a ws:// URL, or a path on the page's host.
+	WatchWS string
 }
 
 // Document returns the page.
@@ -107,9 +111,26 @@ func Document(o Options) string {
 	if !o.Bare {
 		b.WriteString("<script>" + presentJS + "</script>\n")
 	}
+	if o.WatchWS != "" {
+		// json.Marshal escapes <, > and &, so the address cannot end the script.
+		ws, _ := json.Marshal(o.WatchWS)
+		b.WriteString("<script>window.__slidesWatchWS=" + string(ws) + ";" + watchJS + "</script>\n")
+	}
 	b.WriteString("</body>\n</html>\n")
 	return b.String()
 }
+
+// watchJS reloads the page when its deck changes, over the socket marp-cli's
+// watch script uses: "ready" when it is open, "reload" on a change, and a try
+// again every 5 s when it was lost, reloading when it is back. An address
+// that starts with a slash is on the page's own host.
+const watchJS = `!function(){var u=window.__slidesWatchWS;if(!u)return;
+if(u.charAt(0)==="/")u=(location.protocol==="https:"?"wss:":"ws:")+"//"+location.host+u;
+var connect=function(reload){var ws=new WebSocket(u);
+ws.addEventListener("open",function(){console.info("[slides] Observing the change of file...");if(reload)location.reload()});
+ws.addEventListener("close",function(){console.warn("[slides] WebSocket for file watcher was disconnected. Try re-connecting in 5000ms...");setTimeout(function(){connect(true)},5000)});
+ws.addEventListener("message",function(e){if(e.data==="reload")location.reload()});return ws};
+connect(false)}();`
 
 const bareCSS = `
 html, body { margin: 0; background: #555; }

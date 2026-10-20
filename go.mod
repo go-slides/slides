@@ -37,6 +37,7 @@ require (
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
 	github.com/go-crdt/collab v0.77.1 // indirect
 	github.com/go-crdt/crdt v0.57.0 // indirect
