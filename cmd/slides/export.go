@@ -30,6 +30,9 @@ func (o *options) format() (string, error) {
 	if o.odp || o.odpRaster {
 		chosen = append(chosen, "odp")
 	}
+	if o.notes {
+		chosen = append(chosen, "notes")
+	}
 	for name, v := range map[string]string{"images": o.images, "image": o.image} {
 		if v == "" {
 			continue
@@ -45,9 +48,13 @@ func (o *options) format() (string, error) {
 	case 1:
 		return chosen[0], nil
 	default:
-		return "", fmt.Errorf("--pdf, --pptx, --odp, --images and --image are exclusive")
+		return "", fmt.Errorf("--pdf, --pptx, --odp, --notes, --images and --image are exclusive")
 	}
 	switch strings.ToLower(filepath.Ext(o.output)) {
+	case ".html", ".htm":
+		return "html", nil
+	case ".txt":
+		return "notes", nil
 	case ".pdf":
 		return "pdf", nil
 	case ".pptx":
@@ -59,7 +66,27 @@ func (o *options) format() (string, error) {
 	case ".jpg", ".jpeg":
 		return "image:jpeg", nil
 	}
+	if o.pdfOptionsAsked {
+		// As marp-cli: --pdf-notes or --pdf-outlines asks for a PDF when
+		// nothing else says what to write.
+		return "pdf", nil
+	}
 	return "html", nil
+}
+
+// pdfOptions is what the PDF carries. The outline is on unless --pdf-outlines
+// is turned off, which marp-cli's default is not: it writes none unless asked.
+// go-slides has always written one, and an outline costs a few hundred bytes
+// and makes a deck navigable, so the default stays and --pdf-outlines=false
+// (or marp-cli's --no-pdf-outlines) turns it off. --pdf-outlines.pages and
+// .headings choose the entries, as in marp-cli.
+func (o *options) pdfOptions() export.PDFOptions {
+	on := o.pdfOutlines && !o.noPDFOutlines
+	return export.PDFOptions{
+		Notes:           o.pdfNotes,
+		OutlinePages:    on && o.outlinePages && !o.noOutlinePages,
+		OutlineHeadings: on && o.outlineHeadings && !o.noOutlineHeadings,
+	}
 }
 
 func imageFormat(v string) (string, error) {
@@ -111,7 +138,7 @@ func exportDeck(cmd *cobra.Command, o *options, src []byte, path string, cfg sli
 	kind, imgFormat, _ := strings.Cut(format, ":")
 	switch kind {
 	case "pdf":
-		pdf := export.NewPDF(b)
+		pdf := export.NewPDFWith(b, o.pdfOptions())
 		var err error
 		if o.pdfRaster {
 			// The escape hatch: every page one image, as before vectors.

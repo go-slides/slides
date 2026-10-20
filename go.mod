@@ -10,7 +10,7 @@ require (
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-opentype/opentype v0.16.0
-	github.com/go-pdfkit/pdfkit v0.15.0
+	github.com/go-pdfkit/pdfkit v0.16.0
 	github.com/go-richdoc/richdoc v0.7.0
 	github.com/go-rouge/rouge v0.5.0
 	github.com/go-tex/math v0.50.0

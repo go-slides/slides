@@ -191,19 +191,20 @@ func checkPage(t *testing.T, p pdf.Page) {
 	}
 }
 
-// checkOutline checks the outline lists each slide, the first one's
-// headings nested under it.
+// checkOutline checks the outline lists each slide as marp-cli's does, "Page
+// N", the first one's headings nested under it.
 func checkOutline(t *testing.T, r *pdf.Reader) {
 	t.Helper()
 	o := r.Outline()
-	if len(o.Child) != 2 || o.Child[0].Title != "1. One" || o.Child[1].Title != "2" {
+	if len(o.Child) != 2 || o.Child[0].Title != "Page 1" || o.Child[1].Title != "Page 2" {
 		var got []string
 		for _, c := range o.Child {
 			got = append(got, c.Title)
 		}
 		t.Fatalf("outline %q, want the two slides", got)
 	}
-	if hs := o.Child[0].Child; len(hs) != 2 || hs[0].Title != "One" || hs[1].Title != "Sub" {
+	// nested by level, as marp-cli does: the h3 is under the h1
+	if hs := o.Child[0].Child; len(hs) != 1 || hs[0].Title != "One" || len(hs[0].Child) != 1 || hs[0].Child[0].Title != "Sub" {
 		t.Errorf("slide 1's headings: %+v", hs)
 	}
 }

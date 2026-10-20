@@ -204,6 +204,17 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.IntVar(&o.jpegQuality, "jpeg-quality", 85, "JPEG quality, 1 to 100")
 	f.Float64Var(&o.imageScale, "image-scale", 1, "device pixels per CSS pixel for images and PDF (2 = 2560×1440 for 16:9)")
 	f.BoolVar(&o.allowLocalFiles, "allow-local-files", false, "let images and PDF load local files from under the deck's directory")
+	f.BoolVar(&o.notes, "notes", false, "write the speaker notes as a text file, slides separated by ---, as marp-cli does (also chosen by -o file.txt)")
+	f.BoolVar(&o.pdfNotes, "pdf-notes", false, "add the speaker notes to the PDF as note annotations, as marp-cli does")
+	f.BoolVar(&o.pdfOutlines, "pdf-outlines", true, "write the PDF's outline, of pages and headings (on by default, unlike marp-cli; --pdf-outlines=false turns it off)")
+	f.BoolVar(&o.outlinePages, "pdf-outlines.pages", true, "outline: a bookmark \"Page N\" for each slide")
+	f.BoolVar(&o.outlineHeadings, "pdf-outlines.headings", true, "outline: the slides' headings, under their page")
+	f.BoolVar(&o.noPDFOutlines, "no-pdf-outlines", false, "same as --pdf-outlines=false, marp-cli's spelling")
+	f.BoolVar(&o.noOutlinePages, "no-pdf-outlines.pages", false, "same as --pdf-outlines.pages=false")
+	f.BoolVar(&o.noOutlineHeadings, "no-pdf-outlines.headings", false, "same as --pdf-outlines.headings=false")
+	for _, n := range []string{"no-pdf-outlines", "no-pdf-outlines.pages", "no-pdf-outlines.headings"} {
+		_ = f.MarkHidden(n)
+	}
 	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name, or a CSS file (use --theme-set to add themes)")
 	f.StringVar(&o.meta.Title, "title", "", "title of the page, over the deck's title directive")
 	f.StringVar(&o.meta.Description, "description", "", "description of the page, over the deck's description directive")
@@ -244,8 +255,15 @@ func build(cmd *cobra.Command, o *options, path string) error {
 	if err != nil {
 		return err
 	}
+	fl := cmd.Flags()
+	// marp-cli 4.5.1 takes --pdf-outlines.pages or .headings alone for
+	// nothing (the parent option is what its type choice reads), and so do
+	// we.
+	o.pdfOptionsAsked = o.pdfNotes || (fl.Changed("pdf-outlines") && o.pdfOutlines)
 	if f, err := o.format(); err != nil {
 		return err
+	} else if f == "notes" {
+		return writeNotes(cmd, o, src, path, cfg)
 	} else if f != "html" {
 		return exportDeck(cmd, o, src, path, cfg, f)
 	}

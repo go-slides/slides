@@ -1,0 +1,17 @@
+[
+ {
+  "name": "notes-some",
+  "md": "# One\n\n<!-- note one -->\n\n<!-- more -->\n\n---\n\n## Two\n\nno note\n\n---\n\n# Three\n\n<!-- third -->\n",
+  "text": "note one\n\nmore\n\n---\n\n\n\n---\n\nthird"
+ },
+ {
+  "name": "notes-none",
+  "md": "# One\n\n---\n\n# Two\n",
+  "text": ""
+ },
+ {
+  "name": "notes-directives-only",
+  "md": "<!-- paginate: true -->\n\n# One\n\n---\n\n<!-- _class: x -->\n\n# Two\n\n<!-- last -->\n",
+  "text": "\n\n---\n\nlast"
+ }
+]
