@@ -15,6 +15,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/go-slides/slides/interp"
+	"github.com/go-slides/slides/vfs"
 )
 
 // Options configures Parse.
@@ -40,6 +41,9 @@ type Options struct {
 	// written as (Marp Core's emoji: false); by default they become Twemoji
 	// images.
 	NoEmoji bool
+	// FS is where included files, kinds files and the HCL file function
+	// read; nil means the disk.
+	FS vfs.FS
 }
 
 // Front-matter keys this tool reads besides directives.
@@ -91,7 +95,7 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 
 	kinds := BuiltinKinds().Merge(opts.Kinds)
 	if v, ok := fmDirs[keyKinds]; ok && v != nil {
-		env := HCLEnv{Data: data, BaseDir: opts.BaseDir, Now: opts.Now}
+		env := HCLEnv{Data: data, BaseDir: opts.BaseDir, Now: opts.Now, FS: opts.FS}
 		k, err := loadKinds(v, opts.BaseDir, env)
 		if err != nil {
 			return nil, d.errorf(1, "%v", err)
@@ -109,6 +113,7 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 			BaseDir: opts.BaseDir,
 			Name:    opts.Name,
 			Now:     opts.Now,
+			FS:      opts.FS,
 		}
 		valueOpts := io
 		valueOpts.Code = true

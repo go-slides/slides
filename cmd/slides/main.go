@@ -141,7 +141,7 @@ that marp-cli or any Marp tool renders the same slides.`,
 		Short: "List the themes, built-in and from --theme-set",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			set, err := o.themeSet(".")
+			set, err := o.themeSet()
 			if err != nil {
 				return err
 			}

@@ -3,7 +3,6 @@ package deck
 import (
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/go-slides/slides/internal/hclx"
+	"github.com/go-slides/slides/vfs"
 )
 
 // HCLEnv is what HCL expressions see: the data variable, the directory the
@@ -52,7 +52,7 @@ func hclFront(text string, opts Options) (string, Kinds, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	env := HCLEnv{BaseDir: opts.BaseDir, Now: opts.Now, Data: maps.Clone(opts.Data)}
+	env := HCLEnv{BaseDir: opts.BaseDir, Now: opts.Now, Data: maps.Clone(opts.Data), FS: opts.FS}
 	if env.Data == nil {
 		env.Data = map[string]any{}
 	}
@@ -159,7 +159,7 @@ func ParseKindsHCL(src []byte, name string, env HCLEnv) (Kinds, error) {
 // (evaluated in env, the file function resolving from the file's
 // directory), YAML otherwise.
 func LoadKindsFileEnv(path string, env HCLEnv) (Kinds, error) {
-	b, err := os.ReadFile(path)
+	b, err := vfs.Or(env.FS).ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func LoadKindsFileEnv(path string, env HCLEnv) (Kinds, error) {
 // LoadDataFile reads template data from a file: HCL when its extension is
 // .hcl (typed values; see the README), YAML or JSON otherwise.
 func LoadDataFile(path string, env HCLEnv) (map[string]any, error) {
-	b, err := os.ReadFile(path)
+	b, err := vfs.Or(env.FS).ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
