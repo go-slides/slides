@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -105,7 +106,8 @@ type slideRenderer struct {
 
 // marpitDirectives are the directives Marpit writes out as data-*
 // attributes and custom properties: its own and Marp Core's custom ones.
-var marpitDirectives = append([]string{"headingDivider", "style", "theme", "lang", "size", "math"}, localNames...)
+var marpitDirectives = append([]string{"headingDivider", "style", "theme", "lang", "size", "math"},
+	slices.DeleteFunc(slices.Clone(localNames), func(n string) bool { return n == "transition" })...) // Marp CLI's, written out as JSON (transition.go)
 
 var camelRe = regexp.MustCompile(`[A-Z]`)
 
@@ -274,6 +276,21 @@ func (r *slideRenderer) sectionAttrs(s *Slide, dirs Dirs) (attrs, *styleDecls) {
 	return a, style
 }
 
+// setTransition writes the transition attributes: the transition of the slide
+// before, to play backwards, then the slide's own. Marp CLI's
+// marp_cli_transition sets them after everything Marpit does to the section,
+// so they come last, and the layers of an advanced background copy them.
+func (r *slideRenderer) setTransition(a *attrs, s *Slide) {
+	if s.Index > 0 {
+		if prev, ok := transitionAttr(r.deck.Slides[s.Index-1].Dirs); ok {
+			a.set("data-transition-back", prev)
+		}
+	}
+	if cur, ok := transitionAttr(s.Dirs); ok {
+		a.set("data-transition", cur)
+	}
+}
+
 func contains(list []string, s string) bool {
 	for _, x := range list {
 		if x == s {
@@ -350,6 +367,7 @@ func (r *slideRenderer) slide(s *Slide) string {
 		if a.get("style") == "" {
 			a = a.without("style")
 		}
+		r.setTransition(&a, s)
 		section := "<section" + a.String() + ">" + content.String() + "</section>"
 		if r.opts.Frame == FramePlain {
 			out = section + "\n"
@@ -387,6 +405,7 @@ func (r *slideRenderer) advanced(s *Slide, a attrs, style *styleDecls, dirs Dirs
 	} else if st := style.String(); st != "" {
 		contentAttrs.set("style", st)
 	}
+	r.setTransition(&contentAttrs, s)
 
 	bgAttrs := contentAttrs.without("id")
 	bgAttrs.set("data-marpit-advanced-background", "background")

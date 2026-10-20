@@ -240,6 +240,11 @@ input is read only for `-`, not whenever it is a pipe.
 | flag | commands | |
 |---|---|---|
 | `-o`, `--output file` | build, expand, notes | output file; `-` for standard output (build defaults to `deck.html` next to the deck) |
+| `--template bespoke\|bare` | build | the HTML page's template: `bespoke` (default: presenting script, on-screen controller, transitions) or `bare` (the slides stacked, as `--bare`) |
+| `--bespoke.osc`, `--bespoke.progress`, `--bespoke.transition` | build | the bespoke template's options, marp-cli's defaults: the controller **on**, the progress bar **off** (it was always shown before), transitions **on**; `=false` (or `--no-bespoke.osc`...) turns one off |
+| `-c`, `--config-file file`, `--no-config-file` | build | marp-cli's configuration file, JSON or YAML, read from the working directory (`.marprc`, `.marprc.json`, `.marprc.yaml`, `package.json`'s `marp` key...), or the file named. The command line wins over it. `.js`/`.ts` ones are a program: said, not run. See below |
+| `--browser`, `--browser-path`, `--browser-protocol`, `--browser-timeout` | build | accepted and ignored, with a warning: there is no browser to choose |
+| `--pptx-editable`, `--no-parallel` | build | marp-cli's spellings of `--pptx` (always editable here) and `-P 1` |
 | `-w`, `--watch` | build | build again when a deck, a `--theme-set` file, a kinds or data file or the configuration changes, and tell the open pages to reload (a socket on the loopback; see below) |
 | `-s`, `--server dir` | build | serve `dir` (or `-I dir`): its decks converted on request — `deck.md` as HTML, `deck.md?pdf`, `?pptx`, `?png`, `?jpg`, `?notes` — an index of each directory, live reload of the pages. Listens on **127.0.0.1**, port 8080 or `$PORT` |
 | `-p`, `--preview` | build | open the result in the default browser: the HTML pages with `--watch` (implied), the server with `--server` |
@@ -297,6 +302,35 @@ The HTML page is self-contained. Navigate with the arrow keys, Space and
 PageUp/PageDown, `f` toggles full screen, a click advances, and the URL hash
 names the slide. Fragments reveal one at a time. Printing gives one slide per
 page.
+
+## Transitions and the presenting page
+
+`<!-- transition: fade 1s -->` (or `_transition:` for one slide) is marp-cli's
+directive: a built-in name (`fade`, `slide`, `cover`, `cube`, `swipe`, `zoom`,
+… 33 of marp-cli's, their keyframes generated from its bundle by
+`internal/cmd/gentransitions`) and an optional duration. The `<section>`s carry
+`data-transition` and `data-transition-back` as marp-cli writes them (compared
+with its output), and the page plays the transition with the **View Transition
+API** around the change of slide — leaving the slide that has it, and, going
+back, coming to it — where the browser has the API, with a plain fade when the
+viewer asks for reduced motion. Keyframes of a theme's own
+(`marp-transition-NAME`) are found by name in the page's styles as marp-cli's
+runtime finds them; marp-cli's rewriting of a name for scoped keyframes is not
+done. The on-screen controller (previous, page, next, full screen) shows while
+the pointer or a key moves and hides after 2.5 s. `--bespoke.progress`,
+`--bespoke.osc=false`, `--bespoke.transition=false` and `--template bare` choose
+what the page has. The page was driven in headless Chrome to check it.
+
+**Configuration files.** marp-cli's `.marprc`, `.marprc.json`, `.marprc.yaml`,
+`package.json` (the `marp` key) and the `--config-file` file are read when they
+are JSON or YAML, from the working directory only (marp-cli's search does not
+look in the parents; `marp.config.json` is only loaded by `--config-file`).
+`marp.config.js` and the other JavaScript or TypeScript files are programs,
+which `slides` does not run: it says so. Options that mean something here
+(`title`, `theme`, `themeSet`, `html`, `inputDir`, `output`, `bespoke`,
+`template`, `pdfOutlines` ...) are applied under the flags, and paths are
+relative to the file; `engine`, `options` and `browser*` have no meaning
+without Marp's engine and a browser and are ignored with a warning.
 
 ## Watch, serve, preview
 

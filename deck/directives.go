@@ -18,10 +18,11 @@ var globalNames = []string{
 
 // Local directives apply to the slide that defines them and every slide after
 // it; prefixed with "_" (a spot directive) they apply to that slide only.
-// They are Marpit's, in its order.
+// They are Marpit's, in its order, and Marp CLI's transition last.
 var localNames = []string{
 	"backgroundColor", "backgroundImage", "backgroundPosition", "backgroundRepeat",
 	"backgroundSize", "class", "color", "footer", "header", "paginate",
+	"transition",
 }
 
 // KindDirective is this tool's own local directive: it names a kind, a preset

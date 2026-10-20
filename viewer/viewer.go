@@ -31,7 +31,29 @@ type Options struct {
 	// WatchWS, when not empty, is the address of the live reload socket the
 	// page opens (see serve.Hub): a ws:// URL, or a path on the page's host.
 	WatchWS string
+	// Bespoke are the options of the presenting page (marp-cli's bespoke
+	// template); the zero value is a page with none of them.
+	Bespoke Bespoke
+	// TransitionCSS is the keyframes of the built-in transitions the deck
+	// uses, written after the transition styles (see deck.TransitionCSS).
+	TransitionCSS string
 }
+
+// Bespoke are marp-cli's --bespoke.* options.
+type Bespoke struct {
+	// OSC is the on-screen controller (--bespoke.osc).
+	OSC bool
+	// Progress is the progress bar (--bespoke.progress).
+	Progress bool
+	// Transition plays the transitions of the deck with the View Transition
+	// API where the browser has it (--bespoke.transition). Set it only for a
+	// deck that has some: the page carries the script for it.
+	Transition bool
+}
+
+// DefaultBespoke are marp-cli's defaults: the controller, no progress bar,
+// transitions.
+func DefaultBespoke() Bespoke { return Bespoke{OSC: true, Progress: false, Transition: true} }
 
 // Document returns the page.
 func Document(o Options) string {
@@ -91,6 +113,9 @@ func Document(o Options) string {
 		b.WriteString("<style>" + bareCSS + "</style>\n")
 	} else {
 		b.WriteString("<style>" + presentCSS + "</style>\n")
+		if o.Bespoke.Transition {
+			b.WriteString("<style>" + transitionCSS + o.TransitionCSS + "</style>\n")
+		}
 	}
 	b.WriteString("</head>\n<body>\n<div class=\"marpit\">\n")
 	for _, s := range o.Slides {
@@ -109,7 +134,14 @@ func Document(o Options) string {
 		}
 	}
 	if !o.Bare {
-		b.WriteString("<script>" + presentJS + "</script>\n")
+		opts, _ := json.Marshal(struct {
+			OSC      bool `json:"osc"`
+			Progress bool `json:"progress"`
+		}{o.Bespoke.OSC, o.Bespoke.Progress})
+		b.WriteString("<script>" + strings.Replace(presentJS, "/*OPTS*/", string(opts), 1) + "</script>\n")
+		if o.Bespoke.Transition {
+			b.WriteString("<script>" + transitionJS + "</script>\n")
+		}
 	}
 	if o.WatchWS != "" {
 		// json.Marshal escapes <, > and &, so the address cannot end the script.
@@ -145,11 +177,19 @@ div.marpit > svg[data-marpit-svg].active, .slides-fitting div.marpit > svg[data-
 [data-marpit-fragment] { transition: opacity .2s; }
 [data-marpit-fragment].hidden-fragment { opacity: 0; }
 .slides-progress { position: fixed; left: 0; bottom: 0; height: 3px; background: rgba(128,128,128,.6); transition: width .2s; }
+.slides-osc { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px;
+  padding: 2px 6px; border-radius: 10px; background: rgba(24,24,24,.82); color: #fff; font: 13px/1 system-ui, -apple-system, sans-serif;
+  opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 10; -webkit-user-select: none; user-select: none; }
+.slides-osc.active, .slides-osc:focus-within { opacity: 1; pointer-events: auto; }
+.slides-osc button { appearance: none; background: none; border: 0; color: inherit; font: inherit; font-size: 20px; line-height: 1;
+  width: 32px; height: 32px; cursor: pointer; border-radius: 6px; }
+.slides-osc button:hover, .slides-osc button:focus-visible { background: rgba(255,255,255,.18); }
+.slides-osc-page { min-width: 4.5em; text-align: center; font-variant-numeric: tabular-nums; }
 @media print {
   html, body { height: auto; overflow: visible; background: #fff; }
   div.marpit > svg[data-marpit-svg] { display: block; position: static; }
   [data-marpit-fragment].hidden-fragment { opacity: 1; }
-  .slides-progress { display: none; }
+  .slides-progress, .slides-osc { display: none; }
 }
 `
 
@@ -157,49 +197,93 @@ div.marpit > svg[data-marpit-svg].active, .slides-fitting div.marpit > svg[data-
 // URL hash names the slide, so a reload or a link lands on it.
 const presentJS = `
 (() => {
+  const OPT = /*OPTS*/;
   const slides = [...document.querySelectorAll('div.marpit > svg[data-marpit-svg]')];
   if (!slides.length) return;
-  const bar = document.createElement('div');
-  bar.className = 'slides-progress';
-  document.body.appendChild(bar);
+  let bar = null;
+  if (OPT.progress) {
+    bar = document.createElement('div');
+    bar.className = 'slides-progress';
+    document.body.appendChild(bar);
+  }
   const frags = s => [...s.querySelectorAll('[data-marpit-fragment]')]
     .sort((a, b) => a.dataset.marpitFragment - b.dataset.marpitFragment);
-  let cur = 0, step = 0;
+  let cur = 0, step = 0, osc = null;
+  // A change of slide goes through here: if the slide being left has a
+  // transition for the way it is left, the page plays it around the change.
+  const go = (change, back) => {
+    const t = window.__slidesTransit;
+    if (!(t && t(slides[cur], back, change))) change();
+  };
   const show = (i, f) => {
     cur = Math.max(0, Math.min(slides.length - 1, i));
     const fs = frags(slides[cur]);
     step = f === undefined ? 0 : Math.max(0, Math.min(fs.length, f));
     slides.forEach((s, j) => s.classList.toggle('active', j === cur));
     fs.forEach((e, j) => e.classList.toggle('hidden-fragment', j >= step));
-    bar.style.width = (slides.length > 1 ? cur / (slides.length - 1) * 100 : 100) + '%';
+    if (bar) bar.style.width = (slides.length > 1 ? cur / (slides.length - 1) * 100 : 100) + '%';
+    if (osc) osc.update(cur);
     const hash = '#' + (cur + 1);
     if (location.hash !== hash) history.replaceState(null, '', hash);
   };
+  const jump = (i, f) => {
+    const to = Math.max(0, Math.min(slides.length - 1, i));
+    if (to !== cur) go(() => show(to, f), to < cur); else show(to, f);
+  };
   const next = () => {
     const n = frags(slides[cur]).length;
-    if (step < n) show(cur, step + 1); else if (cur < slides.length - 1) show(cur + 1, 0);
+    if (step < n) show(cur, step + 1); else if (cur < slides.length - 1) go(() => show(cur + 1, 0), false);
   };
   const prev = () => {
     if (step > 0) show(cur, step - 1);
-    else if (cur > 0) show(cur - 1, frags(slides[cur - 1]).length);
+    else if (cur > 0) go(() => show(cur - 1, frags(slides[cur - 1]).length), true);
   };
+  const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
   document.addEventListener('keydown', e => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     switch (e.key) {
       case 'ArrowRight': case 'ArrowDown': case 'PageDown': case ' ': case 'Enter': next(); break;
       case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': prev(); break;
-      case 'Home': show(0); break;
-      case 'End': show(slides.length - 1, frags(slides[slides.length - 1]).length); break;
-      case 'f': document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); break;
+      case 'Home': jump(0); break;
+      case 'End': jump(slides.length - 1, frags(slides[slides.length - 1]).length); break;
+      case 'f': fullscreen(); break;
       default: return;
     }
     e.preventDefault();
   });
   document.addEventListener('click', e => {
-    if (e.target.closest('a')) return;
+    if (e.target.closest('a, .slides-osc')) return;
     (e.clientX < innerWidth / 3 ? prev : next)();
   });
-  addEventListener('hashchange', () => show(parseInt(location.hash.slice(1), 10) - 1 || 0));
+  if (OPT.osc) {
+    // The on-screen controller: previous, the page, next and full screen,
+    // shown while the pointer or a key is active and hidden after 2.5 s.
+    osc = document.createElement('div');
+    osc.className = 'slides-osc';
+    osc.setAttribute('role', 'toolbar');
+    osc.setAttribute('aria-label', 'Slide controls');
+    const button = (text, label, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = text;
+      b.setAttribute('aria-label', label);
+      b.addEventListener('click', e => { e.stopPropagation(); fn(); });
+      return b;
+    };
+    const page = document.createElement('span');
+    page.className = 'slides-osc-page';
+    osc.append(button('‹', 'Previous slide', prev), page, button('›', 'Next slide', next), button('⛶', 'Full screen', fullscreen));
+    osc.update = i => { page.textContent = (i + 1) + ' / ' + slides.length; };
+    document.body.appendChild(osc);
+    let timer;
+    const wake = () => {
+      osc.classList.add('active');
+      clearTimeout(timer);
+      timer = setTimeout(() => osc.classList.remove('active'), 2500);
+    };
+    for (const ev of ['mousemove', 'touchstart', 'keydown']) document.addEventListener(ev, wake, { passive: true });
+  }
+  addEventListener('hashchange', () => jump(parseInt(location.hash.slice(1), 10) - 1 || 0));
   addEventListener('beforeprint', () => slides.forEach(s => s.classList.add('active')));
   addEventListener('afterprint', () => show(cur, step));
   show((parseInt(location.hash.slice(1), 10) || 1) - 1);
