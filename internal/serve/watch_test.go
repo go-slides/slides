@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -119,14 +121,16 @@ func TestWatchDirectory(t *testing.T) {
 		t.Errorf("a new file: %v", got)
 	}
 	c.settle(3 * testDebounce)
-	// a burst is one report
+	// A changed file is reported. That a burst is ONE report is a matter of
+	// time, which a runner under -race does not keep: main's CI split a burst
+	// at 30 ms and again at 150 ms. TestCoalesce asserts it on a fake clock.
 	for i := 0; i < 5; i++ {
 		os.WriteFile(a, []byte("# a\n"+string(rune('0'+i))), 0o644)
 	}
 	if got := c.next(t); !contains(got, a) {
 		t.Errorf("a changed file: %v", got)
 	}
-	c.quiet(t, 3*testDebounce)
+	c.settle(3 * testDebounce)
 
 	// a file in a subdirectory, and in a directory made later
 	b := filepath.Join(dir, "sub", "b.md")
@@ -184,6 +188,77 @@ func TestWatchFile(t *testing.T) {
 	if got := c.next(t); !contains(got, deck) {
 		t.Errorf("after the rename: %v", got)
 	}
+}
+
+// TestCoalesce asserts the debounce on synctest's fake clock, where time only
+// moves when every goroutine waits: a burst is one report whatever the
+// machine's load, a pause longer than the debounce makes two, and nothing is
+// reported after in is closed.
+func TestCoalesce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const debounce = 100 * time.Millisecond
+		var mu sync.Mutex
+		var all [][]string
+		reported := func() [][]string {
+			mu.Lock()
+			defer mu.Unlock()
+			return slices.Clone(all)
+		}
+		in := make(chan string)
+		closeIn := sync.OnceFunc(func() { close(in) })
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			coalesce(in, debounce, func(p []string) {
+				mu.Lock()
+				all = append(all, p)
+				mu.Unlock()
+			})
+		}()
+		// a failed assertion still ends coalesce, so the bubble can exit
+		defer func() {
+			closeIn()
+			<-done
+		}()
+
+		// a burst: five events 40 ms apart, two paths, one of them twice. It
+		// lasts 160 ms, longer than the debounce, so a window that the first
+		// event opens and the next ones do not push back would split it.
+		for i, p := range []string{"/d/a.md", "/d/b.md", "/d/a.md", "/d/b.md", "/d/a.md"} {
+			if i > 0 {
+				time.Sleep(40 * time.Millisecond)
+			}
+			in <- p
+		}
+		time.Sleep(debounce - time.Millisecond)
+		synctest.Wait()
+		if r := reported(); len(r) != 0 {
+			t.Fatalf("reported before the debounce had passed: %v", r)
+		}
+		time.Sleep(time.Millisecond)
+		synctest.Wait()
+		if r := reported(); len(r) != 1 || !slices.Equal(r[0], []string{"/d/a.md", "/d/b.md"}) {
+			t.Fatalf("a burst: got %v, want one report [/d/a.md /d/b.md]", r)
+		}
+
+		// two events further apart than the debounce are two reports
+		in <- "/d/a.md"
+		time.Sleep(debounce + time.Millisecond)
+		in <- "/d/b.md"
+		time.Sleep(debounce + time.Millisecond)
+		synctest.Wait()
+		if r := reported(); len(r) != 3 || !slices.Equal(r[1], []string{"/d/a.md"}) || !slices.Equal(r[2], []string{"/d/b.md"}) {
+			t.Fatalf("two bursts: got %v", r)
+		}
+
+		// what is pending when in closes is dropped, and coalesce returns
+		in <- "/d/c.md"
+		closeIn()
+		<-done
+		if r := reported(); len(r) != 3 {
+			t.Fatalf("reported after in closed: %v", r[3:])
+		}
+	})
 }
 
 func TestWatchErrors(t *testing.T) {
