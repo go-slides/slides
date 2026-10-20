@@ -85,9 +85,27 @@ func Watch(ctx context.Context, targets []string, debounce time.Duration, onChan
 		}
 	}
 
-	pending := map[string]struct{}{}
-	var timer *time.Timer
-	var fire <-chan time.Time
+	// The paths go to coalesce, which owns the timing: it is the part a test
+	// can run on a fake clock (testing/synctest), which the file system
+	// events cannot.
+	in := make(chan string)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		coalesce(in, debounce, onChange)
+	}()
+	defer func() {
+		close(in)
+		<-done // onChange is never called after Watch returns
+	}()
+	send := func(p string) bool {
+		select {
+		case in <- p:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -110,27 +128,52 @@ func Watch(ctx context.Context, targets []string, debounce time.Duration, onChan
 				if st, err := os.Lstat(p); err == nil && st.IsDir() && !skipDir(filepath.Base(p)) && underDir(p, dirs) {
 					_ = add(p, true)
 					// what was created in it before the watch began
+					var found []string
 					filepath.WalkDir(p, func(q string, d fs.DirEntry, err error) error {
 						if err == nil && !d.IsDir() && !hiddenName(d.Name()) {
-							pending[q] = struct{}{}
+							found = append(found, q)
 						}
 						return nil
 					})
+					for _, q := range found {
+						if !send(q) {
+							return nil
+						}
+					}
 				}
 			}
 			if hiddenName(filepath.Base(p)) {
 				continue
 			}
+			if !send(p) {
+				return nil
+			}
+		}
+	}
+}
+
+// coalesce calls onChange with the paths received on in, sorted and once
+// each, when debounce has passed without a new one, until in is closed; what
+// is pending then is dropped. It calls onChange from one goroutine, so never
+// concurrently with itself.
+func coalesce(in <-chan string, debounce time.Duration, onChange func(paths []string)) {
+	pending := map[string]struct{}{}
+	var timer *time.Timer
+	var fire <-chan time.Time
+	for {
+		select {
+		case p, ok := <-in:
+			if !ok {
+				if timer != nil {
+					timer.Stop()
+				}
+				return
+			}
 			pending[p] = struct{}{}
+			// Since Go 1.23 Reset leaves no stale tick in the channel.
 			if timer == nil {
 				timer = time.NewTimer(debounce)
 			} else {
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
 				timer.Reset(debounce)
 			}
 			fire = timer.C
