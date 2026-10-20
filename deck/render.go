@@ -1,6 +1,7 @@
 package deck
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"html"
@@ -113,6 +114,9 @@ type slideRenderer struct {
 	// slideLine is the source line of the slide being written, for its
 	// frame (SourceLines).
 	slideLine int
+	// nodeBuf and nodeBW receive each top-level node of a slide (see slide).
+	nodeBuf bytes.Buffer
+	nodeBW  *bufio.Writer
 }
 
 // lineAttrs returns a block's source-line attributes when SourceLines
@@ -408,11 +412,18 @@ func (r *slideRenderer) slide(s *Slide) string {
 		content.WriteString("<header>" + r.inline(h) + "</header>\n")
 	}
 	r.slideLine = s.Line
+	// One buffer and one buffered writer for every top-level node of every
+	// slide: goldmark wraps a plain io.Writer in a new 4 KiB bufio.Writer on
+	// each call. (Nested renders, from inside a node renderer, keep their own.)
+	if r.nodeBW == nil {
+		r.nodeBW = bufio.NewWriter(&r.nodeBuf)
+	}
 	for _, n := range s.nodes {
-		var buf bytes.Buffer
+		r.nodeBuf.Reset()
+		r.nodeBW.Reset(&r.nodeBuf)
 		unmark := r.markDefaultBlocks(n)
-		if err := r.md.Renderer().Render(&buf, r.deck.source, n); err == nil {
-			content.Write(buf.Bytes())
+		if err := r.md.Renderer().Render(r.nodeBW, r.deck.source, n); err == nil {
+			content.Write(r.nodeBuf.Bytes())
 		}
 		unmark()
 	}

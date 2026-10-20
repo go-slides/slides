@@ -62,7 +62,12 @@ var normalizer = strings.NewReplacer("\r\n", "\n", "\r", "\n", "\x00", "�")
 
 // Parse parses a deck.
 func Parse(src []byte, opts Options) (*Deck, error) {
-	s := normalizer.Replace(string(src))
+	s := string(src)
+	// The replacer copies the whole source even when it changes nothing,
+	// which is the usual case (no CR, no NUL).
+	if strings.ContainsAny(s, "\r\x00") {
+		s = normalizer.Replace(s)
+	}
 	fmText, body, fmLines, hasFM := splitFrontMatter(s)
 
 	// An HCL front matter becomes the YAML front matter it stands for;
