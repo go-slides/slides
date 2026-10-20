@@ -117,6 +117,12 @@ type slideRenderer struct {
 	// nodeBuf and nodeBW receive each top-level node of a slide (see slide).
 	nodeBuf bytes.Buffer
 	nodeBW  *bufio.Writer
+	// textBuf and textBW escape a text that may hold an emoji (renderText).
+	textBuf bytes.Buffer
+	textBW  *bufio.Writer
+	// plainBuf and plainBW receive goldmark's own rendering (renderViaPlain).
+	plainBuf bytes.Buffer
+	plainBW  *bufio.Writer
 }
 
 // lineAttrs returns a block's source-line attributes when SourceLines

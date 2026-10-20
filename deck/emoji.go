@@ -2,7 +2,6 @@ package deck
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/base64"
 	"strings"
 	"sync"
@@ -202,11 +201,16 @@ func (r *slideRenderer) renderText(w util.BufWriter, source []byte, node ast.Nod
 	default:
 		// Entities may spell an emoji (&#x1F604;): look at the text as it is
 		// written.
-		var buf bytes.Buffer
-		bw := bufio.NewWriter(&buf)
-		ghtml.DefaultWriter.Write(bw, value)
-		_ = bw.Flush()
-		_, _ = w.WriteString(emojify(buf.String(), true))
+		// One buffer and writer per render, reused for every text: a
+		// text renderer runs no other renderer inside it.
+		if r.textBW == nil {
+			r.textBW = bufio.NewWriter(&r.textBuf)
+		}
+		r.textBuf.Reset()
+		r.textBW.Reset(&r.textBuf)
+		ghtml.DefaultWriter.Write(r.textBW, value)
+		_ = r.textBW.Flush()
+		_, _ = w.WriteString(emojify(r.textBuf.String(), true))
 		writeBreak(w, n)
 	}
 	return ast.WalkContinue, nil
@@ -235,11 +239,17 @@ func writeBreak(w util.BufWriter, n *ast.Text) {
 // renderViaPlain renders n with goldmark's own HTML renderer and gives the
 // result to f.
 func (r *slideRenderer) renderViaPlain(w util.BufWriter, source []byte, n ast.Node, f func(string) string) (ast.WalkStatus, error) {
-	var buf bytes.Buffer
-	if err := r.plain.Renderer().Render(&buf, source, n); err != nil {
+	// goldmark's own renderer calls none of ours: one buffer and writer
+	// per render serve every call.
+	if r.plainBW == nil {
+		r.plainBW = bufio.NewWriter(&r.plainBuf)
+	}
+	r.plainBuf.Reset()
+	r.plainBW.Reset(&r.plainBuf)
+	if err := r.plain.Renderer().Render(r.plainBW, source, n); err != nil {
 		return ast.WalkStop, err
 	}
-	_, _ = w.WriteString(f(buf.String()))
+	_, _ = w.WriteString(f(r.plainBuf.String()))
 	return ast.WalkSkipChildren, nil
 }
 
