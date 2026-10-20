@@ -36,6 +36,9 @@ type Config struct {
 	// Override holds the global directives the command line sets, which win
 	// over the deck's own, as marp-cli's --title, --theme ... do.
 	Override Override
+	// WatchWS is the address of the live reload socket the HTML page opens
+	// (see viewer.Options.WatchWS); empty for none.
+	WatchWS string
 }
 
 // Override is marp-cli's command-line global directives. Empty ones are not
@@ -175,9 +178,10 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 			Image:       g.Get("image"),
 			Lang:        lang,
 		},
-		CSS:    b.Packed.CSS,
-		Slides: slides,
-		Bare:   cfg.Bare,
+		CSS:     b.Packed.CSS,
+		Slides:  slides,
+		Bare:    cfg.Bare,
+		WatchWS: cfg.WatchWS,
 	})
 	return page, b, nil
 }

@@ -23,6 +23,8 @@ github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9 h1:Ksd3Vil12b/ykT5NjGz
 github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9/go.mod h1:u8yZRUavu+N4EnFFy6J5fVtjE7lEcZ2YyV2GcBXY9c8=
 github.com/evanw/esbuild v0.28.2 h1:A2uETn4jrQTcXaT/shwTDTYBxDjl7fV7nXmUrJxfA2w=
 github.com/evanw/esbuild v0.28.2/go.mod h1:D2vIQZqV/vIf/VRHtViaUtViZmG7o+kKmlBfVQuRi48=
+github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
+github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
 github.com/go-browserhttp/browserhttp v0.2.0 h1:3RcjOQVHgqhSOmI5cfsURpexw/vetoDUoLXKzgTCSac=
 github.com/go-browserhttp/browserhttp v0.2.0/go.mod h1:VJiwBxLetXdc8eDadOcNbiO0EelNQPny0cLZhg1hTKU=
 github.com/go-crdt/collab v0.77.1 h1:eKzzFLIt4eQpM/YLRbbViMbSdHcN6ivSHeA5aldqgzw=

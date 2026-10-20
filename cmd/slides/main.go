@@ -10,14 +10,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -30,7 +33,10 @@ import (
 var osExit = os.Exit
 
 func main() {
-	if err := RootCmd().Execute(); err != nil {
+	// Ctrl-C ends the watch and the server cleanly: their context is done.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := RootCmd().ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "slides:", err)
 		osExit(1)
 	}
@@ -228,6 +234,10 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	for _, n := range []string{"no-pdf-outlines", "no-pdf-outlines.pages", "no-pdf-outlines.headings"} {
 		_ = f.MarkHidden(n)
 	}
+	f.BoolVarP(&o.watch, "watch", "w", false, "build again when a deck, a theme, a kinds or data file or the configuration changes, and tell the open pages to reload")
+	f.BoolVarP(&o.server, "server", "s", false, "serve a directory, converting its decks on request: deck.md as HTML, deck.md?pdf, ?pptx, ?png, ?jpg, ?notes; reloads the pages when a deck changes. Listens on 127.0.0.1, port 8080 or $PORT")
+	f.BoolVarP(&o.preview, "preview", "p", false, "open the result in the default browser: the HTML pages with --watch (implied), the server's index with --server")
+	f.StringVar(&o.host, "host", "127.0.0.1", "address the server listens on; anything but the loopback serves the directory to the network")
 	f.StringVarP(&o.inputDir, "input-dir", "I", "", "convert the Markdown files under this directory, written under --output at the same relative paths (next to the decks without --output)")
 	f.IntVarP(&o.parallel, "parallel", "P", 5, "decks built at once, at most the number of cores (1 builds them one after the other)")
 	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name, or a CSS file (use --theme-set to add themes)")
@@ -270,6 +280,9 @@ func runBuild(cmd *cobra.Command, o *options, args []string) error {
 	// nothing (the parent option is what its type choice reads), and so do
 	// we.
 	o.pdfOptionsAsked = o.pdfNotes || (fl.Changed("pdf-outlines") && o.pdfOutlines)
+	if o.server {
+		return runServer(cmd, o, args)
+	}
 	jobs, err := o.inputs(args)
 	if err != nil {
 		return err
@@ -286,6 +299,9 @@ func runBuild(cmd *cobra.Command, o *options, args []string) error {
 	}
 	if o.inputDir == "" && o.output != "" && o.output != "-" && len(jobs) > 1 {
 		return errors.New("output path cannot specify with processing multiple files")
+	}
+	if o.watch || o.preview {
+		return runWatch(cmd, o, jobs)
 	}
 	e := env{ctx: cmd.Context(), stdout: cmd.OutOrStdout(), stderr: cmd.ErrOrStderr()}
 	if len(jobs) > 1 {
@@ -314,6 +330,14 @@ func buildOne(e env, o *options, j job) error {
 	case "html":
 	default:
 		return exportDeck(e, o, src, path, cfg, f)
+	}
+	if o.hub != nil && path != "stdin.md" {
+		// a page built in the watch mode is a file: it opens the socket of the
+		// watcher, named by the deck it shows
+		// 127.0.0.1 and not localhost, which a browser resolves to ::1 first,
+		// where another program may listen on the same port (marp-cli's
+		// notifier does)
+		cfg.WatchWS = fmt.Sprintf("ws://127.0.0.1:%d/%s", o.hubPort, o.hub.Register(path))
 	}
 	page, b, err := slides.HTML(src, cfg)
 	if err != nil {

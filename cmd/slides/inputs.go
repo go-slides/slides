@@ -12,18 +12,9 @@ import (
 	"slices"
 	"strings"
 	"sync"
-)
 
-// isMarkdown reports whether a file name has an extension marp-cli converts:
-// md, mdown, markdown or markdn, in lower case (its finder's patterns are
-// case sensitive: UPPER.MD is not found).
-func isMarkdown(name string) bool {
-	switch filepath.Ext(name) {
-	case ".md", ".mdown", ".markdown", ".markdn":
-		return true
-	}
-	return false
-}
+	"github.com/go-slides/slides/internal/serve"
+)
 
 // job is one deck to build.
 type job struct {
@@ -82,7 +73,7 @@ func findDecks(dir string) ([]string, error) {
 			}
 			return nil
 		}
-		if strings.HasPrefix(d.Name(), ".") || !isMarkdown(d.Name()) {
+		if strings.HasPrefix(d.Name(), ".") || !serve.IsMarkdown(d.Name()) {
 			return nil
 		}
 		if d.Type()&fs.ModeSymlink != 0 {

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/go-slides/slides"
+	"github.com/go-slides/slides/internal/serve"
 	"github.com/go-slides/slides/project"
 	"github.com/go-slides/slides/theme"
 )
@@ -50,6 +51,13 @@ type options struct {
 	// given: the PDF is then what build writes, unless the output says
 	// otherwise.
 	pdfOptionsAsked bool
+
+	watch, server, preview bool   // -w, -s, -p
+	host                   string // --host: where the server listens
+	// hub and hubPort are the live reload of the watch mode: the pages built
+	// open its socket, on the loopback at hubPort.
+	hub     *serve.Hub
+	hubPort int
 
 	inputDir string // -I, --input-dir
 	parallel int    // -P, --parallel

@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/go-slides/slides/internal/serve"
 )
 
 // decks makes
@@ -266,7 +268,7 @@ func FuzzForJob(f *testing.F) {
 
 func TestIsMarkdown(t *testing.T) {
 	for name, want := range map[string]bool{"a.md": true, "a.MD": false, "a.mdown": true, "a.markdown": true, "a.markdn": true, "a.txt": false, "md": false, "a.md.bak": false} {
-		if isMarkdown(name) != want {
+		if serve.IsMarkdown(name) != want {
 			t.Errorf("isMarkdown(%q) = %v", name, !want)
 		}
 	}
