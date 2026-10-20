@@ -2,6 +2,7 @@ package deck
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 )
@@ -120,6 +121,38 @@ func normalizeLocal(name string, v any) (string, bool) {
 	return s, true
 }
 
+// ValidURL reports whether s is an absolute URL, as JavaScript's URL
+// constructor, which marp-cli tries the url directive with, would take it.
+func ValidURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme != "" && !strings.ContainsAny(s, " \t\r\n")
+}
+
+// keywordSep joins the items of a keywords list in a directive value, which
+// cannot hold a list: a character no keyword has.
+const keywordSep = "\x1f"
+
+// KeywordList returns the keywords of a directive value the way marp-cli
+// does: a list as it is, a string split at commas and trimmed, the empty
+// ones dropped and the duplicates after the first too.
+func KeywordList(raw string) []string {
+	var items []string
+	if strings.Contains(raw, keywordSep) {
+		items = strings.Split(raw, keywordSep)
+	} else {
+		for _, p := range strings.Split(raw, ",") {
+			items = append(items, strings.TrimSpace(p))
+		}
+	}
+	var out []string
+	for _, it := range items {
+		if it != "" && !slices.Contains(out, it) {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
 // normalizeGlobal converts a global directive. headingDivider keeps its
 // raw form; see parseHeadingDivider.
 func normalizeGlobal(name string, v any) (string, bool) {
@@ -130,6 +163,18 @@ func normalizeGlobal(name string, v any) (string, bool) {
 				parts = append(parts, fmt.Sprint(p))
 			}
 			return "[" + strings.Join(parts, ",") + "]", true
+		}
+	}
+	if name == "keywords" {
+		// marp-cli takes a list as it is, and a string split at commas.
+		if list, isList := v.([]any); isList {
+			var parts []string
+			for _, p := range list {
+				if s, ok := p.(string); ok {
+					parts = append(parts, s)
+				}
+			}
+			return keywordSep + strings.Join(parts, keywordSep), true
 		}
 	}
 	if name == "math" {

@@ -251,6 +251,8 @@ command's flags.
 | `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
 | `--image-scale n` | build | device pixels per CSS pixel for images and PDF (default 1) |
 | `--allow-local-files` | build | let images and PDF read local files, from under the deck's directory only |
+| `--theme name\|file.css` | build | override the deck's theme: a theme name, or a CSS file (whatever `@theme` it declares); a directory is refused, use `--theme-set` |
+| `--title`, `--description`, `--author`, `--keywords`, `--url`, `--og-image` | build | the page's metadata, over the deck's `title`, `description`, `author`, `keywords`, `url` and `image` directives, as in marp-cli. A deck with no title takes its first top-level heading's text; `--keywords` is comma-separated; an invalid `--url` is ignored with a warning |
 | `--theme-set path` | all | a theme CSS file or a directory of them (repeatable) |
 | `--kinds file` | all | a YAML or HCL (`*.hcl`) file of kinds (repeatable) |
 | `--data file`, `--set k=v` | all | template data: YAML, JSON or HCL (`*.hcl`) files (repeatable) |

@@ -26,6 +26,8 @@ type Deck struct {
 	Front map[string]any
 	// Kinds are the kinds the deck could use.
 	Kinds Kinds
+	// Warnings are problems that did not stop the parse.
+	Warnings []string
 
 	source []byte
 	opts   Options
@@ -100,6 +102,23 @@ type Heading struct {
 	Level int
 	Text  string
 	ID    string
+	// Raw is the heading's inline Markdown as written, trimmed: what
+	// marp-cli takes for the page title.
+	Raw string
+}
+
+// DetectTitle returns the title marp-cli gives a deck that sets none: the
+// raw text of the first heading of the lowest level, over the whole deck.
+func (d *Deck) DetectTitle() string {
+	level, title := 7, ""
+	for _, s := range d.Slides {
+		for _, h := range s.Headings {
+			if h.Level < level {
+				level, title = h.Level, h.Raw
+			}
+		}
+	}
+	return title
 }
 
 // Paginate returns the paginate directive in effect: "true", "false",

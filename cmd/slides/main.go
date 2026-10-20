@@ -204,6 +204,13 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.IntVar(&o.jpegQuality, "jpeg-quality", 85, "JPEG quality, 1 to 100")
 	f.Float64Var(&o.imageScale, "image-scale", 1, "device pixels per CSS pixel for images and PDF (2 = 2560×1440 for 16:9)")
 	f.BoolVar(&o.allowLocalFiles, "allow-local-files", false, "let images and PDF load local files from under the deck's directory")
+	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name, or a CSS file (use --theme-set to add themes)")
+	f.StringVar(&o.meta.Title, "title", "", "title of the page, over the deck's title directive")
+	f.StringVar(&o.meta.Description, "description", "", "description of the page, over the deck's description directive")
+	f.StringVar(&o.meta.Author, "author", "", "author of the page, over the deck's author directive")
+	f.StringVar(&o.meta.Keywords, "keywords", "", "comma-separated keywords of the page, over the deck's keywords directive")
+	f.StringVar(&o.meta.URL, "url", "", "canonical URL of the page, over the deck's url directive")
+	f.StringVar(&o.meta.Image, "og-image", "", "Open Graph image URL, over the deck's image directive")
 }
 
 // readDeck reads a deck, "-" meaning standard input.

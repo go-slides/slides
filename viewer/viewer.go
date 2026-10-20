@@ -37,29 +37,51 @@ func Document(o Options) string {
 	if o.Meta.Lang != "" {
 		b.WriteString(` lang="` + esc(o.Meta.Lang) + `"`)
 	}
-	b.WriteString(">\n<head>\n<meta charset=\"UTF-8\">\n")
-	b.WriteString(`<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1.0">` + "\n")
-	b.WriteString(`<meta name="generator" content="go-slides">` + "\n")
-	title := o.Meta.Title
-	if title == "" {
-		title = "Slides"
-	}
-	b.WriteString("<title>" + esc(title) + "</title>\n")
+	b.WriteString(">\n<head>\n")
+	// The order and the conditions are those of marp-cli's bespoke and bare
+	// templates (lib/marp-cli-*.js, the pug-compiled head): no title, no
+	// <title>; og:image:alt only with both; the keywords only from the
+	// second one on (marp-cli tests keywords.length > 1).
 	meta := func(attr, key, value string) {
-		if value != "" {
-			b.WriteString(`<meta ` + attr + `="` + key + `" content="` + esc(value) + `">` + "\n")
+		b.WriteString(`<meta ` + attr + `="` + key + `" content="` + esc(value) + `">` + "\n")
+	}
+	m := o.Meta
+	if m.Title != "" {
+		b.WriteString("<title>" + esc(m.Title) + "</title>\n")
+		meta("property", "og:title", m.Title)
+		if m.Image != "" {
+			meta("property", "og:image:alt", m.Title)
 		}
 	}
-	meta("name", "description", o.Meta.Description)
-	meta("name", "author", o.Meta.Author)
-	meta("name", "keywords", o.Meta.Keywords)
-	meta("property", "og:title", o.Meta.Title)
-	meta("property", "og:description", o.Meta.Description)
-	meta("property", "og:url", o.Meta.URL)
-	meta("property", "og:image", o.Meta.Image)
-	if o.Meta.URL != "" {
-		b.WriteString(`<link rel="canonical" href="` + esc(o.Meta.URL) + `">` + "\n")
+	if m.Author != "" {
+		meta("name", "author", m.Author)
+		meta("property", "article:author", m.Author)
 	}
+	if m.Description != "" {
+		meta("name", "description", m.Description)
+		meta("property", "og:description", m.Description)
+	}
+	if strings.Contains(m.Keywords, ",") {
+		meta("name", "keywords", m.Keywords)
+	}
+	if m.URL != "" {
+		b.WriteString(`<link rel="canonical" href="` + esc(m.URL) + `">` + "\n")
+		meta("property", "og:url", m.URL)
+	}
+	if m.Image != "" {
+		meta("property", "og:image", m.Image)
+	}
+	b.WriteString("<meta charset=\"UTF-8\">\n")
+	b.WriteString(`<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1.0">` + "\n")
+	b.WriteString(`<meta name="apple-mobile-web-app-capable" content="yes">` + "\n")
+	b.WriteString(`<meta http-equiv="X-UA-Compatible" content="ie=edge">` + "\n")
+	b.WriteString(`<meta property="og:type" content="website">` + "\n")
+	card := "summary"
+	if m.Title != "" && m.Image != "" {
+		card = "summary_large_image"
+	}
+	meta("name", "twitter:card", card)
+	b.WriteString(`<meta name="generator" content="go-slides">` + "\n")
 	b.WriteString("<style>" + o.CSS + "</style>\n")
 	if o.Bare {
 		b.WriteString("<style>" + bareCSS + "</style>\n")

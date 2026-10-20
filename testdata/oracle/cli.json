@@ -1,0 +1,236 @@
+[
+ {
+  "name": "title-from-headings",
+  "md": "## Sub\n\n# Top\n\n---\n\n# Other\n",
+  "args": [],
+  "title": "Top",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-first-of-lowest-level",
+  "md": "### c\n\n## B\n\n---\n\n## A\n",
+  "args": [],
+  "title": "B",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-markup-kept",
+  "md": "# **Bold** and `code` title\n",
+  "args": [],
+  "title": "**Bold** and `code` title",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-none",
+  "md": "just text\n",
+  "args": [],
+  "title": null,
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-front-matter",
+  "md": "---\ntitle: From front matter\n---\n\n# Heading\n",
+  "args": [],
+  "title": "From front matter",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-comment",
+  "md": "# Heading\n\n<!-- title: From comment -->\n",
+  "args": [],
+  "title": "From comment",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-cli-over-front-matter",
+  "md": "---\ntitle: FM\n---\n\n# Heading\n",
+  "args": [
+   "--title",
+   "CLI"
+  ],
+  "title": "CLI",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-cli-over-comment",
+  "md": "# Heading\n\n<!-- title: Late -->\n",
+  "args": [
+   "--title",
+   "CLI"
+  ],
+  "title": "CLI",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "title-number",
+  "md": "---\ntitle: 123\n---\n\n# Heading\n",
+  "args": [],
+  "title": "123",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "meta-all-cli",
+  "md": "# H\n",
+  "args": [
+   "--title",
+   "T",
+   "--description",
+   "D",
+   "--author",
+   "A",
+   "--keywords",
+   "x, y,x,,z",
+   "--url",
+   "https://example.org/deck/",
+   "--og-image",
+   "https://example.org/i.png"
+  ],
+  "title": "T",
+  "description": "D",
+  "author": "A",
+  "keywords": "x,y,z",
+  "ogURL": "https://example.org/deck/",
+  "ogImage": "https://example.org/i.png",
+  "canonical": "https://example.org/deck/"
+ },
+ {
+  "name": "meta-front-matter",
+  "md": "---\ndescription: FMD\nauthor: FMA\nkeywords: p, q\nurl: https://example.org/fm\nimage: https://example.org/fm.png\n---\n\n# H\n",
+  "args": [],
+  "title": "H",
+  "description": "FMD",
+  "author": "FMA",
+  "keywords": "p,q",
+  "ogURL": "https://example.org/fm",
+  "ogImage": "https://example.org/fm.png",
+  "canonical": "https://example.org/fm"
+ },
+ {
+  "name": "meta-front-matter-over-by-cli",
+  "md": "---\ndescription: FMD\nauthor: FMA\nkeywords: p, q\nurl: https://example.org/fm\nimage: https://example.org/fm.png\n---\n\n# H\n",
+  "args": [
+   "--author",
+   "CLI",
+   "--keywords",
+   "k"
+  ],
+  "title": "H",
+  "description": "FMD",
+  "author": "CLI",
+  "keywords": null,
+  "ogURL": "https://example.org/fm",
+  "ogImage": "https://example.org/fm.png",
+  "canonical": "https://example.org/fm"
+ },
+ {
+  "name": "keywords-list",
+  "md": "---\nkeywords: [a, b, a, \" c \"]\n---\n\n# H\n",
+  "args": [],
+  "title": "H",
+  "description": null,
+  "author": null,
+  "keywords": "a,b, c ",
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "keywords-dedupe",
+  "md": "---\nkeywords: a, b, a,, c\n---\n\n# H\n",
+  "args": [],
+  "title": "H",
+  "description": null,
+  "author": null,
+  "keywords": "a,b,c",
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "url-invalid",
+  "md": "---\nurl: not a url\n---\n\n# H\n",
+  "args": [],
+  "title": "H",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "url-invalid-cli",
+  "md": "# H\n",
+  "args": [
+   "--url",
+   "nope"
+  ],
+  "title": "H",
+  "description": null,
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ },
+ {
+  "name": "meta-escaped",
+  "md": "# H\n",
+  "args": [
+   "--description",
+   "a & b <c>"
+  ],
+  "title": "H",
+  "description": "a &amp; b &lt;c&gt;",
+  "author": null,
+  "keywords": null,
+  "ogURL": null,
+  "ogImage": null,
+  "canonical": null
+ }
+]

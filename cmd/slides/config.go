@@ -44,6 +44,11 @@ type options struct {
 
 	imageScale      float64
 	allowLocalFiles bool
+
+	// themeOverride is --theme: a theme name or a CSS file.
+	themeOverride string
+	// meta are the metadata global directives of the command line.
+	meta slides.Override
 }
 
 // fileConfig is slides.hcl or slides.yaml.
@@ -152,6 +157,14 @@ func (o *options) config(deckPath string) (slides.Config, error) {
 		return cfg, err
 	}
 	cfg.Themes = set
+	cfg.Override = o.meta
+	if o.themeOverride != "" {
+		name, err := overrideTheme(set, o.themeOverride)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Override.Theme = name
+	}
 	return cfg, nil
 }
 
@@ -268,6 +281,32 @@ func (o *options) themeSet(baseDir string, extra ...string) (*theme.Set, error) 
 		}
 	}
 	return set, nil
+}
+
+// overrideTheme resolves --theme as marp-cli does: a CSS file is added to
+// the theme set under a name of its own, overriding any @theme it declares,
+// and is the deck's theme; anything that is not a file is a theme name. A
+// directory is an error: it is what --theme-set is for.
+func overrideTheme(set *theme.Set, arg string) (string, error) {
+	st, err := os.Stat(arg)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return arg, nil
+		}
+		return "", err
+	}
+	if st.IsDir() {
+		return "", fmt.Errorf("--theme %s: a directory cannot be the theme; use --theme-set to make its CSS files available", arg)
+	}
+	b, err := os.ReadFile(arg)
+	if err != nil {
+		return "", err
+	}
+	const name = "cli-theme-override"
+	if _, err := set.Add(string(b) + "\n/* @theme " + name + " */"); err != nil {
+		return "", fmt.Errorf("%s: %v", arg, err)
+	}
+	return name, nil
 }
 
 // kindsFrom reads kinds given inline or as file paths.
