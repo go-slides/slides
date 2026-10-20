@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/go-slides/slides/internal/css"
 )
@@ -25,6 +26,9 @@ type Theme struct {
 	Imports []string
 	// Width and Height are the section size the theme sets, as written.
 	Width, Height string
+	// id numbers the theme for the pack cache (see cache.go); 0 for a
+	// Theme not made by parse, whose packed sheets are not cached.
+	id uint64
 }
 
 // MetaValue returns the last value of a metadata key.
@@ -81,6 +85,7 @@ func parse(src string) (*Theme, error) {
 	t.Width, t.Height = sectionSize(sheet.Nodes)
 	t.Imports = importNames(sheet.Nodes)
 	t.CSS = sheet.String()
+	t.id = themeIDs.Add(1)
 	return t, nil
 }
 
@@ -201,25 +206,37 @@ var builtin embed.FS
 // and uncover), with default as the default.
 func NewSet() *Set {
 	s := &Set{themes: map[string]*Theme{}}
-	for _, name := range []string{"default", "gaia", "uncover"} {
-		b, err := builtin.ReadFile("marp/" + name + ".css")
-		if err != nil {
-			panic(err)
-		}
-		t, err := s.Add(string(b))
-		if err != nil {
-			panic(err)
-		}
-		if name == "default" {
+	for i, t := range builtinThemes() {
+		s.themes[t.Name] = t
+		if i == 0 {
 			s.Default = t
 		}
 	}
 	return s
 }
 
-// Add parses a theme and adds it, replacing a theme of the same name.
+// builtinThemes parses Marp Core's themes once per process, default first;
+// they are immutable and shared by every set.
+var builtinThemes = sync.OnceValue(func() []*Theme {
+	var out []*Theme
+	for _, name := range []string{"default", "gaia", "uncover"} {
+		b, err := builtin.ReadFile("marp/" + name + ".css")
+		if err != nil {
+			panic(err)
+		}
+		t, err := Parse(string(b))
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, t)
+	}
+	return out
+})
+
+// Add parses a theme and adds it, replacing a theme of the same name. A
+// theme whose CSS was parsed recently is reused (see cache.go).
 func (s *Set) Add(src string) (*Theme, error) {
-	t, err := Parse(src)
+	t, err := parseCached(src)
 	if err != nil {
 		return nil, err
 	}

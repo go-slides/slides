@@ -161,8 +161,26 @@ type Packed struct {
 }
 
 // Pack builds the style sheet of a deck using theme t (Marpit's
-// ThemeSet.pack, with Marp Core's size directive).
+// ThemeSet.pack, with Marp Core's size directive). The same themes and
+// options give the same sheet, which is reused from a small cache.
 func (s *Set) Pack(t *Theme, opts PackOptions) Packed {
+	if t == nil {
+		t = s.Resolve("")
+	}
+	k, ok := s.packKey(t, opts)
+	if ok {
+		if p, hit := packCache.Get(k); hit {
+			return p
+		}
+	}
+	p := s.pack(t, opts)
+	if ok {
+		packCache.Put(k, p)
+	}
+	return p
+}
+
+func (s *Set) pack(t *Theme, opts PackOptions) Packed {
 	if t == nil {
 		t = s.Resolve("")
 	}

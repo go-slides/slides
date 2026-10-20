@@ -29,3 +29,23 @@ func TestHighlight(t *testing.T) {
 		t.Error("code blocks: highlighted when the language is known, escaped text otherwise")
 	}
 }
+
+// The highlight cache returns what highlighting computes, distinguishes the
+// code and the language, and leaves big blocks out.
+func TestHighlightCache(t *testing.T) {
+	first, _ := Highlight("let x = 1", "js")
+	again, _ := Highlight("let x = 1", "JS")
+	other, _ := Highlight("let y = 1", "js")
+	asRuby, _ := Highlight("let x = 1", "ruby")
+	if first != again || first == other || first == asRuby || !strings.Contains(other, "y") {
+		t.Fatalf("cache mixed results: %q %q %q %q", first, again, other, asRuby)
+	}
+	before := highlightCache.Len()
+	big := strings.Repeat("x = 1\n", maxCachedCode/6+1)
+	if out, ok := Highlight(big, "ruby"); !ok || !strings.Contains(out, "hljs-number") {
+		t.Fatal("a big block is still highlighted")
+	}
+	if highlightCache.Len() != before {
+		t.Fatal("a block over maxCachedCode must not be cached")
+	}
+}
