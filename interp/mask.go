@@ -37,6 +37,7 @@ func maskCode(src string, delims [2]string) (string, []string) {
 		fence  string // the open fence's marker run, "" outside a block
 		block  strings.Builder
 	)
+	out.Grow(len(src))
 	mask := func(s string) {
 		// The placeholder keeps the code's line breaks, so that template
 		// errors after a code block report the deck's own line numbers.
@@ -122,7 +123,19 @@ func closesFence(line, fence string) bool {
 // maskSpans copies line to out, masking the inside of inline code spans.
 func maskSpans(out *strings.Builder, line, left, right string, mask func(string)) {
 	i := 0
+	l0 := left[0]
 	for i < len(line) {
+		// Copy a run that holds neither a backtick nor the start of an
+		// action in one write: most of a deck is plain text.
+		if c := line[i]; c != '`' && c != l0 {
+			j := i + 1
+			for j < len(line) && line[j] != '`' && line[j] != l0 {
+				j++
+			}
+			out.WriteString(line[i:j])
+			i = j
+			continue
+		}
 		if strings.HasPrefix(line[i:], left) {
 			end := strings.Index(line[i+len(left):], right)
 			if end < 0 {
@@ -181,6 +194,11 @@ func unmaskCode(s string, masked []string) string {
 		return s
 	}
 	var out strings.Builder
+	n := len(s)
+	for _, m := range masked {
+		n += len(m)
+	}
+	out.Grow(n)
 	for {
 		i := strings.Index(s, maskOpen)
 		if i < 0 {

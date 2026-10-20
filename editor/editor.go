@@ -118,6 +118,11 @@ func Render(r Request) Result {
 		res.Diagnostics = append(res.Diagnostics, warning(w, r.Path, r.Source))
 	}
 	var sb strings.Builder
+	size := len(b.Packed.CSS) + len(PreviewCSS) + 256
+	for _, s := range b.Slides {
+		size += len(s.HTML)
+	}
+	sb.Grow(size) // one allocation for a preview of a few hundred kilobytes
 	sb.WriteString(`<style id="go-slides-style">`)
 	// The theme is CSS the deck chose; a </style> inside it would end the
 	// element early and let the rest be read as markup.

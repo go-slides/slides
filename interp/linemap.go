@@ -77,6 +77,24 @@ func markLines(body string, delims [2]string) string {
 			}
 		}
 		atLineStart = false
+		// Outside an action, copy up to the next byte that can matter (a
+		// line break, an action's or a placeholder's first byte) in one
+		// write: most of a deck is plain text.
+		if !inAction && !trimming {
+			j := i
+			for j < len(body) {
+				c := body[j]
+				if c == '\n' || c == maskOpen[0] || c == maskClose[0] || (!inMask && c == left[0]) {
+					break
+				}
+				j++
+			}
+			if j > i {
+				b.WriteString(body[i:j])
+				i = j
+				continue
+			}
+		}
 		switch {
 		case inAction && quote != 0:
 			c := body[i]
@@ -124,6 +142,16 @@ func unmarkLines(s string) (string, []int) {
 	lines := []int{}
 	last, cur := 0, -1
 	for i := 0; i < len(s); {
+		// Copy a run free of marks and line breaks in one write.
+		if c := s[i]; c != '\n' && c != lineOpen[0] {
+			j := i + 1
+			for j < len(s) && s[j] != '\n' && s[j] != lineOpen[0] {
+				j++
+			}
+			b.WriteString(s[i:j])
+			i = j
+			continue
+		}
 		if strings.HasPrefix(s[i:], lineOpen) {
 			end := strings.Index(s[i+len(lineOpen):], lineClose)
 			if end >= 0 {
