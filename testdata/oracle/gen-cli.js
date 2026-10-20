@@ -62,4 +62,32 @@ for (const c of cases) {
   })
 }
 fs.writeFileSync(path.join(__dirname, 'cli.json'), JSON.stringify(out, null, 1) + '\n')
+
+// --notes: the text file marp-cli writes.
+const noteCases = [
+  { name: 'notes-some', md: '# One\n\n<!-- note one -->\n\n<!-- more -->\n\n---\n\n## Two\n\nno note\n\n---\n\n# Three\n\n<!-- third -->\n' },
+  { name: 'notes-none', md: '# One\n\n---\n\n# Two\n' },
+  { name: 'notes-directives-only', md: '<!-- paginate: true -->\n\n# One\n\n---\n\n<!-- _class: x -->\n\n# Two\n\n<!-- last -->\n' },
+]
+const notes = noteCases.map((c) => {
+  const md = path.join(dir, c.name + '.md')
+  const txt = path.join(dir, c.name + '.txt')
+  fs.writeFileSync(md, c.md)
+  execFileSync('marp', [md, '--notes', '-o', txt], { stdio: ['ignore', 'pipe', 'pipe'] })
+  return { name: c.name, md: c.md, text: fs.readFileSync(txt, 'utf8') }
+})
+fs.writeFileSync(path.join(__dirname, 'notes.json'), JSON.stringify(notes, null, 1) + '\n')
+
+// --pdf-notes and --pdf-outlines: the PDFs marp-cli writes through Chrome
+// and pdf-lib; TestPDFNotesOracle reads their outline and annotations back.
+const pdfMD = '---\nauthor: Ada\n---\n\n# One\n\n<!-- note one -->\n\n<!-- more -->\n\n---\n\n## Two\n\nno note\n\n---\n\n# Three\n\n### sub\n\n<!-- third -->\n'
+fs.writeFileSync(path.join(__dirname, 'pdf.src.md'), pdfMD)
+for (const [name, args] of [
+  ['both', ['--pdf-outlines', '--pdf-notes']],
+  ['pages', ['--pdf-outlines', '--no-pdf-outlines.headings']],
+  ['headings', ['--pdf-outlines', '--no-pdf-outlines.pages']],
+  ['none', []],
+]) {
+  execFileSync('marp', [path.join(__dirname, 'pdf.src.md'), '--pdf', ...args, '-o', path.join(__dirname, `pdf-${name}.pdf`)], { stdio: ['ignore', 'pipe', 'pipe'] })
+}
 fs.rmSync(dir, { recursive: true })

@@ -242,6 +242,9 @@ command's flags.
 | `--bare` | build | stack the slides, without the presenting script |
 | `--pdf` | build | write a PDF, one page per slide, with an outline — text and shapes as vectors (also chosen by `-o file.pdf`) |
 | `--pdf-raster` | build | write the PDF with each page one image of the slide, as before the vector PDF |
+| `--notes` | build | write the speaker notes as a text file, slides separated by `---` exactly as marp-cli does (also chosen by `-o file.txt`; the `notes` command prints them in another layout) |
+| `--pdf-notes` | build | add each slide's speaker notes to its PDF page as a note annotation, as marp-cli does: a yellow Note icon bottom left, the deck's `author` as its title. Asks for a PDF when nothing else says what to write |
+| `--pdf-outlines`, `--pdf-outlines.pages`, `--pdf-outlines.headings` | build | the PDF's bookmarks: "Page N" per slide (bold) and the slide's headings nested by level under it. **On by default here, off in marp-cli**: go-slides has always written an outline, it costs a few hundred bytes and makes a deck navigable. `=false` (or marp-cli's `--no-pdf-outlines`, `--no-pdf-outlines.pages`, `--no-pdf-outlines.headings`) turns it, or a part, off. A heading bookmark jumps to its slide; marp-cli also scrolls to the heading |
 | `--pptx` | build | write an editable PowerPoint deck — text boxes, shapes, pictures, fonts embedded — with its speaker notes (also chosen by `-o file.pptx`) |
 | `--pptx-raster` | build | write a PowerPoint deck of one picture per slide, at scale 2 by default, as marp-cli does |
 | `--odp` | build | write an editable OpenDocument presentation, with its speaker notes (also chosen by `-o file.odp`) |

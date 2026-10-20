@@ -340,6 +340,7 @@ func VectorPDF(ctx context.Context, w io.Writer, b *slides.Build, opts Options) 
 // dropped.
 type PDFWriter struct {
 	b     *slides.Build
+	opts  PDFOptions
 	doc   *pdfkit.Document
 	size  pdfkit.PageSize
 	n     int
@@ -350,16 +351,37 @@ type PDFWriter struct {
 	Stats paint.VectorStats
 }
 
-// NewPDF starts the PDF of b.
-func NewPDF(b *slides.Build) *PDFWriter {
+// PDFOptions are what the PDF carries beyond its pages, marp-cli's
+// --pdf-notes and --pdf-outlines.
+type PDFOptions struct {
+	// Notes adds each slide's speaker notes to its page as a text annotation
+	// (marp-cli --pdf-notes).
+	Notes bool
+	// OutlinePages adds a bookmark "Page N" for each slide, and
+	// OutlineHeadings one for each heading of the slide, nested by level
+	// under it (marp-cli --pdf-outlines.pages and .headings).
+	OutlinePages, OutlineHeadings bool
+}
+
+// DefaultPDFOptions are what NewPDF uses: no notes, and the whole outline.
+// marp-cli writes no outline unless --pdf-outlines is given; go-slides has
+// written one since its first PDF, and keeps doing it.
+var DefaultPDFOptions = PDFOptions{OutlinePages: true, OutlineHeadings: true}
+
+// NewPDF starts the PDF of b, with DefaultPDFOptions.
+func NewPDF(b *slides.Build) *PDFWriter { return NewPDFWith(b, DefaultPDFOptions) }
+
+// NewPDFWith starts the PDF of b.
+func NewPDFWith(b *slides.Build, opts PDFOptions) *PDFWriter {
 	g := b.Deck.Global
 	return &PDFWriter{
-		b: b,
+		b:    b,
+		opts: opts,
 		doc: pdfkit.New(pdfkit.Options{
-			Title:    g.Get("title"),
+			Title:    slides.Title(b.Deck),
 			Author:   g.Get("author"),
 			Subject:  g.Get("description"),
-			Keywords: g.Get("keywords"),
+			Keywords: strings.Join(deck.KeywordList(g.Get("keywords")), "; "),
 			Producer: "go-slides",
 			// Content and font streams flated, the many small objects of
 			// a vector page (link annotations, font dictionaries) packed
@@ -427,11 +449,34 @@ func (p *PDFWriter) next() *pdfkit.Page {
 	pg := p.doc.AddPage(p.size)
 	if i < len(p.b.Slides) {
 		s := p.b.Slides[i].Slide
-		// Level 1 is pdfkit's top level: the slides used to be added at 0,
-		// which it ignores, so the outline held the headings alone.
-		p.doc.AddOutlineItem(outlineTitle(s.Headings, i), 1, i)
-		for _, hd := range s.Headings {
-			p.doc.AddOutlineItem(hd.Text, 2, i)
+		// As marp-cli's pdf-lib post-processing builds it: "Page N", bold,
+		// open, and the slide's headings nested by their level under it —
+		// or, without the pages, at the top. A heading jumps to its slide;
+		// marp-cli also scrolls to the heading's place, which needs the
+		// layout's element positions.
+		base := 0
+		if p.opts.OutlinePages {
+			p.doc.AddOutlineItemWith(fmt.Sprintf("Page %d", i+1), 1, i, pdfkit.OutlineOptions{Bold: true})
+			base = 1
+		}
+		if p.opts.OutlineHeadings {
+			for _, hd := range s.Headings {
+				p.doc.AddOutlineItem(hd.Text, base+hd.Level, i)
+			}
+		}
+		if p.opts.Notes && len(s.Notes) > 0 {
+			// marp-cli's annotation, field for field: a yellow Note icon at
+			// the bottom left, the slide's notes as its contents and the
+			// deck's author as the annotation's title.
+			pg.AddTextAnnotation(pdfkit.TextAnnotation{
+				Rect:     pdfkit.Rect{X: 0, Y: 20, Width: 20},
+				Contents: strings.Join(s.Notes, "\n\n"),
+				Title:    p.b.Deck.Global.Get("author"),
+				Subject:  "Note",
+				Name:     "Note",
+				Color:    []float64{1, 0.92, 0.42},
+				Opacity:  0.25,
+			})
 		}
 	}
 	return pg
@@ -445,11 +490,4 @@ func (p *PDFWriter) Write(w io.Writer) error {
 	}
 	_, err := w.Write(buf.Bytes())
 	return err
-}
-
-func outlineTitle(hs []deck.Heading, i int) string {
-	if len(hs) > 0 {
-		return fmt.Sprintf("%d. %s", i+1, hs[0].Text)
-	}
-	return fmt.Sprintf("%d", i+1)
 }

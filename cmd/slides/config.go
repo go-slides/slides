@@ -38,6 +38,19 @@ type options struct {
 	imageScale      float64
 	allowLocalFiles bool
 
+	notes bool // --notes: the speaker notes as a text file
+
+	pdfNotes        bool // --pdf-notes
+	pdfOutlines     bool // --pdf-outlines, on by default
+	outlinePages    bool // --pdf-outlines.pages
+	outlineHeadings bool // --pdf-outlines.headings
+	// the marp-cli spellings of turning them off
+	noPDFOutlines, noOutlinePages, noOutlineHeadings bool
+	// pdfOptionsAsked is set when --pdf-notes or a --pdf-outlines flag was
+	// given: the PDF is then what build writes, unless the output says
+	// otherwise.
+	pdfOptionsAsked bool
+
 	// themeOverride is --theme: a theme name or a CSS file.
 	themeOverride string
 	// meta are the metadata global directives of the command line.
