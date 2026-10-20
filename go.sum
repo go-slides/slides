@@ -65,6 +65,8 @@ github.com/go-pdfkit/pdfkit v0.16.0 h1:Zrfz4s9AQplvQa1Z5MVKbw2F9ayEcpXrJzgvCTol1
 github.com/go-pdfkit/pdfkit v0.16.0/go.mod h1:FrCLKGwHSPlEvsT/Ud7mO81wK1rvKZFxeH2ioesa1/4=
 github.com/go-regexp/engine v0.3.0 h1:yoJ9GtIr5YloEuQQ3bb7jjD0Qzmh+Exi+f6CUwBT8H8=
 github.com/go-regexp/engine v0.3.0/go.mod h1:fWnPvSuE4HIVpBQIHMiaPMEE7InDc00KeoPr/QNFGwA=
+github.com/go-regexp/engine v0.3.2 h1:zublnb1Vf5Cclh59+cp35htv2aATddBMNp5VwMAeZcc=
+github.com/go-regexp/engine v0.3.2/go.mod h1:fWnPvSuE4HIVpBQIHMiaPMEE7InDc00KeoPr/QNFGwA=
 github.com/go-richdoc/richdoc v0.7.0 h1:vhHypa0y26ulrOz6Aw1RIzeLjSMsFJyU1SzK5jd90lg=
 github.com/go-richdoc/richdoc v0.7.0/go.mod h1:RhxAcqwoUg1pnTYCiRdKILzOZwOmraO0dMJI4N6yY70=
 github.com/go-rouge/rouge v0.5.0 h1:+xvXRTOczDmQdXU55oe6ODskof/tHaed6oitwZ+LSk8=

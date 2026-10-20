@@ -73,7 +73,7 @@ func parse(src string) (*Theme, error) {
 	css.Walk(sheet.Nodes, func(n, _ css.Node) bool {
 		if r, ok := n.(*css.Rule); ok {
 			r.Selector = mapSelectors(r.Selector, func(s string) string {
-				return rootReplaceRe.ReplaceAllString(s, "${1}section"+rootPseudo)
+				return replaceRoot(s)
 			})
 		}
 		return true
