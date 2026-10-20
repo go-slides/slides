@@ -1,0 +1,178 @@
+{
+ "tree": [
+  "a.md",
+  "b.md",
+  "UPPER.MD",
+  "notes.txt",
+  "sub/c.md",
+  "sub/d.markdown",
+  "sub/.dot.md",
+  "sub/deep/e.md",
+  "sub/deep/er/f.md",
+  ".hid/g.md",
+  "node_modules/n/h.md",
+  "other/i.md"
+ ],
+ "globs": [
+  {
+   "pattern": "*.md",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html"
+   ]
+  },
+  {
+   "pattern": "**/*.md",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html",
+    "other/i.html",
+    "sub/c.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "sub/**/*.md",
+   "failed": false,
+   "outputs": [
+    "sub/c.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "sub/**",
+   "failed": false,
+   "outputs": [
+    "sub/c.html",
+    "sub/d.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "**/deep/*.md",
+   "failed": false,
+   "outputs": [
+    "sub/deep/e.html"
+   ]
+  },
+  {
+   "pattern": "**/e.md",
+   "failed": false,
+   "outputs": [
+    "sub/deep/e.html"
+   ]
+  },
+  {
+   "pattern": "sub/*/e.md",
+   "failed": false,
+   "outputs": [
+    "sub/deep/e.html"
+   ]
+  },
+  {
+   "pattern": "sub/**/er/*.md",
+   "failed": false,
+   "outputs": [
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "*.{md,txt}",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html",
+    "notes.html"
+   ]
+  },
+  {
+   "pattern": "[ab].md",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html"
+   ]
+  },
+  {
+   "pattern": "?.md",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html"
+   ]
+  },
+  {
+   "pattern": "**",
+   "failed": false,
+   "outputs": [
+    "UPPER.html",
+    "a.html",
+    "b.html",
+    "notes.html",
+    "other/i.html",
+    "sub/c.html",
+    "sub/d.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "sub/**/*",
+   "failed": false,
+   "outputs": [
+    "sub/c.html",
+    "sub/d.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "**/*.m*",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html",
+    "other/i.html",
+    "sub/c.html",
+    "sub/d.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  },
+  {
+   "pattern": "nomatch/**/*.md",
+   "failed": true,
+   "outputs": []
+  },
+  {
+   "pattern": "sub/../*.md",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html"
+   ]
+  },
+  {
+   "pattern": "./*.md",
+   "failed": false,
+   "outputs": [
+    "a.html",
+    "b.html"
+   ]
+  },
+  {
+   "pattern": "./sub/**/*.md",
+   "failed": false,
+   "outputs": [
+    "sub/c.html",
+    "sub/deep/e.html",
+    "sub/deep/er/f.html"
+   ]
+  }
+ ]
+}

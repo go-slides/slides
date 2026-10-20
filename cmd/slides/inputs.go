@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-slides/slides/internal/glob"
 	"github.com/go-slides/slides/internal/serve"
 )
 
@@ -157,19 +158,18 @@ func (o *options) inputs(args []string) ([]job, error) {
 			add(a)
 		default:
 			// a pattern, as the shell would have expanded it
-			if !strings.ContainsAny(a, "*?[") {
+			if !glob.Magic(a) {
 				add(a) // the build says what is wrong with it
 				continue
 			}
-			matches, gerr := filepath.Glob(a)
+			// as marp-cli's fast-glob: *, ?, [a-z], {a,b} and ** (any
+			// number of directories); no dot files, no node_modules
+			matches, gerr := glob.Files(filepath.ToSlash(a))
 			if gerr != nil {
 				return nil, fmt.Errorf("%s: %w", a, gerr)
 			}
-			slices.Sort(matches)
 			for _, m := range matches {
-				if st, err := os.Stat(m); err == nil && st.Mode().IsRegular() {
-					add(m)
-				}
+				add(m)
 			}
 		}
 	}

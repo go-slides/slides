@@ -183,4 +183,37 @@ for (const [name, args] of [
 ]) {
   execFileSync('marp', [path.join(__dirname, 'pdf.src.md'), '--pdf', ...args, '-o', path.join(__dirname, `pdf-${name}.pdf`)], { stdio: ['ignore', 'pipe', 'pipe'] })
 }
+// File arguments with globs, `**` included: which decks marp-cli converts
+// (the files it wrote), from a tree, for a pattern given to it as it is.
+const globTree = {
+  'a.md': '# a', 'b.md': '# b', 'UPPER.MD': '# u', 'notes.txt': 'plain',
+  'sub/c.md': '# c', 'sub/d.markdown': '# d', 'sub/.dot.md': '# dot', 'sub/deep/e.md': '# e', 'sub/deep/er/f.md': '# f',
+  '.hid/g.md': '# g', 'node_modules/n/h.md': '# h', 'other/i.md': '# i',
+}
+const globPatterns = ['*.md', '**/*.md', 'sub/**/*.md', 'sub/**', '**/deep/*.md', '**/e.md', 'sub/*/e.md', 'sub/**/er/*.md', '*.{md,txt}', '[ab].md', '?.md', '**', 'sub/**/*', '**/*.m*', 'nomatch/**/*.md', 'sub/../*.md', './*.md', './sub/**/*.md']
+const globs = globPatterns.map((pattern) => {
+  const root = fs.mkdtempSync(path.join(dir, 'glob-'))
+  for (const [f, body] of Object.entries(globTree)) {
+    fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true })
+    fs.writeFileSync(path.join(root, f), body)
+  }
+  let failed = false
+  try {
+    execFileSync('marp', [pattern], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    failed = true
+  }
+  const out = []
+  const walk = (d) => {
+    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, ent.name)
+      if (ent.isDirectory()) walk(p)
+      else if (p.endsWith('.html')) out.push(path.relative(root, p).split(path.sep).join('/'))
+    }
+  }
+  walk(root)
+  return { pattern, failed, outputs: out.sort() }
+})
+fs.writeFileSync(path.join(__dirname, 'globs.json'), JSON.stringify({ tree: Object.keys(globTree), globs }, null, 1) + '\n')
+
 fs.rmSync(dir, { recursive: true })
