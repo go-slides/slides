@@ -220,7 +220,7 @@ func (s *Set) Pack(t *Theme, opts PackOptions) Packed {
 	paginationOnly(sheet.Nodes)
 	eachRule(sheet.Nodes, func(r *css.Rule) {
 		r.Selector = mapSelectors(r.Selector, func(sel string) string {
-			return rootReplaceRe.ReplaceAllString(sel, "${1}section"+rootPseudo)
+			return replaceRoot(sel)
 		})
 	})
 	sheet.Nodes = injectRootFontSize(sheet.Nodes)
@@ -232,8 +232,15 @@ func (s *Set) Pack(t *Theme, opts PackOptions) Packed {
 			sel = replacePseudo(sel, ":marpit-slide", slide)
 			return strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(sel), ">"), " ")
 		})
-		r.Selector = rootSpecificity.ReplaceAllString(r.Selector, `:where(section):not([\20 root])`)
-		r.Selector = containerQueryPseudo.ReplaceAllString(r.Selector, ":where(section)")
+		// The literal each pattern requires is looked for first: almost no
+		// selector carries one, and the regexp engine is most of Pack's time
+		// otherwise.
+		if strings.Contains(r.Selector, ":marpit-root") {
+			r.Selector = rootSpecificity.ReplaceAllString(r.Selector, `:where(section):not([\20 root])`)
+		}
+		if strings.Contains(r.Selector, "section:marpit-container-query") {
+			r.Selector = containerQueryPseudo.ReplaceAllString(r.Selector, ":where(section)")
+		}
 	})
 	if opts.Printable {
 		css.Walk(sheet.Nodes, func(n, _ css.Node) bool {
@@ -493,7 +500,7 @@ func prepend(nodes []css.Node) {
 	eachRule(nodes, func(r *css.Rule) {
 		r.Selector = mapSelectors(r.Selector, func(sel string) string {
 			switch {
-			case sectionStart.MatchString(sel):
+			case startsWithSection(sel):
 				return ":marpit-container > :marpit-slide" + sel[len("section"):]
 			case strings.HasPrefix(sel, ":marpit-container"):
 				return sel
@@ -503,15 +510,28 @@ func prepend(nodes []css.Node) {
 	})
 }
 
-// sectionStart is /^section(?![\w-])/.
-var sectionStart = regexp.MustCompile(`^section(?:[^\w-]|$)`)
+// startsWithSection is /^section(?![\w-])/: "section" not followed by a
+// name character.
+func startsWithSection(sel string) bool {
+	return strings.HasPrefix(sel, "section") && (len(sel) == len("section") || !isNameChar(sel[len("section")]))
+}
+
+// replaceRoot turns :root into the slide (rootReplaceRe), skipping the
+// regexp for the selectors, nearly all, that do not mention :root.
+func replaceRoot(sel string) string {
+	if !strings.Contains(sel, ":root") {
+		return sel
+	}
+	return rootReplaceRe.ReplaceAllString(sel, "${1}section"+rootPseudo)
+}
 
 // remToRoot rewrites rem lengths against the slide's font size (Marpit's
 // root/rem.js).
 func remToRoot(nodes []css.Node) {
 	css.Walk(nodes, func(n, _ css.Node) bool {
 		d, ok := n.(*css.Decl)
-		if !ok {
+		if !ok || !strings.Contains(d.Value, "rem") {
+			// remValue needs "rem": without it the value is unchanged.
 			return true
 		}
 		parts := splitKeep(d.Value, remSkip)

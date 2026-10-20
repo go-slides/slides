@@ -32,7 +32,7 @@ func Scope(src, attr string) string {
 				}
 			case *css.Rule:
 				x.Selector = mapSelectors(x.Selector, func(sel string) string {
-					if sectionStart.MatchString(sel) {
+					if startsWithSection(sel) {
 						return scope + sel[len("section"):]
 					}
 					return scope + " " + sel
