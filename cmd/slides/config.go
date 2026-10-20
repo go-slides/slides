@@ -123,6 +123,7 @@ func (o *options) config(deckPath string) (slides.Config, error) {
 		OSC:        o.bespokeOSC && !o.noBespokeOSC,
 		Progress:   o.bespokeProgress && !o.noBespokeProgress,
 		Transition: o.bespokeTransition && !o.noBespokeTransition,
+		Presenter:  true, // marp-cli's bespoke template always has it
 	}
 	if o.themeOverride != "" {
 		name, err := overrideTheme(cfg.Themes, o.themeOverride)

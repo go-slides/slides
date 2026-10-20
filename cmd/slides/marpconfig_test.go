@@ -137,7 +137,7 @@ func TestMarpConfigPathsAreRelativeToTheFile(t *testing.T) {
 	if !strings.Contains(string(a), "color: red") && !strings.Contains(string(a), "color:red") {
 		t.Errorf("the theme set of the file is not used:\n%.300s", a)
 	}
-	if !strings.Contains(string(a), `{"osc":false,"progress":true}`) {
+	if !strings.Contains(string(a), `{"osc":false,"progress":true`) {
 		t.Error("bespoke options of the file are not used")
 	}
 	if !exists(filepath.Join(root, "site", "sub", "b.html")) {
@@ -216,13 +216,13 @@ func TestTemplateAndBespokeFlags(t *testing.T) {
 		b, _ := os.ReadFile(out)
 		return string(b)
 	}
-	if p := page(); !strings.Contains(p, `{"osc":true,"progress":false}`) || !strings.Contains(p, "startViewTransition") {
+	if p := page(); !strings.Contains(p, `{"osc":true,"progress":false`) || !strings.Contains(p, "startViewTransition") {
 		t.Error("marp-cli's defaults: the controller, no progress bar, transitions")
 	}
-	if p := page("--bespoke.progress", "--bespoke.osc=false", "--bespoke.transition=false"); !strings.Contains(p, `{"osc":false,"progress":true}`) || strings.Contains(p, "startViewTransition") {
+	if p := page("--bespoke.progress", "--bespoke.osc=false", "--bespoke.transition=false"); !strings.Contains(p, `{"osc":false,"progress":true`) || strings.Contains(p, "startViewTransition") {
 		t.Error("the bespoke flags")
 	}
-	if p := page("--no-bespoke.osc", "--no-bespoke.transition"); !strings.Contains(p, `{"osc":false,"progress":false}`) || strings.Contains(p, "startViewTransition") {
+	if p := page("--no-bespoke.osc", "--no-bespoke.transition"); !strings.Contains(p, `{"osc":false,"progress":false`) || strings.Contains(p, "startViewTransition") {
 		t.Error("marp-cli's --no-bespoke.* spellings")
 	}
 	if p := page("--template", "bare"); strings.Contains(p, "<script>") || !strings.Contains(p, "data-marpit-svg") {

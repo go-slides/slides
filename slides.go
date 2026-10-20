@@ -169,8 +169,10 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 	g := b.Deck.Global
 	lang := or(g.Get("lang"), cfg.Lang)
 	slides := make([]string, len(b.Slides))
+	notes := make([][]string, len(b.Slides))
 	for i, s := range b.Slides {
 		slides[i] = s.HTML
+		notes[i] = s.Slide.Notes
 	}
 	bespoke := viewer.DefaultBespoke()
 	if cfg.Bespoke != nil {
@@ -180,6 +182,7 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 	bespoke.Transition = bespoke.Transition && b.Deck.HasTransitions()
 	page := viewer.Document(viewer.Options{
 		Bespoke:       bespoke,
+		Notes:         notes,
 		TransitionCSS: b.Deck.TransitionCSS(),
 		Meta: viewer.Meta{
 			Title:       Title(b.Deck),
