@@ -63,6 +63,95 @@ for (const c of cases) {
 }
 fs.writeFileSync(path.join(__dirname, 'cli.json'), JSON.stringify(out, null, 1) + '\n')
 
+// The transition directive: the <section> tags of the slides, with the
+// data-transition attributes marp-cli writes, and the built-in keyframes it
+// puts in the page.
+const transitionCases = [
+  { name: 'transition-first', md: '# A\n\n<!-- transition: fade 1s -->\n\n---\n\n# B\n\n---\n\n# C\n' },
+  { name: 'transition-spot', md: '# A\n\n---\n\n<!-- _transition: cover -->\n\n# B\n\n---\n\n# C\n' },
+  { name: 'transition-with-others', md: '---\npaginate: true\n---\n\n<!-- class: lead -->\n<!-- transition: slide 300ms -->\n\n# A\n\n---\n\n<!-- _backgroundColor: red -->\n\n# B\n' },
+  { name: 'transition-unknown-name', md: '<!-- transition: my-own -->\n\n# A\n\n---\n\n# B\n' },
+  { name: 'transition-none', md: '<!-- transition: none -->\n\n# A\n\n---\n\n# B\n\n<!-- transition: clockwise -->\n\n---\n\n# C\n' },
+  { name: 'transition-three-builtins', md: '<!-- transition: swipe -->\n\n# A\n\n---\n\n<!-- transition: fade -->\n\n# B\n\n---\n\n<!-- transition: swipe -->\n\n# C\n' },
+  { name: 'transition-extra-words', md: '<!-- transition: fade 2s ignored words -->\n\n# A\n\n---\n\n# B\n' },
+  { name: 'transition-no-note', md: '# A\n\n<!-- transition: fade -->\n\n<!-- a real note -->\n' },
+]
+const transitions = transitionCases.map((c) => {
+  const md = path.join(dir, c.name + '.md')
+  const html = path.join(dir, c.name + '.html')
+  fs.writeFileSync(md, c.md)
+  execFileSync('marp', [md, '-o', html, '--lang', 'C'], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const page = fs.readFileSync(html, 'utf8')
+  const notes = path.join(dir, c.name + '.txt')
+  execFileSync('marp', [md, '--notes', '-o', notes], { stdio: ['ignore', 'pipe', 'pipe'] })
+  // the keyframe names of the built-ins the page carries, in order
+  const builtins = [...new Set([...page.matchAll(/@keyframes marp-(?:incoming-|outgoing-)?transition-(?:backward-)?__builtin__([a-z-]+)/g)].map((m) => m[1]))]
+  return {
+    name: c.name,
+    md: c.md,
+    sections: [...page.matchAll(/<section[^>]*>/g)].map((m) => m[0]),
+    builtins,
+    notes: fs.readFileSync(notes, 'utf8'),
+  }
+})
+fs.writeFileSync(path.join(__dirname, 'transitions.json'), JSON.stringify(transitions, null, 1) + '\n')
+
+// marp-cli's configuration file: where it is found from, how the command line
+// and the file combine. Each case is a tree of files, a working directory
+// inside it, and the arguments; what is compared is the head of the page.
+const configCases = [
+  { name: 'json', files: { '.marprc.json': '{"title":"T","author":"A","keywords":["x","y"],"lang":"fr","theme":"gaia"}' } },
+  { name: 'yaml', files: { '.marprc.yaml': 'title: T\nauthor: A\nkeywords: x, y\nlang: fr\ntheme: gaia\n' } },
+  { name: 'marprc', files: { '.marprc': 'title: T-from-marprc\n' } },
+  { name: 'marp-config-json', files: { 'marp.config.json': '{"title":"T-from-marp.config.json"}' } },
+  { name: 'marp-config-yaml', files: { 'marp.config.yaml': 'title: T-from-marp.config.yaml\n' } },
+  { name: 'package-json', files: { 'package.json': '{"name":"x","marp":{"title":"T-from-package"}}' } },
+  { name: 'package-json-without-marp', files: { 'package.json': '{"name":"x"}', '.marprc': 'title: T-after-package\n' } },
+  { name: 'parent-dir', files: { '.marprc.json': '{"title":"T-from-parent"}' }, cwd: 'sub/deep' },
+  { name: 'nearest-wins', files: { '.marprc.json': '{"title":"far"}', 'sub/.marprc.json': '{"title":"near"}' }, cwd: 'sub' },
+  { name: 'place-order', files: { '.marprc.json': '{"title":"marprc.json"}', '.marprc': 'title: marprc\n', 'marp.config.json': '{"title":"marp.config.json"}' } },
+  { name: 'cli-wins', files: { '.marprc.json': '{"title":"config","author":"config author","description":"config description"}' }, args: ['--title', 'from the command line'] },
+  { name: 'explicit-file', files: { 'my.json': '{"title":"explicit"}', '.marprc.json': '{"title":"searched"}' }, args: ['--config-file', 'my.json'] },
+  { name: 'no-config-file', files: { '.marprc.json': '{"title":"ignored"}' }, args: ['--no-config-file'] },
+  { name: 'no-config', files: { '.marprc.json': '{"title":"ignored"}' }, args: ['--no-config'] },
+  { name: 'url-and-image', files: { '.marprc.json': '{"url":"https://example.org/c","ogImage":"https://example.org/i.png","description":"D"}' } },
+  { name: 'unknown-key', files: { '.marprc.json': '{"title":"T","nonsense":1}' } },
+]
+const configOut = configCases.map((c) => {
+  const root = fs.mkdtempSync(path.join(dir, 'cfg-'))
+  for (const [f, body] of Object.entries(c.files)) {
+    fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true })
+    fs.writeFileSync(path.join(root, f), body)
+  }
+  const cwd = path.join(root, c.cwd || '')
+  fs.mkdirSync(cwd, { recursive: true })
+  fs.writeFileSync(path.join(cwd, 'deck.md'), '# H\n\n---\n\n# I\n')
+  let log = ''
+  try {
+    log = execFileSync('marp', ['deck.md', '-o', 'out.html', ...(c.args || [])], { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString()
+  } catch (e) {
+    log = String(e.stderr)
+  }
+  const page = fs.readFileSync(path.join(cwd, 'out.html'), 'utf8')
+  const head = page.split('</head>')[0]
+  const meta = (attr, key) => field(head, new RegExp(`<meta ${attr}="${key}" content="([^"]*)"`))
+  return {
+    name: c.name,
+    files: c.files,
+    cwd: c.cwd || '',
+    args: c.args || [],
+    title: field(head, /<title>([^<]*)<\/title>/),
+    author: meta('name', 'author'),
+    description: meta('name', 'description'),
+    keywords: meta('name', 'keywords'),
+    canonical: field(head, /<link rel="canonical" href="([^"]*)"/),
+    ogImage: meta('property', 'og:image'),
+    lang: field(page, /<html lang="([^"]*)"/),
+    theme: field(page, /data-theme="([^"]*)"/),
+  }
+})
+fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(configOut, null, 1) + '\n')
+
 // --notes: the text file marp-cli writes.
 const noteCases = [
   { name: 'notes-some', md: '# One\n\n<!-- note one -->\n\n<!-- more -->\n\n---\n\n## Two\n\nno note\n\n---\n\n# Three\n\n<!-- third -->\n' },

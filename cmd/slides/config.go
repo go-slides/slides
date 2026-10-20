@@ -8,6 +8,7 @@ import (
 	"github.com/go-slides/slides/internal/serve"
 	"github.com/go-slides/slides/project"
 	"github.com/go-slides/slides/theme"
+	"github.com/go-slides/slides/viewer"
 )
 
 // options are the command-line flags.
@@ -68,6 +69,22 @@ type options struct {
 	mirrorBase string
 	mirrored   bool
 
+	// template is --template: bare or bespoke ("" is bespoke); the bespoke
+	// options are --bespoke.osc, .progress and .transition.
+	template                                             string
+	bespokeOSC, bespokeProgress, bespokeTransition       bool
+	noBespokeOSC, noBespokeProgress, noBespokeTransition bool // the marp-cli spellings of turning them off
+
+	// marpConfigFile is --config-file: marp-cli's configuration file, JSON or
+	// YAML; noMarpConfig is --no-config-file. fromConfig lists the flags the
+	// file set.
+	marpConfigFile string
+	noMarpConfig   bool
+	fromConfig     map[string]bool
+
+	// accepted from marp-cli for compatibility: see runBuild
+	noParallel, pptxEditable bool
+
 	// themeOverride is --theme: a theme name or a CSS file.
 	themeOverride string
 	// meta are the metadata global directives of the command line.
@@ -101,6 +118,12 @@ func (o *options) config(deckPath string) (slides.Config, error) {
 		return cfg, err
 	}
 	cfg.Override = o.meta
+	cfg.Bare = cfg.Bare || o.template == "bare"
+	cfg.Bespoke = &viewer.Bespoke{
+		OSC:        o.bespokeOSC && !o.noBespokeOSC,
+		Progress:   o.bespokeProgress && !o.noBespokeProgress,
+		Transition: o.bespokeTransition && !o.noBespokeTransition,
+	}
 	if o.themeOverride != "" {
 		name, err := overrideTheme(cfg.Themes, o.themeOverride)
 		if err != nil {

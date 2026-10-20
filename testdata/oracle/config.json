@@ -1,0 +1,273 @@
+[
+ {
+  "name": "json",
+  "files": {
+   ".marprc.json": "{\"title\":\"T\",\"author\":\"A\",\"keywords\":[\"x\",\"y\"],\"lang\":\"fr\",\"theme\":\"gaia\"}"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "T",
+  "author": "A",
+  "description": null,
+  "keywords": "x,y",
+  "canonical": null,
+  "ogImage": null,
+  "lang": "fr",
+  "theme": "gaia"
+ },
+ {
+  "name": "yaml",
+  "files": {
+   ".marprc.yaml": "title: T\nauthor: A\nkeywords: x, y\nlang: fr\ntheme: gaia\n"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "T",
+  "author": "A",
+  "description": null,
+  "keywords": "x,y",
+  "canonical": null,
+  "ogImage": null,
+  "lang": "fr",
+  "theme": "gaia"
+ },
+ {
+  "name": "marprc",
+  "files": {
+   ".marprc": "title: T-from-marprc\n"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "T-from-marprc",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "marp-config-json",
+  "files": {
+   "marp.config.json": "{\"title\":\"T-from-marp.config.json\"}"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "H",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "marp-config-yaml",
+  "files": {
+   "marp.config.yaml": "title: T-from-marp.config.yaml\n"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "H",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "package-json",
+  "files": {
+   "package.json": "{\"name\":\"x\",\"marp\":{\"title\":\"T-from-package\"}}"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "T-from-package",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "package-json-without-marp",
+  "files": {
+   "package.json": "{\"name\":\"x\"}",
+   ".marprc": "title: T-after-package\n"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "T-after-package",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "parent-dir",
+  "files": {
+   ".marprc.json": "{\"title\":\"T-from-parent\"}"
+  },
+  "cwd": "sub/deep",
+  "args": [],
+  "title": "H",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "nearest-wins",
+  "files": {
+   ".marprc.json": "{\"title\":\"far\"}",
+   "sub/.marprc.json": "{\"title\":\"near\"}"
+  },
+  "cwd": "sub",
+  "args": [],
+  "title": "near",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "place-order",
+  "files": {
+   ".marprc.json": "{\"title\":\"marprc.json\"}",
+   ".marprc": "title: marprc\n",
+   "marp.config.json": "{\"title\":\"marp.config.json\"}"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "marprc",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "cli-wins",
+  "files": {
+   ".marprc.json": "{\"title\":\"config\",\"author\":\"config author\",\"description\":\"config description\"}"
+  },
+  "cwd": "",
+  "args": [
+   "--title",
+   "from the command line"
+  ],
+  "title": "from the command line",
+  "author": "config author",
+  "description": "config description",
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "explicit-file",
+  "files": {
+   "my.json": "{\"title\":\"explicit\"}",
+   ".marprc.json": "{\"title\":\"searched\"}"
+  },
+  "cwd": "",
+  "args": [
+   "--config-file",
+   "my.json"
+  ],
+  "title": "explicit",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "no-config-file",
+  "files": {
+   ".marprc.json": "{\"title\":\"ignored\"}"
+  },
+  "cwd": "",
+  "args": [
+   "--no-config-file"
+  ],
+  "title": "H",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "no-config",
+  "files": {
+   ".marprc.json": "{\"title\":\"ignored\"}"
+  },
+  "cwd": "",
+  "args": [
+   "--no-config"
+  ],
+  "title": "H",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "url-and-image",
+  "files": {
+   ".marprc.json": "{\"url\":\"https://example.org/c\",\"ogImage\":\"https://example.org/i.png\",\"description\":\"D\"}"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "H",
+  "author": null,
+  "description": "D",
+  "keywords": null,
+  "canonical": "https://example.org/c",
+  "ogImage": "https://example.org/i.png",
+  "lang": "C",
+  "theme": null
+ },
+ {
+  "name": "unknown-key",
+  "files": {
+   ".marprc.json": "{\"title\":\"T\",\"nonsense\":1}"
+  },
+  "cwd": "",
+  "args": [],
+  "title": "T",
+  "author": null,
+  "description": null,
+  "keywords": null,
+  "canonical": null,
+  "ogImage": null,
+  "lang": "C",
+  "theme": null
+ }
+]

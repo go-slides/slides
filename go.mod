@@ -3,6 +3,8 @@ module github.com/go-slides/slides
 go 1.27.2
 
 require (
+	github.com/coder/websocket v1.8.15
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-gfx/oksvg v0.2.0
 	github.com/go-icons/twemoji v0.1.0
 	github.com/go-odf/odf v0.9.0
@@ -17,6 +19,7 @@ require (
 	github.com/go-webengine/engine v0.10.1
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/yuin/goldmark v1.8.6
 	github.com/zclconf/go-cty v1.19.0
@@ -33,11 +36,9 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/breml/rootcerts v0.3.7 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
-	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
 	github.com/go-crdt/collab v0.77.1 // indirect
 	github.com/go-crdt/crdt v0.57.0 // indirect
@@ -64,7 +65,6 @@ require (
 	github.com/refraction-networking/utls v1.8.2 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tannevaled/gobig2 v0.2.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/image v0.46.0 // indirect

@@ -39,6 +39,10 @@ type Config struct {
 	// WatchWS is the address of the live reload socket the HTML page opens
 	// (see viewer.Options.WatchWS); empty for none.
 	WatchWS string
+	// Bespoke are the options of the presenting page; nil is marp-cli's
+	// defaults (viewer.DefaultBespoke): the on-screen controller, no progress
+	// bar, transitions.
+	Bespoke *viewer.Bespoke
 }
 
 // Override is marp-cli's command-line global directives. Empty ones are not
@@ -168,7 +172,15 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 	for i, s := range b.Slides {
 		slides[i] = s.HTML
 	}
+	bespoke := viewer.DefaultBespoke()
+	if cfg.Bespoke != nil {
+		bespoke = *cfg.Bespoke
+	}
+	// the script that plays transitions is for a deck that has some
+	bespoke.Transition = bespoke.Transition && b.Deck.HasTransitions()
 	page := viewer.Document(viewer.Options{
+		Bespoke:       bespoke,
+		TransitionCSS: b.Deck.TransitionCSS(),
 		Meta: viewer.Meta{
 			Title:       Title(b.Deck),
 			Description: g.Get("description"),

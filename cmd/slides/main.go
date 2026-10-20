@@ -238,6 +238,24 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.BoolVarP(&o.server, "server", "s", false, "serve a directory, converting its decks on request: deck.md as HTML, deck.md?pdf, ?pptx, ?png, ?jpg, ?notes; reloads the pages when a deck changes. Listens on 127.0.0.1, port 8080 or $PORT")
 	f.BoolVarP(&o.preview, "preview", "p", false, "open the result in the default browser: the HTML pages with --watch (implied), the server's index with --server")
 	f.StringVar(&o.host, "host", "127.0.0.1", "address the server listens on; anything but the loopback serves the directory to the network")
+	f.StringVar(&o.template, "template", "", "template of the HTML page: `bespoke` (the default: presenting script, controller, transitions) or bare (the slides stacked, as --bare)")
+	f.BoolVar(&o.bespokeOSC, "bespoke.osc", true, "bespoke template: the on-screen controller (--bespoke.osc=false hides it)")
+	f.BoolVar(&o.bespokeProgress, "bespoke.progress", false, "bespoke template: a progress bar")
+	f.BoolVar(&o.bespokeTransition, "bespoke.transition", true, "bespoke template: play the transition directive with the View Transition API (--bespoke.transition=false turns it off)")
+	f.BoolVar(&o.noBespokeOSC, "no-bespoke.osc", false, "same as --bespoke.osc=false, marp-cli's spelling")
+	f.BoolVar(&o.noBespokeProgress, "no-bespoke.progress", false, "same as --bespoke.progress=false")
+	f.BoolVar(&o.noBespokeTransition, "no-bespoke.transition", false, "same as --bespoke.transition=false")
+	f.StringVarP(&o.marpConfigFile, "config-file", "c", "", "marp-cli's configuration file, JSON or YAML (default: .marprc, .marprc.yaml, marp.config.json ... searched from here upward); `--config` is slides' own")
+	f.BoolVar(&o.noMarpConfig, "no-config-file", false, "do not read marp-cli's configuration file (--no-config does neither)")
+	f.BoolVar(&o.noParallel, "no-parallel", false, "same as --parallel 1, marp-cli's spelling")
+	f.BoolVar(&o.pptxEditable, "pptx-editable", false, "marp-cli's spelling of --pptx: the PowerPoint written here is always editable")
+	for _, n := range []string{"browser", "browser-path", "browser-protocol", "browser-timeout"} {
+		f.String(n, "", "accepted and ignored: slides has no browser")
+		_ = f.MarkHidden(n)
+	}
+	for _, n := range []string{"no-bespoke.osc", "no-bespoke.progress", "no-bespoke.transition", "no-parallel"} {
+		_ = f.MarkHidden(n)
+	}
 	f.StringVarP(&o.inputDir, "input-dir", "I", "", "convert the Markdown files under this directory, written under --output at the same relative paths (next to the decks without --output)")
 	f.IntVarP(&o.parallel, "parallel", "P", 5, "decks built at once, at most the number of cores (1 builds them one after the other)")
 	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name, or a CSS file (use --theme-set to add themes)")
@@ -275,6 +293,29 @@ func parse(o *options, path string) (*deck.Deck, error) {
 // --parallel at once.
 func runBuild(cmd *cobra.Command, o *options, args []string) error {
 	fl := cmd.Flags()
+	stderr := cmd.ErrOrStderr()
+	warn := func(s string) { fmt.Fprintln(stderr, "slides: warning:", s) }
+	// marp-cli's configuration file gives the flags the command line did not
+	cwd, _ := os.Getwd()
+	if err := o.applyMarpConfig(fl, cwd, warn); err != nil {
+		return err
+	}
+	for _, n := range []string{"browser", "browser-path", "browser-protocol", "browser-timeout"} {
+		if fl.Changed(n) {
+			warn("slides has no browser: --" + n + " is ignored")
+		}
+	}
+	switch o.template {
+	case "", "bespoke", "bare":
+	default:
+		return fmt.Errorf("--template %q: want bespoke or bare", o.template)
+	}
+	if o.noParallel {
+		o.parallel = 1
+	}
+	if o.pptxEditable {
+		o.pptx = true
+	}
 	o.imageScaleSet = fl.Changed("image-scale")
 	// marp-cli 4.5.1 takes --pdf-outlines.pages or .headings alone for
 	// nothing (the parent option is what its type choice reads), and so do

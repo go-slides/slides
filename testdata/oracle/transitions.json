@@ -1,0 +1,100 @@
+[
+ {
+  "name": "transition-first",
+  "md": "# A\n\n<!-- transition: fade 1s -->\n\n---\n\n# B\n\n---\n\n# C\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;1s&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;1s&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;1s&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"3\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;1s&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;1s&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "fade"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-spot",
+  "md": "# A\n\n---\n\n<!-- _transition: cover -->\n\n# B\n\n---\n\n# C\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\">",
+   "<section id=\"2\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;cover&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"3\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;cover&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "cover"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-with-others",
+  "md": "---\npaginate: true\n---\n\n<!-- class: lead -->\n<!-- transition: slide 300ms -->\n\n# A\n\n---\n\n<!-- _backgroundColor: red -->\n\n# B\n",
+  "sections": [
+   "<section id=\"1\" data-paginate=\"true\" data-class=\"lead\" lang=\"C\" class=\"lead\" data-marpit-pagination=\"1\" style=\"--paginate:true;--class:lead;\" data-marpit-pagination-total=\"2\" data-transition=\"{&quot;name&quot;:&quot;slide&quot;,&quot;duration&quot;:&quot;300ms&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"2\" data-paginate=\"true\" data-class=\"lead\" data-background-color=\"red\" lang=\"C\" class=\"lead\" data-marpit-pagination=\"2\" style=\"--paginate:true;--class:lead;--background-color:red;background-color:red;background-image:none;\" data-marpit-pagination-total=\"2\" data-transition-back=\"{&quot;name&quot;:&quot;slide&quot;,&quot;duration&quot;:&quot;300ms&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;slide&quot;,&quot;duration&quot;:&quot;300ms&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "slide"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-unknown-name",
+  "md": "<!-- transition: my-own -->\n\n# A\n\n---\n\n# B\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;my-own&quot;}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;my-own&quot;}\" data-transition=\"{&quot;name&quot;:&quot;my-own&quot;}\">"
+  ],
+  "builtins": [],
+  "notes": ""
+ },
+ {
+  "name": "transition-none",
+  "md": "<!-- transition: none -->\n\n# A\n\n---\n\n# B\n\n<!-- transition: clockwise -->\n\n---\n\n# C\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;none&quot;}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;none&quot;}\" data-transition=\"{&quot;name&quot;:&quot;clockwise&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"3\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;clockwise&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;clockwise&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "clockwise"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-three-builtins",
+  "md": "<!-- transition: swipe -->\n\n# A\n\n---\n\n<!-- transition: fade -->\n\n# B\n\n---\n\n<!-- transition: swipe -->\n\n# C\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;swipe&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;swipe&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"3\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;swipe&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "swipe",
+   "fade"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-extra-words",
+  "md": "<!-- transition: fade 2s ignored words -->\n\n# A\n\n---\n\n# B\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;2s&quot;,&quot;builtinFallback&quot;:true}\">",
+   "<section id=\"2\" lang=\"C\" data-transition-back=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;2s&quot;,&quot;builtinFallback&quot;:true}\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;duration&quot;:&quot;2s&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "fade"
+  ],
+  "notes": ""
+ },
+ {
+  "name": "transition-no-note",
+  "md": "# A\n\n<!-- transition: fade -->\n\n<!-- a real note -->\n",
+  "sections": [
+   "<section id=\"1\" lang=\"C\" data-transition=\"{&quot;name&quot;:&quot;fade&quot;,&quot;builtinFallback&quot;:true}\">"
+  ],
+  "builtins": [
+   "fade"
+  ],
+  "notes": "a real note"
+ }
+]
