@@ -111,7 +111,12 @@ func (d *Deck) scan() {
 					id = fmt.Sprintf("%s-%d", base, k)
 				}
 				info(n).id = id
-				s.Headings = append(s.Headings, Heading{Level: h.Level, Text: plain, ID: id})
+				var raw strings.Builder
+				for i := 0; i < h.Lines().Len(); i++ {
+					seg := h.Lines().At(i)
+					raw.Write(seg.Value(d.source))
+				}
+				s.Headings = append(s.Headings, Heading{Level: h.Level, Text: plain, ID: id, Raw: strings.TrimSpace(raw.String())})
 				return ast.WalkSkipChildren, nil
 			})
 		}

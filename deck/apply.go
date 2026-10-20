@@ -26,6 +26,10 @@ func (d *Deck) applyGlobals(fm map[string]any, comments []*comment) error {
 			if k == "headingDivider" && v != "false" && parseHeadingDivider(v) == nil {
 				continue // an invalid level leaves the previous value
 			}
+			if k == "url" && v != "" && !ValidURL(v) {
+				d.Warnings = append(d.Warnings, fmt.Sprintf("specified canonical URL is ignored since invalid URL: %s", v))
+				continue // marp-cli ignores it and keeps the previous one
+			}
 			d.Global.Dirs.Set(k, v)
 		}
 		return recognized

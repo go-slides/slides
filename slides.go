@@ -8,6 +8,7 @@ package slides
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/go-slides/slides/deck"
 	"github.com/go-slides/slides/theme"
@@ -32,6 +33,40 @@ type Config struct {
 	// NoEmoji leaves :shortcodes: and Unicode emoji as text (Marp Core's
 	// emoji: false) instead of drawing them as Twemoji images.
 	NoEmoji bool
+	// Override holds the global directives the command line sets, which win
+	// over the deck's own, as marp-cli's --title, --theme ... do.
+	Override Override
+}
+
+// Override is marp-cli's command-line global directives. Empty ones are not
+// set.
+type Override struct {
+	Title, Description, Author, Keywords, URL, Image, Theme string
+}
+
+// apply sets the overrides on a parsed deck. marp-cli appends them to the
+// deck as a comment after everything else, so they come last and win; an
+// invalid URL is ignored with a warning, and keywords that come to nothing
+// are not set.
+func (o Override) apply(d *deck.Deck) {
+	set := func(name, v string) {
+		if v != "" {
+			d.Global.Dirs.Set(name, v)
+		}
+	}
+	set("title", o.Title)
+	set("description", o.Description)
+	set("author", o.Author)
+	if len(deck.KeywordList(o.Keywords)) > 0 {
+		set("keywords", o.Keywords)
+	}
+	if o.URL != "" && !deck.ValidURL(o.URL) {
+		d.Warnings = append(d.Warnings, "specified canonical URL is ignored since invalid URL: "+o.URL)
+	} else {
+		set("url", o.URL)
+	}
+	set("image", o.Image)
+	set("theme", o.Theme)
 }
 
 // Build is a parsed and rendered deck.
@@ -56,7 +91,8 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	if set == nil {
 		set = theme.NewSet()
 	}
-	b := &Build{Deck: d}
+	cfg.Override.apply(d)
+	b := &Build{Deck: d, Warnings: d.Warnings}
 	name := d.Global.Theme()
 	if name != "" && !set.Has(name) {
 		b.Warnings = append(b.Warnings, fmt.Sprintf("theme %q is not known; using %q (known: %v)", name, set.Resolve("").Name, set.Names()))
@@ -131,10 +167,10 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 	}
 	page := viewer.Document(viewer.Options{
 		Meta: viewer.Meta{
-			Title:       g.Get("title"),
+			Title:       Title(b.Deck),
 			Description: g.Get("description"),
 			Author:      g.Get("author"),
-			Keywords:    g.Get("keywords"),
+			Keywords:    strings.Join(deck.KeywordList(g.Get("keywords")), ","),
 			URL:         g.Get("url"),
 			Image:       g.Get("image"),
 			Lang:        lang,
@@ -144,6 +180,15 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 		Bare:   cfg.Bare,
 	})
 	return page, b, nil
+}
+
+// Title is the deck's title: the title directive, else the first heading of
+// the lowest level, as marp-cli finds it.
+func Title(d *deck.Deck) string {
+	if d.Global.Dirs.Has("title") {
+		return d.Global.Get("title")
+	}
+	return d.DetectTitle()
 }
 
 func or(a, b string) string {
