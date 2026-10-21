@@ -1,9 +1,9 @@
 package deck
 
 import (
+	"hash/maphash"
 	"slices"
 	"strconv"
-	"hash/maphash"
 	"strings"
 	"sync"
 
