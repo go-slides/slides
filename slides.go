@@ -47,6 +47,11 @@ type Config struct {
 	// defaults (viewer.DefaultBespoke): the on-screen controller, no progress
 	// bar, transitions.
 	Bespoke *viewer.Bespoke
+	// RenderCache, when set, keeps the slides of the last render of a deck
+	// and re-renders only those that changed (deck.RenderCache): for an
+	// editor that renders one document again on every keystroke. The output
+	// is the same with or without it.
+	RenderCache *deck.RenderCache
 }
 
 // Override is marp-cli's command-line global directives. Empty ones are not
@@ -134,7 +139,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		opts.GeneratedContent = true
 	}
 	b.Packed = set.Pack(b.Theme, opts)
-	b.Slides = d.Render(deck.RenderOptions{
+	b.Slides = d.RenderCached(deck.RenderOptions{
 		Frame:            frame,
 		HTML:             cfg.HTML,
 		Lang:             cfg.Lang,
@@ -146,7 +151,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		Highlight:        Highlight,
 		FitHeadings:      true,
 		SourceLines:      cfg.SourceLines,
-	})
+	}, cfg.RenderCache)
 	return b, nil
 }
 

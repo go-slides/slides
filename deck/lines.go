@@ -12,6 +12,11 @@ import (
 // added back, and with Options.LineMap the template stage's line map
 // traces a generated or included line to the source line that produced it.
 func (d *Deck) SourceLine(offset int) int {
+	return d.sourceLineOf(d.lineIndex(offset))
+}
+
+// lineIndex returns the 0-based line of the parsed Markdown holding offset.
+func (d *Deck) lineIndex(offset int) int {
 	if d.lineStarts == nil {
 		// Where each line of the source starts, once: a binary search
 		// then finds an offset's line, where counting the newlines
@@ -28,6 +33,11 @@ func (d *Deck) SourceLine(offset int) int {
 	if !found {
 		body--
 	}
+	return body
+}
+
+// sourceLineOf returns the source file line of a line of the parsed Markdown.
+func (d *Deck) sourceLineOf(body int) int {
 	if d.lineMap != nil {
 		if body < len(d.lineMap) {
 			return d.lineMap[body]

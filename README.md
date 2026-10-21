@@ -547,6 +547,11 @@ Decks that show them should credit them.
 The [VS Code extension](https://github.com/go-slides/vscode) runs `editor`
 compiled to WebAssembly: decks preview in VS Code's Markdown preview, on
 vscode.dev too, with problems, completion and export through `slides`.
+After v0.7.1, `editor` keeps each open deck's rendered slides and, after an
+edit, re-renders only the slides whose source or inherited state (directives,
+page number, total, heading ids, link references, source lines) changed
+(`deck.RenderCache`, `Config.RenderCache`): the output is the same as a full
+render, byte for byte.
 
 ## License
 

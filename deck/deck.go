@@ -43,6 +43,9 @@ type Deck struct {
 	fmLines    int
 	lineMap    []int
 	lineStarts []int
+	// refs are the link reference definitions, which a link in any slide
+	// may use: part of what RenderCache keys on.
+	refs string
 }
 
 // Global holds the global directives.
