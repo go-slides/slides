@@ -38,6 +38,30 @@ func TestBespokeOptions(t *testing.T) {
 	}
 }
 
+// TestParentSync: the options reach the script, which then talks to its
+// parent instead of localStorage, and a page that does not ask keeps
+// marp-cli's localStorage sync alone.
+func TestParentSync(t *testing.T) {
+	slides := []string{"<svg data-marpit-svg></svg>"}
+	b := DefaultBespoke()
+	b.View, b.Sync = "presenter", SyncParent
+	p := Document(Options{Slides: slides, Bespoke: b})
+	for _, want := range []string{`"view":"presenter","sync":"parent"`, "slidesSync", "slidesPresent", "parentSync"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("parent-synced page lacks %q", want)
+		}
+	}
+	d := Document(Options{Slides: slides, Bespoke: DefaultBespoke()})
+	if strings.Contains(d, `"sync"`) || strings.Contains(d, `"view"`) || !strings.Contains(d, "bespoke-marp-sync-") {
+		t.Error("the default page changed")
+	}
+	// The option is data, never code: a value cannot end the script.
+	b.View = "</script><script>alert(1)"
+	if q := Document(Options{Slides: slides, Bespoke: b}); strings.Contains(q, "</script><script>alert") {
+		t.Fatal("the view option broke out of the script")
+	}
+}
+
 // TestTransitionLogic runs the pure parts of the transition script under node
 // (when it is there) with keyframes it would find in a page: marp-cli's
 // contract for which animation plays on which pseudo-element, in which

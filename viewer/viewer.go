@@ -58,7 +58,28 @@ type Bespoke struct {
 	// current slide, the next step, the notes, a timer, synchronised with the
 	// page through localStorage. marp-cli's bespoke template always has it.
 	Presenter bool
+	// View is the view the page shows when its URL names none (?view=):
+	// "" the slides, "presenter" the presenter view. A page with no URL of
+	// its own (an iframe's srcdoc) can only be told this way.
+	View string
+	// Sync is how the windows of a talk follow one another: "" through
+	// localStorage, as marp-cli does; SyncParent through messages to the
+	// parent window, for a page in a sandboxed iframe, which has no storage.
+	// The parent relays them between the audience's page and the presenter's,
+	// and opens the presenter view when the page asks (the p key, the
+	// controller's button). The presenter view then draws the next step
+	// itself instead of embedding the page a second time.
+	Sync string
 }
+
+// SyncParent is the Bespoke.Sync that goes through the parent window.
+//
+// The messages are plain objects posted to window.parent (with target "*":
+// a sandboxed page has an opaque origin, and the content is two numbers):
+// {slidesSync: {index, fragmentIndex}} each way, after every change of
+// slide or step, and {slidesPresent: true} from the page to open the
+// presenter view. A page takes a slidesSync only from its parent.
+const SyncParent = "parent"
 
 // DefaultBespoke are marp-cli's defaults: the controller, no progress bar,
 // transitions, and the presenter view.
@@ -168,10 +189,12 @@ func Document(o Options) string {
 	}
 	if !o.Bare {
 		opts, _ := json.Marshal(struct {
-			OSC       bool `json:"osc"`
-			Progress  bool `json:"progress"`
-			Presenter bool `json:"presenter"`
-		}{o.Bespoke.OSC, o.Bespoke.Progress, o.Bespoke.Presenter})
+			OSC       bool   `json:"osc"`
+			Progress  bool   `json:"progress"`
+			Presenter bool   `json:"presenter"`
+			View      string `json:"view,omitempty"`
+			Sync      string `json:"sync,omitempty"`
+		}{o.Bespoke.OSC, o.Bespoke.Progress, o.Bespoke.Presenter, o.Bespoke.View, o.Bespoke.Sync})
 		b.WriteString("<script>" + strings.Replace(compact(presentJS), "/*OPTS*/", string(opts), 1) + "</script>\n")
 		if o.Bespoke.Transition {
 			b.WriteString("<script>" + compact(transitionJS) + "</script>\n")

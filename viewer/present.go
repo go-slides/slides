@@ -14,8 +14,11 @@ package viewer
 const presentJS = `
 (() => {
   const OPT = /*OPTS*/;
-  const Q = new URLSearchParams(location.search), VIEW = Q.get('view') || '';
+  const Q = new URLSearchParams(location.search), VIEW = Q.get('view') || OPT.view || '';
   const nextView = VIEW === 'next', presenter = VIEW === 'presenter', overview = VIEW === 'overview';
+  // Sync through the parent window: a page in a sandboxed iframe, whose
+  // parent relays (see viewer.SyncParent).
+  const parentSync = OPT.sync === 'parent' && window.parent !== window;
   const slides = [...document.querySelectorAll('div.marpit > svg[data-marpit-svg]')];
   if (!slides.length) return;
   document.body.dataset.slidesView = document.documentElement.dataset.slidesView = VIEW;
@@ -45,7 +48,7 @@ const presentJS = `
     if (bar) bar.style.width = (slides.length > 1 ? cur / (slides.length - 1) * 100 : 100) + '%';
     if (osc) osc.update(cur);
     const hash = '#' + (cur + 1);
-    if (!nextView && !overview && location.hash !== hash) history.replaceState(history.state, '', hash);
+    if (!nextView && !overview && !parentSync && location.hash !== hash) history.replaceState(history.state, '', hash);
     after.forEach(h => h());
   };
   const jump = (i, f) => {
@@ -74,7 +77,21 @@ const presentJS = `
     };
   })();
   let start = (parseInt(location.hash.slice(1), 10) || 1) - 1, startStep;
-  if (ls && !nextView) {
+  let started = false;
+  if (parentSync && !nextView) {
+    sk = 'parent';
+    // The first slide shown is not news: a page that is loaded again (an
+    // edit, a second window) waits for the parent to say where the talk is.
+    after.push(() => {
+      if (!applying && started) parent.postMessage({ slidesSync: { index: cur, fragmentIndex: step } }, '*');
+    });
+    addEventListener('message', e => {
+      const n = e.source === parent && e.data && e.data.slidesSync;
+      if (!n || typeof n.index !== 'number' || (n.index === cur && n.fragmentIndex === step)) return;
+      applying = true;
+      try { jump(n.index, typeof n.fragmentIndex === 'number' ? n.fragmentIndex : 0); } finally { applying = false; }
+    });
+  } else if (ls && !nextView) {
     key = Q.get('sync') || (history.state && history.state.marpBespokeSyncKey) || Math.random().toString(36).slice(2);
     sk = 'bespoke-marp-sync-' + key;
     Q.delete('sync');
@@ -104,6 +121,7 @@ const presentJS = `
     });
   }
   const openPresenter = () => {
+    if (parentSync) { parent.postMessage({ slidesPresent: true }, '*'); return; }
     if (!sk) return;
     const q = new URLSearchParams(location.search);
     q.set('view', 'presenter');
@@ -118,7 +136,8 @@ const presentJS = `
   // is the slide here, through the shared state.
   let ovBox = null;
   const toggleOverview = open => {
-    if (!sk || nextView || overview) return;
+    // Not under SyncParent: the page has no URL to load itself again from.
+    if (!sk || parentSync || nextView || overview) return;
     if (!ovBox || !ovBox.isConnected) {
       ovBox = document.createElement('div');
       ovBox.className = 'slides-overview';
@@ -212,7 +231,7 @@ const presentJS = `
         case 'End': jump(slides.length - 1, frags(slides[slides.length - 1]).length); break;
         case 'f': fullscreen(); break;
         case 'p': if (!VIEW && sk) openPresenter(); else return; break;
-        case 'o': case 'Escape': if (OPT.presenter && sk) toggleOverview(); else return; break;
+        case 'o': case 'Escape': if (OPT.presenter && sk && !parentSync) toggleOverview(); else return; break;
         default: return;
       }
       e.preventDefault();
@@ -246,6 +265,7 @@ const presentJS = `
     if (OPT.presenter) {
       const p = button('▣', 'Presenter view', openPresenter), v = button('▦', 'Overview view', toggleOverview);
       if (!sk) for (const b of [p, v]) { b.disabled = true; b.title = b.getAttribute('aria-label') + ' is disabled due to restricted localStorage.'; }
+      if (parentSync) { v.disabled = true; v.title = 'Overview view is not available in an embedded preview.'; }
       osc.append(p, v);
     }
     osc.update = i => { page.textContent = (i + 1) + ' / ' + slides.length; };
@@ -272,10 +292,15 @@ const presentJS = `
       return e;
     };
     const box = el('div', 'slides-pv');
-    const nextBox = el('div', 'slides-pv-next'), frame = el('iframe');
-    frame.src = '?view=next';
-    frame.title = 'Next slide';
-    nextBox.append(frame);
+    // The next step: the page itself in an iframe (?view=next), or, synced
+    // through the parent (no URL of its own to load twice), a copy of the
+    // slide drawn here.
+    const nextBox = el('div', 'slides-pv-next'), frame = parentSync ? null : el('iframe');
+    if (frame) {
+      frame.src = '?view=next';
+      frame.title = 'Next slide';
+      nextBox.append(frame);
+    }
     nextBox.addEventListener('click', next);
     const drag = el('div', 'slides-pv-drag');
     const notes = el('div', 'slides-pv-notes'), wrap = el('div', 'slides-pv-wrap');
@@ -299,9 +324,22 @@ const presentJS = `
       if (dragging) box.style.setProperty('--slides-split', Math.max(0, Math.min(100, e.clientX / document.documentElement.clientWidth * 100)) + '%');
     });
     const post = () => {
-      if (frame.contentWindow) frame.contentWindow.postMessage('navigate:' + cur + ',' + step, window.origin === 'null' ? '*' : window.origin);
+      if (frame) {
+        if (frame.contentWindow) frame.contentWindow.postMessage('navigate:' + cur + ',' + step, window.origin === 'null' ? '*' : window.origin);
+        return;
+      }
+      let o = cur, f = step + 1;
+      if (f > frags(slides[o]).length) { o += 1; f = 0; }
+      const holder = el('div', 'marpit');
+      if (o < slides.length) {
+        const c = slides[o].cloneNode(true);
+        c.classList.add('active');
+        frags(c).forEach((x, j) => x.classList.toggle('hidden-fragment', j >= f));
+        holder.append(c);
+      }
+      nextBox.replaceChildren(holder);
     };
-    frame.addEventListener('load', post);
+    if (frame) frame.addEventListener('load', post);
     const noteEls = [...document.querySelectorAll('.slides-note')];
     noteEls.forEach(n => { n.addEventListener('keydown', e => e.stopPropagation()); wrap.appendChild(n); });
     let scale = 0;
@@ -333,6 +371,7 @@ const presentJS = `
   addEventListener('beforeprint', () => slides.forEach(s => s.classList.add('active')));
   addEventListener('afterprint', () => show(cur, step));
   show(start, startStep);
+  started = true;
 })();
 `
 
@@ -364,6 +403,7 @@ body[data-slides-view=presenter] { background: #222; color: #eee; overflow: hidd
 .slides-pv-right { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .slides-pv-next { flex: none; width: 100%; aspect-ratio: 16 / 9; background: #000; cursor: pointer; position: relative; }
 .slides-pv-next iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.slides-pv-next > div.marpit { position: absolute; inset: 0; pointer-events: none; }
 .slides-pv-notes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .slides-pv-wrap { flex: 1; overflow: auto; padding: 8px 12px; font-size: calc(1em * var(--slides-note-scale, 1)); }
 .slides-pv .slides-note.active { display: block; }
