@@ -52,8 +52,8 @@ para</p></div>`,
 	// the size of the view: reported, with a ceiling
 	var plain bytesCount
 	plain.page = len(page)
-	if n := len(presenterAdded(page)); n > 11000 {
-		t.Errorf("the presenter view adds %d bytes to every page: keep the viewer small (11000)", n)
+	if n := len(presenterAdded(page)); n > 15500 {
+		t.Errorf("the presenter and overview views add %d bytes to every page: keep the viewer small (15500)", n)
 	}
 	t.Logf("a deck with notes: %d bytes of page, of which the presenter view is %d bytes of script and style", plain.page, len(presenterAdded(page)))
 }
