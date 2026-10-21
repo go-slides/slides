@@ -11,6 +11,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"go.yaml.in/yaml/v3"
 
@@ -173,8 +174,10 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 	d.source = []byte(body)
 	d.fmLines = fmLines
 
-	doc := markdown().Parser().Parse(text.NewReader(d.source))
+	pc := parser.NewContext()
+	doc := markdown().Parser().Parse(text.NewReader(d.source), parser.WithContext(pc))
 	d.doc = doc
+	d.refs = referencesKey(pc.References())
 	comments := collectComments(doc, d.source, loose)
 
 	if err := d.applyGlobals(fmDirs, comments); err != nil {

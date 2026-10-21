@@ -68,6 +68,9 @@ func (r Request) fs() *vfs.Map {
 // config assembles the build configuration over the request's files.
 func (r Request) config(m *vfs.Map) (slides.Config, error) {
 	cfg, err := project.Load(r.Path, project.Options{FS: m, NoConfig: r.NoConfig})
+	// An editor renders the same document on every keystroke: keep its
+	// slides and re-render only those that changed.
+	cfg.RenderCache = renderCacheFor(r.Path)
 	// The preview syncs its scrolling with the editor by source line.
 	cfg.Parse.LineMap = true
 	cfg.SourceLines = true

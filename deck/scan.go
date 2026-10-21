@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/yuin/goldmark/ast"
 )
@@ -199,6 +200,32 @@ var (
 // punctuation dropped, then the first run of leading or trailing dashes
 // trimmed (the JavaScript replace has no g flag), then encodeURI.
 func slugify(s string) string {
+	// A deck re-parsed on every keystroke slugifies the same headings each
+	// time, through four regular expressions: remember the recent ones.
+	slugMu.Lock()
+	v, ok := slugMemo[s]
+	slugMu.Unlock()
+	if ok {
+		return v
+	}
+	v = slugifyUncached(s)
+	slugMu.Lock()
+	if len(slugMemo) >= slugMemoSize {
+		clear(slugMemo)
+	}
+	slugMemo[s] = v
+	slugMu.Unlock()
+	return v
+}
+
+const slugMemoSize = 4096
+
+var (
+	slugMu   sync.Mutex
+	slugMemo = map[string]string{}
+)
+
+func slugifyUncached(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = slugSpaces.ReplaceAllString(s, "-")
 	s = slugPunct.ReplaceAllString(s, "")

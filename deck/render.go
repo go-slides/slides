@@ -84,6 +84,15 @@ func (d *Deck) Render(opts RenderOptions) []Rendered {
 	if opts.Width == 0 {
 		opts.Width, opts.Height = 1280, 720
 	}
+	r := d.newSlideRenderer(opts)
+	out := make([]Rendered, len(d.Slides))
+	for i, s := range d.Slides {
+		out[i] = Rendered{Slide: s, HTML: r.slide(s)}
+	}
+	return out
+}
+
+func (d *Deck) newSlideRenderer(opts RenderOptions) *slideRenderer {
 	r := &slideRenderer{deck: d, opts: opts}
 	r.plain = goldmark.New(goldmark.WithRendererOptions(ghtml.WithHardWraps(), ghtml.WithXHTML(), ghtml.WithUnsafe()))
 	r.md = goldmark.New(
@@ -95,11 +104,7 @@ func (d *Deck) Render(opts RenderOptions) []Rendered {
 			renderer.WithNodeRenderers(util.Prioritized(r, 100), util.Prioritized(strikeRenderer{}, 100)),
 		),
 	)
-	out := make([]Rendered, len(d.Slides))
-	for i, s := range d.Slides {
-		out[i] = Rendered{Slide: s, HTML: r.slide(s)}
-	}
-	return out
+	return r
 }
 
 type slideRenderer struct {
