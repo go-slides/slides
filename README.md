@@ -343,9 +343,21 @@ The notes are in the page as `<div class="slides-note">` of the slides that
 have some, one `<p>` for each comment, **escaped** (`&`, `<`, `>`: a note is
 text, never markup) and hidden by `display: none`, so they are not in what the
 audience's screen reader reads; the presenter view takes them. `--bare` has
-none of it. The view adds about 10 KB to a page (a test keeps it under 11 000
-bytes; marp-cli's bespoke.js is 25 KB alone). There is no overview view yet,
-and the page counter of the presenter view does not open one.
+none of it. The two views add about 15 KB to a page (a test keeps them under
+15 500 bytes; marp-cli's bespoke.js is 25 KB alone).
+
+**Overview view** (after v0.7.1). `o` or `Escape` — as in marp-cli, which
+toggles with both — the controller's grid button, or the presenter view's page
+counter shows every slide whole in a grid over the page. It is the page again in
+a frame, `?view=overview&sync=KEY` (`&closeOnSelect=1` over the page, not over
+the presenter view, where choosing a slide leaves it open). The arrows choose a
+slide (up and down by row, `Home`, `End`) and the other windows follow through
+the same `localStorage` state; `Enter`, `Space` or a click chooses a slide and,
+over the page, closes the overview; the frame's "Close overview" button, `o` and
+`Escape` close it. The slides are focusable and labelled (`role="button"`,
+"Slide N"), the closed overview is `inert`, and no transition plays over it.
+No network; it needs `localStorage`, like the presenter view. Driven in
+headless Chrome over the page and over the presenter view.
 
 **Configuration files.** marp-cli's `.marprc`, `.marprc.json`, `.marprc.yaml`,
 `package.json` (the `marp` key) and the `--config-file` file are read when they

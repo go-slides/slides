@@ -15,10 +15,10 @@ const presentJS = `
 (() => {
   const OPT = /*OPTS*/;
   const Q = new URLSearchParams(location.search), VIEW = Q.get('view') || '';
-  const nextView = VIEW === 'next', presenter = VIEW === 'presenter';
+  const nextView = VIEW === 'next', presenter = VIEW === 'presenter', overview = VIEW === 'overview';
   const slides = [...document.querySelectorAll('div.marpit > svg[data-marpit-svg]')];
   if (!slides.length) return;
-  document.body.dataset.slidesView = VIEW;
+  document.body.dataset.slidesView = document.documentElement.dataset.slidesView = VIEW;
   let bar = null;
   if (OPT.progress && !VIEW) {
     bar = document.createElement('div');
@@ -27,13 +27,14 @@ const presentJS = `
   }
   const frags = s => [...s.querySelectorAll('[data-marpit-fragment]')]
     .sort((a, b) => a.dataset.marpitFragment - b.dataset.marpitFragment);
-  let cur = 0, step = 0, osc = null, applying = false;
+  let cur = 0, step = 0, osc = null, applying = false, ovOpen = false;
   const after = [];
   // A change of slide goes through here: if the slide being left has a
-  // transition for the way it is left, the page plays it around the change.
+  // transition for the way it is left, the page plays it around the change
+  // (not while the overview is up, nor in it).
   const go = (change, back) => {
     const t = window.__slidesTransit;
-    if (!(t && t(slides[cur], back, change))) change();
+    if (ovOpen || overview || !(t && t(slides[cur], back, change))) change();
   };
   const show = (i, f) => {
     cur = Math.max(0, Math.min(slides.length - 1, i));
@@ -44,7 +45,7 @@ const presentJS = `
     if (bar) bar.style.width = (slides.length > 1 ? cur / (slides.length - 1) * 100 : 100) + '%';
     if (osc) osc.update(cur);
     const hash = '#' + (cur + 1);
-    if (!nextView && location.hash !== hash) history.replaceState(history.state, '', hash);
+    if (!nextView && !overview && location.hash !== hash) history.replaceState(history.state, '', hash);
     after.forEach(h => h());
   };
   const jump = (i, f) => {
@@ -84,7 +85,7 @@ const presentJS = `
       if (n <= 0) ls.del(sk); else { s.reference = n; ls.set(sk, s); }
     };
     const was = ls.get(sk);
-    if (presenter && typeof was.index === 'number') { start = was.index; startStep = was.fragmentIndex; }
+    if ((presenter || overview) && typeof was.index === 'number') { start = was.index; startStep = was.fragmentIndex; }
     ref(1);
     addEventListener('pagehide', () => ref(-1));
     after.push(() => {
@@ -111,6 +112,40 @@ const presentJS = `
     window.open(location.pathname + '?' + q + location.hash, 'bespoke-marp-presenter-' + key, 'width=' + w + ',height=' + h + ',menubar=no,toolbar=no');
   };
 
+  // The overview view, over the page or the presenter view: this page again
+  // in a frame (?view=overview&sync=KEY, closeOnSelect=1 over the page), a
+  // grid of every slide. o or Escape opens and closes it, a slide chosen in it
+  // is the slide here, through the shared state.
+  let ovBox = null;
+  const toggleOverview = open => {
+    if (!sk || nextView || overview) return;
+    if (!ovBox || !ovBox.isConnected) {
+      ovBox = document.createElement('div');
+      ovBox.className = 'slides-overview';
+      ovBox.inert = true;
+      const f = document.createElement('iframe'), q = new URLSearchParams(location.search);
+      q.set('view', 'overview');
+      q.set('sync', key);
+      if (presenter) q.delete('closeOnSelect'); else q.set('closeOnSelect', '1');
+      f.src = location.pathname + '?' + q;
+      f.title = 'Overview';
+      ovBox.append(f);
+      document.body.append(ovBox);
+    }
+    const o = open === undefined ? !ovBox.dataset.open : open;
+    setTimeout(() => {
+      ovBox.dataset.open = o ? '1' : '';
+      ovBox.inert = !o;
+      ovOpen = o;
+      const f = ovBox.querySelector('iframe');
+      if (o) { try { f.contentWindow.focus(); } catch (e) { f.focus(); } } else window.focus();
+    }, 0);
+  };
+  const closeOverview = () => window.parent.postMessage('closeOverview', window.origin === 'null' ? '*' : window.origin);
+  if (!overview && !nextView) {
+    addEventListener('message', e => { if (e.origin === window.origin && e.data === 'closeOverview') toggleOverview(false); });
+  }
+
   if (nextView) {
     // The step after the one the presenter shows, told by message.
     addEventListener('message', e => {
@@ -123,6 +158,50 @@ const presentJS = `
       if (f > frags(slides[o]).length) { o += 1; f = 0; }
       show(o, f);
     });
+  } else if (overview) {
+    // Every slide in a grid, shown whole. The arrows choose the slide (the
+    // windows follow), Enter or a click chooses it and, over the page, closes
+    // the overview; Home and End, o and Escape as elsewhere.
+    const framed = window.parent !== window, close = !!Q.get('closeOnSelect');
+    const pick = i => { jump(i, 1e9); slides[cur].focus({ preventScroll: true }); };
+    const cx = i => { const r = slides[i].getBoundingClientRect(); return Math.round((r.left + r.right) / 2); };
+    const row = d => {
+      const x = cx(cur);
+      for (let i = cur + d; i >= 0 && i < slides.length; i += d) if (Math.abs(cx(i) - x) < 2) return i;
+      return cur;
+    };
+    slides.forEach((s, i) => {
+      s.tabIndex = 0;
+      s.setAttribute('role', 'button');
+      s.setAttribute('aria-label', 'Slide ' + (i + 1));
+      const choose = () => { pick(i); if (close && framed) closeOverview(); };
+      s.addEventListener('click', choose);
+      s.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
+    });
+    document.addEventListener('keydown', e => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      switch (e.key) {
+        case 'ArrowLeft': pick(cur - 1); break;
+        case 'ArrowRight': pick(cur + 1); break;
+        case 'ArrowUp': pick(row(-1)); break;
+        case 'ArrowDown': pick(row(1)); break;
+        case 'Home': pick(0); break;
+        case 'End': pick(slides.length - 1); break;
+        case 'o': case 'Escape': if (framed) closeOverview(); else return; break;
+        default: return;
+      }
+      e.preventDefault();
+    });
+    after.push(() => slides[cur].scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    if (framed) {
+      const head = document.createElement('header'), x = document.createElement('button');
+      head.className = 'slides-ov-head';
+      x.type = 'button';
+      x.textContent = x.title = 'Close overview';
+      x.addEventListener('click', closeOverview);
+      head.append(x);
+      document.body.prepend(head);
+    }
   } else {
     document.addEventListener('keydown', e => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -133,6 +212,7 @@ const presentJS = `
         case 'End': jump(slides.length - 1, frags(slides[slides.length - 1]).length); break;
         case 'f': fullscreen(); break;
         case 'p': if (!VIEW && sk) openPresenter(); else return; break;
+        case 'o': case 'Escape': if (OPT.presenter && sk) toggleOverview(); else return; break;
         default: return;
       }
       e.preventDefault();
@@ -164,9 +244,9 @@ const presentJS = `
     page.className = 'slides-osc-page';
     osc.append(button('‹', 'Previous slide', prev), page, button('›', 'Next slide', next), button('⛶', 'Full screen', fullscreen));
     if (OPT.presenter) {
-      const p = button('▣', 'Presenter view', openPresenter);
-      if (!sk) { p.disabled = true; p.title = 'Presenter view is disabled due to restricted localStorage.'; }
-      osc.append(p);
+      const p = button('▣', 'Presenter view', openPresenter), v = button('▦', 'Overview view', toggleOverview);
+      if (!sk) for (const b of [p, v]) { b.disabled = true; b.title = b.getAttribute('aria-label') + ' is disabled due to restricted localStorage.'; }
+      osc.append(p, v);
     }
     osc.update = i => { page.textContent = (i + 1) + ' / ' + slides.length; };
     document.body.appendChild(osc);
@@ -205,7 +285,7 @@ const presentJS = `
     notes.lastChild.append(smaller, bigger);
     const info = el('div', 'slides-pv-info');
     const pp = el('button', '', 'Previous', 'Previous'), pn = el('button', '', 'Next', 'Next');
-    const page = el('span', 'slides-pv-page'), clock = el('time', 'slides-pv-time', '', 'Current time'), timerEl = el('time', 'slides-pv-timer', '', 'Timer');
+    const page = el('button', 'slides-pv-page', '', 'Overview view'), clock = el('time', 'slides-pv-time', '', 'Current time'), timerEl = el('time', 'slides-pv-timer', '', 'Timer');
     info.append(pp, page, pn, clock, timerEl);
     const main = document.querySelector('div.marpit');
     const right = el('div', 'slides-pv-right');
@@ -229,6 +309,7 @@ const presentJS = `
     bigger.addEventListener('click', () => { bigger.blur(); resize(1); });
     smaller.addEventListener('click', () => { smaller.blur(); resize(-1); });
     document.addEventListener('keydown', e => { if (e.key === '+') resize(1); if (e.key === '-') resize(-1); }, true);
+    page.addEventListener('click', () => { page.blur(); toggleOverview(); });
     pp.addEventListener('click', () => { pp.blur(); prev(); });
     pn.addEventListener('click', () => { pn.blur(); next(); });
     let t0 = new Date();
@@ -261,6 +342,18 @@ const presentJS = `
 // bespoke template hides them the same way).
 const presenterCSS = `
 .slides-note { display: none; }
+.slides-overview { position: fixed; inset: 0; background: rgba(0,0,0,.65); opacity: 0; pointer-events: none; transition: opacity .1s; z-index: 20; }
+.slides-overview[data-open="1"] { opacity: 1; pointer-events: auto; }
+.slides-overview iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #222; }
+html[data-slides-view=overview], body[data-slides-view=overview] { height: auto; min-height: 100%; overflow: auto; background: #222; }
+body[data-slides-view=overview] > div.marpit { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; padding: 56px 16px 16px; }
+html[data-slides-view=overview] div.marpit > svg[data-marpit-svg] { display: block; position: static; width: 100%; height: auto; background: #fff; cursor: pointer; scroll-margin-top: 56px; }
+html[data-slides-view=overview] div.marpit > svg[data-marpit-svg]:focus-visible, html[data-slides-view=overview] div.marpit > svg[data-marpit-svg]:hover { outline: 3px solid #8ab4f8; outline-offset: 3px; }
+html[data-slides-view=overview] div.marpit > svg[data-marpit-svg].active { outline: 4px solid #1a73e8; outline-offset: 3px; }
+html[data-slides-view=overview] [data-marpit-fragment].hidden-fragment { opacity: 1; }
+.slides-ov-head { position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 5; display: flex; justify-content: flex-end; align-items: center; padding: 0 12px; background: rgba(0,0,0,.8); }
+.slides-ov-head button { border: 0; border-radius: 4px; background: #444; color: #eee; cursor: pointer; padding: 4px 12px; font: 14px system-ui, sans-serif; }
+@media print { .slides-overview { display: none; } }
 body[data-slides-view=next] { background: #000; }
 body[data-slides-view=presenter] { background: #222; color: #eee; overflow: hidden; font: 15px/1.4 system-ui, -apple-system, sans-serif; }
 .slides-pv { --slides-split: 60%; display: grid; grid-template-columns: var(--slides-split) 6px 1fr; grid-template-rows: 1fr 2.4em; height: 100vh; }
