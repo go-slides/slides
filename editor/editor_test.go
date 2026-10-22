@@ -32,6 +32,16 @@ func TestRender(t *testing.T) {
 			t.Errorf("preview lacks %q", want)
 		}
 	}
+	// the parts are the whole, slide by slide
+	if len(r.SlideHTML) != 2 || r.Head+strings.Join(r.SlideHTML, "")+"</div>" != r.HTML ||
+		!strings.HasPrefix(r.SlideHTML[1], "<svg data-marpit-svg") || !strings.Contains(r.SlideHTML[1], "Two 2/2") ||
+		!strings.HasSuffix(r.Head, `data-theme="default">`) {
+		t.Fatalf("parts: head %.80q…, %d slides", r.Head, len(r.SlideHTML))
+	}
+	// an error has no parts
+	if e := Render(req("---\nslides: true\n---\n{{ nope }}", nil)); e.HTML != "" || e.Head != "" || e.SlideHTML != nil {
+		t.Fatal("parts of a failed render")
+	}
 }
 
 // line returns the 0-based line of the first line of src containing s.
