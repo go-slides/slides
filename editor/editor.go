@@ -87,6 +87,13 @@ type Result struct {
 	// HTML is the preview's markup: the theme's style element and the
 	// slides, each an inline SVG that scales to the preview's width.
 	HTML string `json:"html"`
+	// Head and SlideHTML are HTML in parts, for a preview that patches
+	// itself slide by slide instead of replacing its document: HTML is
+	// Head, then each of SlideHTML (one inline SVG a slide), then "</div>".
+	// Neither is a copy (Head is a slice of HTML, SlideHTML the rendered
+	// slides' own strings), and neither is serialised.
+	Head      string   `json:"-"`
+	SlideHTML []string `json:"-"`
 	// Slides counts the slides.
 	Slides int `json:"slides"`
 	// Diagnostics are the deck's problems; an error leaves HTML empty.
@@ -136,11 +143,15 @@ func Render(r Request) Result {
 	sb.WriteString(`" data-theme="`)
 	sb.WriteString(html.EscapeString(b.Theme.Name))
 	sb.WriteString(`">`)
-	for _, s := range b.Slides {
+	head := sb.Len()
+	res.SlideHTML = make([]string, len(b.Slides))
+	for i, s := range b.Slides {
 		sb.WriteString(s.HTML)
+		res.SlideHTML[i] = s.HTML
 	}
 	sb.WriteString(`</div>`)
 	res.HTML = sb.String()
+	res.Head = res.HTML[:head]
 	res.Slides = len(b.Slides)
 	return res
 }
