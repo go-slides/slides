@@ -12,11 +12,11 @@ require (
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-opentype/opentype v0.16.0
-	github.com/go-pdfkit/pdfkit v0.16.0
+	github.com/go-pdfkit/pdfkit v0.17.0
 	github.com/go-richdoc/richdoc v0.7.0
 	github.com/go-rouge/rouge v0.5.0
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.12.0
+	github.com/go-webengine/engine v0.13.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10

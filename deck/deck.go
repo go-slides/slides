@@ -46,6 +46,8 @@ type Deck struct {
 	// refs are the link reference definitions, which a link in any slide
 	// may use: part of what RenderCache keys on.
 	refs string
+	// maxCallout is the largest callout number the deck draws (callouts.go).
+	maxCallout int
 }
 
 // Global holds the global directives.
