@@ -40,9 +40,9 @@ func TestLineNumbersPage(t *testing.T) {
 	}
 }
 
-// In the exports the numbers are not interleaved with the code: in the PDF's
-// text (read by pdftotext, when it is installed) they come as a block of their
-// own before the code, in the PPTX they are paragraphs apart from the code's.
+// In the exports the numbers are not interleaved with the code: the PDF's
+// text (read by pdftotext, when it is installed) has none of them, in the
+// PPTX they are paragraphs apart from the code's.
 // They are still text; a reader who selects the code in the HTML page does not
 // get them: user-select is none.
 func TestLineNumbersInExports(t *testing.T) {
@@ -70,18 +70,11 @@ func TestLineNumbersInExports(t *testing.T) {
 		if first < 0 {
 			t.Fatalf("no code in %q", lines)
 		}
-		var before []string
-		for _, w := range lines[:first] {
+		// The gutter is user-select:none, which go-webengine v0.13.0 draws
+		// in an empty ActualText span: drawn, not in the text at all.
+		for _, w := range lines {
 			if w == "1" || w == "2" || w == "3" {
-				before = append(before, w)
-			}
-		}
-		if strings.Join(before, "") != "123" {
-			t.Errorf("the numbers are not a block before the code: %q", lines)
-		}
-		for _, w := range lines[first:] {
-			if w == "1" || w == "2" || w == "3" {
-				t.Errorf("a number in the middle of the code: %q", lines)
+				t.Errorf("a line number in the PDF's text: %q", lines)
 			}
 		}
 	} else {

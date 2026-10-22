@@ -467,9 +467,37 @@ own faces.
   directive: `<!-- lineNumbers: true -->` (`_lineNumbers` for one slide). The
   numbers are a gutter inside the theme's code box (default, gaia and uncover
   look right), muted, and **not selectable** in the HTML page and hidden from
-  screen readers. In a PDF they are text in a block of their own, never
-  interleaved with the code in what `pdftotext` reads; in a PPTX or ODP a text
-  box of their own. Without the option a page is as before, to the byte.
+  screen readers. In a PDF they are drawn but left out of the text, so
+  `pdftotext` reads the code alone; in a PPTX or ODP a text box of their own.
+  Without the option a page is as before, to the byte.
+- **Code callouts** (after v0.7.1): a numbered disc at the end of a code line
+  that refers to a note below the block. The syntax is
+  [Quarto's](https://quarto.org/docs/authoring/code-annotation.html), which is
+  also Asciidoctor's comment form. The marker is a comment of the code's own
+  language, and the notes are the ordered list right after the block:
+
+  ````markdown
+  ```go
+  func main() { // <1>
+      x := load() // <2>
+  }
+  ```
+
+  1. The entry point.
+  2. Reads the input.
+  ````
+
+  Recognised comments: `//`, `#`, `--`, `;`, `;;`, `%`, `'`, and the wrapped
+  `<!-- <1> -->` and `/* <1> */`. Several markers can end a line (`// <1> <2>`).
+  A marker after a comment's own text keeps the text (`x = 1 # count <1>`).
+  The markers become discs only when the list starts at 1 and has an item for
+  every number; otherwise the block stays as written. The discs are rings in
+  the code's colour (default, gaia and uncover, light and dark). They are not
+  selectable: copying the code gives the code without its markers. In a PDF they
+  are vectors left out of the text; in a PPTX or ODP they are editable shapes.
+  The option combines with line numbers. Marp Core has no callouts (marp-core
+  4.4.0), so in Marp the comments and the numbered list show as written. A deck
+  without callouts renders as before, to the byte.
 
 ## PowerPoint and OpenDocument
 
