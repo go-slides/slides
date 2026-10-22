@@ -172,7 +172,14 @@ func (r *slideRenderer) markDefaultBlocks(n ast.Node) func() {
 			return ast.WalkContinue, nil
 		}
 		undo = append(undo, saved{c, slices.Clone(c.Attributes())})
-		c.SetAttributeString("class", []byte("code-line"))
+		class := []byte("code-line")
+		if v, ok := c.AttributeString("class"); ok {
+			// a callouts list (callouts.go) keeps its own class
+			if b, isBytes := v.([]byte); isBytes {
+				class = append(append(slices.Clone(b), ' '), class...)
+			}
+		}
+		c.SetAttributeString("class", class)
 		c.SetAttributeString("data-line", []byte(strconv.Itoa(l)))
 		return ast.WalkContinue, nil
 	})
@@ -781,6 +788,9 @@ func (r *slideRenderer) renderListItem(w util.BufWriter, _ []byte, n ast.Node, e
 		if f := r.info(n).fragment; f > 0 {
 			_, _ = w.WriteString(` data-marpit-fragment="` + strconv.Itoa(f) + `"`)
 		}
+		if c := r.info(n).callout; c > 0 {
+			_, _ = w.WriteString(` data-co="` + strconv.Itoa(c) + `"`)
+		}
 		_, _ = w.WriteString(r.lineAttrs(n))
 		_ = w.WriteByte('>')
 		fc := n.FirstChild()
@@ -865,10 +875,22 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 			numbers = *o.numbers
 		}
 	}
+	co := r.info(n).callouts
+	if co != nil {
+		// The code as copied: the markers and the comments that only held
+		// them gone; the discs are drawn after the lines (callouts.go).
+		code.Reset()
+		code.WriteString(co.code)
+	}
 	var out strings.Builder
-	if numbers {
+	switch {
+	case numbers && co != nil:
+		out.WriteString(`<pre class="line-numbers callouts"><code`)
+	case co != nil:
+		out.WriteString(`<pre class="callouts"><code`)
+	case numbers:
 		out.WriteString(`<pre class="line-numbers"><code`)
-	} else {
+	default:
 		// VS Code's preview reads a fenced block's line on its <code>.
 		out.WriteString("<pre><code")
 	}
@@ -885,16 +907,21 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 	if numbers {
 		out.WriteString(lineGutter(codeLines(code.String()), start) + `<span class="ln-code">`)
 	}
+	body := ""
 	highlighted := false
 	if r.opts.Highlight != nil {
 		if h, ok := r.opts.Highlight(code.String(), lang); ok {
-			out.WriteString(h)
+			body = h
 			highlighted = true
 		}
 	}
 	if !highlighted {
-		out.Write(util.EscapeHTML(code.Bytes()))
+		body = string(util.EscapeHTML(code.Bytes()))
 	}
+	if co != nil {
+		body = withCallouts(body, co)
+	}
+	out.WriteString(body)
 	if numbers {
 		out.WriteString("</span>")
 	}

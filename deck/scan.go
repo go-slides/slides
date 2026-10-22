@@ -17,6 +17,12 @@ type nodeInfo struct {
 	id       string // a heading's id
 	hidden   bool   // renders nothing
 	fit      bool   // a heading marked <!-- fit -->
+	// callouts are a code block's callout markers, when its notes follow it
+	// (see callouts.go).
+	callouts *codeCallouts
+	// callout is a callout note's number, on an item of the list that
+	// follows such a block.
+	callout int
 }
 
 // scan reads each slide's images, fragmented lists, headings and styles.
@@ -61,6 +67,8 @@ func (d *Deck) scan() {
 							s.BackgroundSplitSize = im.backgroundSplitSize
 						}
 					}
+				case *ast.FencedCodeBlock:
+					d.scanCallouts(x, info)
 				case *ast.ListItem:
 					if l, ok := x.Parent().(*ast.List); ok && (l.Marker == '*' || l.Marker == ')') {
 						s.Fragments++
