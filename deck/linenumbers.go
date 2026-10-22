@@ -75,17 +75,12 @@ func lineGutter(n, start int) string {
 		start = 1
 	}
 	var b strings.Builder
-	// The width is set from the digits of the last number: go-webengine
-	// sizes a flex item from its text with the forced line breaks ignored,
-	// so the column came out as wide as all the digits laid side by side.
-	// The fence's options and text are fixed before, so n is never 0 here
-	// unless the block is empty; then there is nothing to number.
-	b.WriteString(`<span class="ln-gutter" aria-hidden="true" style="width:`)
-	// (0.6em a digit, the advance of the monospace fonts; ch is not
-	// supported there; tenths in integers, so that no float is printed)
-	tenths := 6 * len(strconv.Itoa(start+n-1))
-	b.WriteString(strconv.Itoa(tenths/10) + "." + strconv.Itoa(tenths%10))
-	b.WriteString(`em">`)
+	// No width is written: the column is as wide as its widest line, the
+	// last number, in whatever font the theme or the reader's CSS picks (a
+	// flex item is sized from its content, one number a line under
+	// white-space:pre; browsers always did, go-webengine does since v0.12.0,
+	// which added the widest-line rule it used to get wrong).
+	b.WriteString(`<span class="ln-gutter" aria-hidden="true">`)
 	for i := 0; i < n; i++ {
 		b.WriteString(strconv.Itoa(start + i))
 		b.WriteByte('\n')
@@ -132,4 +127,4 @@ func (d *Deck) UsesLineNumbers() bool {
 // LineNumbersCSS is the style of the numbers: a column before the code, in
 // the code's own font, set apart by a rule, muted, and out of selection. It
 // is added after the theme when UsesLineNumbers.
-const LineNumbersCSS = `section pre.line-numbers>code{display:flex}section pre.line-numbers .ln-gutter{display:block;flex:none;box-sizing:content-box;text-align:right;padding:0 .8em 0 0;margin:0 .8em 0 0;border-right:1px solid currentcolor;opacity:.4;-webkit-user-select:none;user-select:none;pointer-events:none}section pre.line-numbers .ln-code{display:block;flex:1;min-width:0;white-space:pre}`
+const LineNumbersCSS = `section pre.line-numbers>code{display:flex}section pre.line-numbers .ln-gutter{display:block;flex:none;text-align:right;padding:0 .8em 0 0;margin:0 .8em 0 0;border-right:1px solid currentcolor;opacity:.4;-webkit-user-select:none;user-select:none;pointer-events:none}section pre.line-numbers .ln-code{display:block;flex:1;min-width:0;white-space:pre}`

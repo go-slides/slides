@@ -30,7 +30,7 @@ func TestLineNumbersPage(t *testing.T) {
 	}
 	for _, theme := range []string{"default", "gaia", "uncover"} {
 		p := build(numberedDeck, "--theme", theme)
-		if strings.Count(p, "pre.line-numbers .ln-gutter") != 1 || !strings.Contains(p, `<span class="ln-gutter" aria-hidden="true" style="width:0.6em">1`) {
+		if strings.Count(p, "pre.line-numbers .ln-gutter") != 1 || !strings.Contains(p, `<span class="ln-gutter" aria-hidden="true">1`) {
 			t.Errorf("%s: style or gutter missing", theme)
 		}
 		// highlighted by go-rouge in its hljs classes, inside the numbered block
