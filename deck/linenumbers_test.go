@@ -81,7 +81,7 @@ func TestLineNumbersAddOnlyTheGutter(t *testing.T) {
 
 func TestLineNumbersGolden(t *testing.T) {
 	got := render(t, "```go {lineNumbers=8}\na\nb\n\nc\n```\n")
-	want := "<pre class=\"line-numbers\"><code class=\"language-go\"><span class=\"ln-gutter\" aria-hidden=\"true\" style=\"width:1.2em\">8\n9\n10\n11\n</span><span class=\"ln-code\">a\nb\n\nc\n</span></code></pre>"
+	want := "<pre class=\"line-numbers\"><code class=\"language-go\"><span class=\"ln-gutter\" aria-hidden=\"true\">8\n9\n10\n11\n</span><span class=\"ln-code\">a\nb\n\nc\n</span></code></pre>"
 	if !strings.Contains(got, want) {
 		t.Errorf("golden:\n%q\ndoes not contain\n%q", got, want)
 	}
@@ -91,25 +91,33 @@ func TestLineNumbersGolden(t *testing.T) {
 	}
 }
 
-// The gutter is as wide as the digits of the last number shown (start + lines
-// - 1), not of the start or of all the digits together.
+// The gutter's width comes from its content, never from a number written in
+// the page (a fixed width clips in a font wider than the one it was computed
+// for): it holds exactly the numbers start .. start+lines-1, one a line, so a
+// column sized from its widest line is as wide as the digits of the LAST one
+// (go-webengine's TestGutterWidthFromLinesAndCh pins that for the engine;
+// the PNG test in cmd/slides pins it through the whole pipeline).
 func TestLineNumbersGutterWidth(t *testing.T) {
 	lines := func(n int) string { return strings.Repeat("x\n", n) }
 	for _, c := range []struct {
-		opt   string
-		n     int
-		width string
+		opt     string
+		n       int
+		numbers string
 	}{
-		{"{lineNumbers=8}", 5, "1.2em"},  // 8..12
-		{"{lineNumbers=98}", 3, "1.8em"}, // 98..100 crosses into 3 digits
-		{"{lineNumbers=98}", 2, "1.2em"}, // 98..99
-		{"{lineNumbers=1}", 9, "0.6em"},  // 1..9
-		{"{lineNumbers=1}", 10, "1.2em"}, // 1..10
-		{"{lineNumbers}", 3, "0.6em"},
+		{"{lineNumbers=8}", 5, "8\n9\n10\n11\n12\n"},
+		{"{lineNumbers=98}", 3, "98\n99\n100\n"}, // crosses into 3 digits
+		{"{lineNumbers=98}", 2, "98\n99\n"},
+		{"{lineNumbers=1}", 9, "1\n2\n3\n4\n5\n6\n7\n8\n9\n"},
+		{"{lineNumbers=1}", 10, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n"},
+		{"{lineNumbers}", 3, "1\n2\n3\n"},
 	} {
 		got := render(t, "```go "+c.opt+"\n"+lines(c.n)+"```\n")
-		if want := `style="width:` + c.width + `"`; !strings.Contains(got, want) {
-			t.Errorf("%s on %d lines: want %s in %q", c.opt, c.n, want, got)
+		want := `<span class="ln-gutter" aria-hidden="true">` + c.numbers + `</span>`
+		if !strings.Contains(got, want) {
+			t.Errorf("%s on %d lines: want %q in %q", c.opt, c.n, want, got)
+		}
+		if strings.Contains(got, "width:") {
+			t.Errorf("%s on %d lines: the page fixes a width: %q", c.opt, c.n, got)
 		}
 	}
 }
