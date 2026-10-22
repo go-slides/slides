@@ -23,6 +23,8 @@ var localNames = []string{
 	"backgroundColor", "backgroundImage", "backgroundPosition", "backgroundRepeat",
 	"backgroundSize", "class", "color", "footer", "header", "paginate",
 	"transition",
+	// ours: line numbers on the code blocks (linenumbers.go)
+	"lineNumbers",
 }
 
 // KindDirective is this tool's own local directive: it names a kind, a preset
