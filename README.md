@@ -457,6 +457,19 @@ own faces.
   [go-rouge](https://github.com/go-rouge/rouge) in highlight.js class names,
   which is what Marp's themes style. A language go-rouge does not know is
   written as plain text, as Marp Core does.
+- **Line numbers** (after v0.7.1), optional, which Marp Core does not have
+  (marp-core 4.4.0 has no line numbering; it ignores what follows a fence's
+  language, so a deck that uses the syntax renders in Marp as without it).
+  Per block, in braces after the language: ` ```go {lineNumbers} `, `{lineNumbers=10}`
+  to start at 10, `{lineNumbers=false}` to turn it off. Slidev's `{lines:true}` and
+  `startLine=`, Pandoc's `{.numberLines startFrom="10"}` are read too. For a
+  slide and the slides after it — and so for a kind — the `lineNumbers`
+  directive: `<!-- lineNumbers: true -->` (`_lineNumbers` for one slide). The
+  numbers are a gutter inside the theme's code box (default, gaia and uncover
+  look right), muted, and **not selectable** in the HTML page and hidden from
+  screen readers. In a PDF they are text in a block of their own, never
+  interleaved with the code in what `pdftotext` reads; in a PPTX or ODP a text
+  box of their own. Without the option a page is as before, to the byte.
 
 ## PowerPoint and OpenDocument
 

@@ -116,6 +116,10 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	b.Theme = set.Resolve(name)
 
 	after := []string{}
+	if d.UsesLineNumbers() {
+		// before the deck's own styles, so that they can change it
+		after = append(after, deck.LineNumbersCSS)
+	}
 	after = append(after, d.Styles...)
 	for _, s := range d.Slides {
 		for _, scoped := range s.ScopedStyles {

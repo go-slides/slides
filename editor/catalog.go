@@ -47,6 +47,7 @@ var directiveDocs = map[string]Directive{
 	"footer":             {Doc: "The slide's footer, Markdown on one line."},
 	"header":             {Doc: "The slide's header, Markdown on one line."},
 	"paginate":           {Doc: "Shows the page number: `true`, `false`, `skip` (hidden and not counted) or `hold` (shown, not advanced).", Values: []string{"true", "false", "skip", "hold"}},
+	"lineNumbers":        {Doc: "Numbers the lines of the fenced code blocks of this slide and the following ones: `true` or `false`. A block says it for itself in braces after its language: ` ```go {lineNumbers=10} ` (start at 10) or `{lineNumbers=false}`. Marp ignores the braces.", Values: []string{"true", "false"}},
 	"transition":         {Doc: "The transition played when leaving the slide (and, going back, when coming to it): a built-in name — `fade`, `slide`, `cover`, `cube`, `swipe`, `zoom` ... — and an optional duration, `fade 1s`. Played with the browser's View Transition API; `_transition` is for this slide only."},
 	deck.KindDirective:   {Doc: "The slide's **kind**, a named preset of local directives (header, footer, paginate, class, background). `kind:` applies to this slide and the following ones, `_kind:` to this slide only. Kinds come from the built-ins (`title`, `section`, `content`, `blank`), the `kinds` front-matter key, slides.yaml or slides.hcl, and `--kinds` files."},
 	"slides":             {Scope: "deck", Doc: "Marks the document as a go-slides deck: the go-slides preview renders it.", Values: []string{"true", "false"}},

@@ -119,6 +119,8 @@ type slideRenderer struct {
 	// slideLine is the source line of the slide being written, for its
 	// frame (SourceLines).
 	slideLine int
+	// lineNumbers is the lineNumbers directive of the slide being written.
+	lineNumbers bool
 	// nodeBuf and nodeBW receive each top-level node of a slide (see slide).
 	nodeBuf bytes.Buffer
 	nodeBW  *bufio.Writer
@@ -187,7 +189,7 @@ func (r *slideRenderer) markDefaultBlocks(n ast.Node) func() {
 // marpitDirectives are the directives Marpit writes out as data-*
 // attributes and custom properties: its own and Marp Core's custom ones.
 var marpitDirectives = append([]string{"headingDivider", "style", "theme", "lang", "size", "math"},
-	slices.DeleteFunc(slices.Clone(localNames), func(n string) bool { return n == "transition" })...) // Marp CLI's, written out as JSON (transition.go)
+	slices.DeleteFunc(slices.Clone(localNames), func(n string) bool { return n == "transition" || n == "lineNumbers" })...) // Marp CLI's, written out as JSON (transition.go); ours, read by the code blocks (linenumbers.go)
 
 var camelRe = regexp.MustCompile(`[A-Z]`)
 
@@ -423,6 +425,7 @@ func (r *slideRenderer) slide(s *Slide) string {
 		content.WriteString("<header>" + r.inline(h) + "</header>\n")
 	}
 	r.slideLine = s.Line
+	r.lineNumbers = dirs.Get("lineNumbers") == "true"
 	// One buffer and one buffered writer for every top-level node of every
 	// slide: goldmark wraps a plain io.Writer in a new 4 KiB bufio.Writer on
 	// each call. (Nested renders, from inside a node renderer, keep their own.)
@@ -851,14 +854,24 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 		code.Write(seg.Value(source))
 	}
 	lang := ""
+	numbers, start := r.lineNumbers, 0
 	if n.Info != nil {
 		info := string(n.Info.Segment.Value(source))
 		lang, _, _ = strings.Cut(strings.TrimSpace(info), " ")
 		lang = html.UnescapeString(lang)
+		o := parseFenceOptions(info)
+		start = o.start
+		if o.numbers != nil {
+			numbers = *o.numbers
+		}
 	}
 	var out strings.Builder
-	// VS Code's preview reads a fenced block's line on its <code>.
-	out.WriteString("<pre><code")
+	if numbers {
+		out.WriteString(`<pre class="line-numbers"><code`)
+	} else {
+		// VS Code's preview reads a fenced block's line on its <code>.
+		out.WriteString("<pre><code")
+	}
 	la := r.lineAttrs(n)
 	switch {
 	case lang != "" && la != "":
@@ -869,6 +882,9 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 		out.WriteString(la)
 	}
 	out.WriteByte('>')
+	if numbers {
+		out.WriteString(lineGutter(codeLines(code.String()), start) + `<span class="ln-code">`)
+	}
 	highlighted := false
 	if r.opts.Highlight != nil {
 		if h, ok := r.opts.Highlight(code.String(), lang); ok {
@@ -878,6 +894,9 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 	}
 	if !highlighted {
 		out.Write(util.EscapeHTML(code.Bytes()))
+	}
+	if numbers {
+		out.WriteString("</span>")
 	}
 	out.WriteString("</code></pre>\n")
 	if r.deck.opts.NoEmoji {
