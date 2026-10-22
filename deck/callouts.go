@@ -275,7 +275,9 @@ func (d *Deck) UsesCallouts() int { return d.maxCallout }
 func CalloutsCSS(n int) string {
 	var b strings.Builder
 	b.WriteString(`section pre .co-disc,section ol.co-list>li::before{display:inline-block;box-sizing:border-box;width:1.5em;height:1.5em;line-height:1.35em;border:.08em solid currentcolor;border-radius:50%;font-size:.7em;font-weight:bold;text-align:center;vertical-align:.15em;-webkit-user-select:none;user-select:none}`)
-	b.WriteString(`section pre .co-disc{margin-left:.7em;opacity:.8}`)
+	// No opacity: a translucent element is drawn as a picture in the PDF and
+	// the PowerPoint, where the disc must stay a vector ring.
+	b.WriteString(`section pre .co-disc{margin-left:.7em}`)
 	b.WriteString(`section ol.co-list{list-style:none;padding-left:0}section ol.co-list>li::before{margin-right:.6em}`)
 	for i := 1; i <= n; i++ {
 		s := strconv.Itoa(i)
