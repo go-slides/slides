@@ -81,13 +81,36 @@ func TestLineNumbersAddOnlyTheGutter(t *testing.T) {
 
 func TestLineNumbersGolden(t *testing.T) {
 	got := render(t, "```go {lineNumbers=8}\na\nb\n\nc\n```\n")
-	want := "<pre class=\"line-numbers\"><code class=\"language-go\"><span class=\"ln-gutter\" aria-hidden=\"true\">8\n9\n10\n11\n</span><span class=\"ln-code\">a\nb\n\nc\n</span></code></pre>"
+	want := "<pre class=\"line-numbers\"><code class=\"language-go\"><span class=\"ln-gutter\" aria-hidden=\"true\" style=\"width:1.2em\">8\n9\n10\n11\n</span><span class=\"ln-code\">a\nb\n\nc\n</span></code></pre>"
 	if !strings.Contains(got, want) {
 		t.Errorf("golden:\n%q\ndoes not contain\n%q", got, want)
 	}
 	// numbers are not text of the code: the gutter is hidden from readers
 	if !strings.Contains(got, `aria-hidden="true"`) {
 		t.Error("the gutter is for the eye")
+	}
+}
+
+// The gutter is as wide as the digits of the last number shown (start + lines
+// - 1), not of the start or of all the digits together.
+func TestLineNumbersGutterWidth(t *testing.T) {
+	lines := func(n int) string { return strings.Repeat("x\n", n) }
+	for _, c := range []struct {
+		opt   string
+		n     int
+		width string
+	}{
+		{"{lineNumbers=8}", 5, "1.2em"},  // 8..12
+		{"{lineNumbers=98}", 3, "1.8em"}, // 98..100 crosses into 3 digits
+		{"{lineNumbers=98}", 2, "1.2em"}, // 98..99
+		{"{lineNumbers=1}", 9, "0.6em"},  // 1..9
+		{"{lineNumbers=1}", 10, "1.2em"}, // 1..10
+		{"{lineNumbers}", 3, "0.6em"},
+	} {
+		got := render(t, "```go "+c.opt+"\n"+lines(c.n)+"```\n")
+		if want := `style="width:` + c.width + `"`; !strings.Contains(got, want) {
+			t.Errorf("%s on %d lines: want %s in %q", c.opt, c.n, want, got)
+		}
 	}
 }
 
