@@ -23,6 +23,8 @@ type nodeInfo struct {
 	// callout is a callout note's number, on an item of the list that
 	// follows such a block.
 	callout int
+	// calloutID prefixes the note's id (calloutID + callout).
+	calloutID string
 }
 
 // scan reads each slide's images, fragmented lists, headings and styles.
@@ -43,6 +45,7 @@ func (d *Deck) scan() {
 		slugs[strconv.Itoa(s.Index+1)] = 0
 	}
 	for _, s := range d.Slides {
+		coBlocks := 0 // the slide's code blocks with callouts so far
 		for _, top := range s.nodes {
 			_ = ast.Walk(top, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 				if !entering {
@@ -68,7 +71,9 @@ func (d *Deck) scan() {
 						}
 					}
 				case *ast.FencedCodeBlock:
-					d.scanCallouts(x, info)
+					if d.scanCallouts(x, info, "co"+strconv.Itoa(s.Index+1)+"-"+strconv.Itoa(coBlocks+1)+"-") {
+						coBlocks++
+					}
 				case *ast.ListItem:
 					if l, ok := x.Parent().(*ast.List); ok && (l.Marker == '*' || l.Marker == ')') {
 						s.Fragments++
