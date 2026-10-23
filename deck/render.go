@@ -789,7 +789,10 @@ func (r *slideRenderer) renderListItem(w util.BufWriter, _ []byte, n ast.Node, e
 			_, _ = w.WriteString(` data-marpit-fragment="` + strconv.Itoa(f) + `"`)
 		}
 		if c := r.info(n).callout; c > 0 {
-			_, _ = w.WriteString(` data-co="` + strconv.Itoa(c) + `"`)
+			// The id its disc's aria-describedby names; focusable, so that
+			// the keyboard reaches the note and its disc shows (CalloutsCSS).
+			s := strconv.Itoa(c)
+			_, _ = w.WriteString(` data-co="` + s + `" id="` + r.info(n).calloutID + s + `" tabindex="0"`)
 		}
 		_, _ = w.WriteString(r.lineAttrs(n))
 		_ = w.WriteByte('>')

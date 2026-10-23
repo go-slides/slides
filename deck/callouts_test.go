@@ -141,7 +141,7 @@ func TestCalloutsCopyPlainCode(t *testing.T) {
 			t.Errorf("copied %q, want %q\n%s", got, want, markup)
 		}
 		if strings.Count(markup, `class="co-disc"`) != 2 || !strings.Contains(markup, `<ol class="co-list">`) ||
-			!strings.Contains(markup, `<li data-co="2">`) {
+			!strings.Contains(markup, `<li data-co="2" id="co1-1-2" tabindex="0">`) {
 			t.Errorf("discs or notes missing:\n%s", markup)
 		}
 	}
@@ -167,19 +167,63 @@ func TestCalloutsGolden(t *testing.T) {
 	got := renderOne(t, calloutDeck, RenderOptions{SourceLines: true, Frame: FramePlain})
 	want := `<section id="1">
 <h1 id="callouts" class="code-line" data-line="0">Callouts</h1>
-<pre class="callouts"><code class="language-go code-line" data-line="2">func main() {<span class="co-disc" data-co="1" aria-hidden="true"></span>
-	x := load()<span class="co-disc" data-co="2" aria-hidden="true"></span>
+<pre class="callouts"><code class="language-go code-line" data-line="2">func main() {<span class="co-disc" data-co="1" tabindex="0" aria-describedby="co1-1-1"></span>
+	x := load()<span class="co-disc" data-co="2" tabindex="0" aria-describedby="co1-1-2"></span>
 	fmt.Println(x)
 }
 </code></pre>
 <ol class="co-list code-line" data-line="9">
-<li data-co="1" class="code-line" data-line="9">The entry point.</li>
-<li data-co="2" class="code-line" data-line="10">Reads the input.</li>
+<li data-co="1" id="co1-1-1" tabindex="0" class="code-line" data-line="9">The entry point.</li>
+<li data-co="2" id="co1-1-2" tabindex="0" class="code-line" data-line="10">Reads the input.</li>
 </ol>
 </section>
 `
 	if got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
+// Each disc names its own note: the ids are unique across blocks and slides,
+// every aria-describedby names one of them, and a slide rendered alone (the
+// incremental render) writes the same ids as in the whole deck.
+func TestCalloutIDs(t *testing.T) {
+	block := "```go\na // <1>\nb // <2>\n```\n\n1. A.\n2. B.\n"
+	src := "# One\n\n" + block + "\n```sh\nno callouts\n```\n\n" + block + "\n---\n\n# Two\n\n" + block
+	d, err := Parse([]byte(src), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	slides := d.Render(RenderOptions{Frame: FramePlain})
+	idRe := regexp.MustCompile(` id="(co[^"]*)"`)
+	refRe := regexp.MustCompile(`aria-describedby="([^"]*)"`)
+	ids := map[string]bool{}
+	var all []string
+	for _, s := range slides {
+		for _, m := range idRe.FindAllStringSubmatch(s.HTML, -1) {
+			if ids[m[1]] {
+				t.Errorf("id %s twice", m[1])
+			}
+			ids[m[1]] = true
+			all = append(all, m[1])
+		}
+	}
+	if strings.Join(all, " ") != "co1-1-1 co1-1-2 co1-2-1 co1-2-2 co2-1-1 co2-1-2" {
+		t.Errorf("ids %v", all)
+	}
+	for _, s := range slides {
+		for _, m := range refRe.FindAllStringSubmatch(s.HTML, -1) {
+			if !ids[m[1]] {
+				t.Errorf("aria-describedby=%q names no note", m[1])
+			}
+		}
+	}
+	// The ids come from the slide's number and its own blocks only, so a
+	// second render writes the same page.
+	again := d.Render(RenderOptions{Frame: FramePlain})
+	for i := range slides {
+		if again[i].HTML != slides[i].HTML {
+			t.Errorf("slide %d renders differently the second time", i+1)
+		}
 	}
 }
 
@@ -192,7 +236,13 @@ func TestCalloutsCSS(t *testing.T) {
 		t.Fatalf("UsesCallouts = %d", d.UsesCallouts())
 	}
 	css := CalloutsCSS(2)
-	for _, w := range []string{`[data-co="2"]::before{content:"2"}`, "user-select:none"} {
+	for _, w := range []string{`[data-co="2"]::before{content:"2"}`, "user-select:none",
+		// a disc shows its note, a note its disc
+		`section pre:has(.co-disc[data-co="2"]:is(:hover,:focus-visible))+ol.co-list>li[data-co="2"]`,
+		`section pre:has(+ol.co-list>li[data-co="2"]:is(:hover,:focus-visible)) .co-disc[data-co="2"]`,
+		// the only motion, and only for those who did not ask for less
+		`@media (prefers-reduced-motion:no-preference){section ol.co-list>li{transition:`,
+	} {
 		if !strings.Contains(css, w) {
 			t.Errorf("CSS lacks %s", w)
 		}

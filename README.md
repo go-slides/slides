@@ -502,6 +502,15 @@ own faces.
   4.4.0), so in Marp the comments and the numbered list show as written. A deck
   without callouts renders as before, to the byte.
 
+  After v0.8.1, in the HTML page, hovering a disc or giving it the keyboard's
+  focus (Tab) tints its note, and a note does the same for its disc, as
+  Quarto's `code-annotations: hover` does. The style sheet does this alone
+  (`:has()`), with no script, so it works the same in the playground's
+  sandboxed preview and in VS Code's. Each disc is described by its note
+  (`aria-describedby`), so a screen reader reads the note at the disc. The
+  tint only fades in when the reader has not asked for reduced motion. Images,
+  PDF, PPTX and ODP are byte for byte as before.
+
 ## PowerPoint and OpenDocument
 
 `--pptx` writes the deck through

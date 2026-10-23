@@ -45,6 +45,11 @@ type codeCallouts struct {
 	code  string
 	lines []lineCallouts
 	max   int
+	// id prefixes the ids of the block's notes (id + n), unique in the
+	// page: the slide's number and the block's rank among the slide's
+	// blocks with callouts, so that a slide rendered again alone (the
+	// incremental render) writes the same ids.
+	id string
 }
 
 // maxCallout bounds the numbers recognised; a larger one is left as text.
@@ -204,8 +209,9 @@ func calloutList(f *ast.FencedCodeBlock, c codeCallouts) (*ast.List, bool) {
 
 // scanCallouts finds a slide's code blocks with callouts and their lists:
 // the block's info keeps the parse, the list takes the class it is styled
-// by and its items their numbers.
-func (d *Deck) scanCallouts(f *ast.FencedCodeBlock, info func(ast.Node) *nodeInfo) {
+// by and its items their numbers and ids. id is the block's id prefix (see
+// codeCallouts.id); it reports whether the block has callouts.
+func (d *Deck) scanCallouts(f *ast.FencedCodeBlock, info func(ast.Node) *nodeInfo, id string) bool {
 	var code strings.Builder
 	for i := 0; i < f.Lines().Len(); i++ {
 		seg := f.Lines().At(i)
@@ -213,38 +219,47 @@ func (d *Deck) scanCallouts(f *ast.FencedCodeBlock, info func(ast.Node) *nodeInf
 	}
 	c, ok := parseCallouts(code.String())
 	if !ok {
-		return
+		return false
 	}
 	l, ok := calloutList(f, c)
 	if !ok {
-		return
+		return false
 	}
+	c.id = id
 	info(f).callouts = &c
 	l.SetAttributeString("class", []byte("co-list"))
 	i := 0
 	for it := l.FirstChild(); it != nil; it = it.NextSibling() {
 		i++
 		info(it).callout = i
+		info(it).calloutID = id
 	}
 	if i > d.maxCallout {
 		d.maxCallout = i
 	}
+	return true
 }
 
 // withCallouts writes a disc at the end of each marked line of a block's
 // markup: before its line feed, so after whatever the highlighter wrapped
 // the line's last token in.
+//
+// The disc can take the keyboard's focus (tabindex), and is described by its
+// note (aria-describedby), which a screen reader reads when it gets there:
+// the disc's own name is its number, which the style sheet writes. It is not
+// aria-hidden: a focusable element must not be (WAI-ARIA 1.2, aria-hidden).
 func withCallouts(markup string, c *codeCallouts) string {
 	marks := map[int][]int{}
 	for _, l := range c.lines {
 		marks[l.line] = l.nums
 	}
 	var b strings.Builder
-	b.Grow(len(markup) + 64*len(c.lines))
+	b.Grow(len(markup) + 96*len(c.lines))
 	line := 0
 	disc := func() {
 		for _, n := range marks[line] {
-			b.WriteString(`<span class="co-disc" data-co="` + strconv.Itoa(n) + `" aria-hidden="true"></span>`)
+			s := strconv.Itoa(n)
+			b.WriteString(`<span class="co-disc" data-co="` + s + `" tabindex="0" aria-describedby="` + c.id + s + `"></span>`)
 		}
 	}
 	for {
@@ -290,5 +305,24 @@ func CalloutsCSS(n int) string {
 		s := strconv.Itoa(i)
 		b.WriteString(`section pre .co-disc[data-co="` + s + `"]::before,section ol.co-list>li[data-co="` + s + `"]::before{content:"` + s + `"}`)
 	}
+	// In the page, a disc hovered or focused shows its note, and a note its
+	// disc: the note is tinted, the disc ringed. Quarto's code annotations do
+	// the same with a script (code-annotation-active, quarto-html-after-
+	// body.ejs); here :has() reaches from one to the other, the list being
+	// the block's next sibling, so no script runs: the playground's sandboxed
+	// preview and VS Code's, which restrict scripts, behave as the page does.
+	// The layout engine has no pointer and no focus, so the images, PDF,
+	// PowerPoint and OpenDocument files are as before.
+	var notes, discs strings.Builder
+	notes.WriteString(`section ol.co-list>li:is(:hover,:focus-visible)`)
+	discs.WriteString(`section pre .co-disc:is(:hover,:focus-visible)`)
+	for i := 1; i <= n; i++ {
+		s := strconv.Itoa(i)
+		notes.WriteString(`,section pre:has(.co-disc[data-co="` + s + `"]:is(:hover,:focus-visible))+ol.co-list>li[data-co="` + s + `"]`)
+		discs.WriteString(`,section pre:has(+ol.co-list>li[data-co="` + s + `"]:is(:hover,:focus-visible)) .co-disc[data-co="` + s + `"]`)
+	}
+	b.WriteString(notes.String() + `{background:color-mix(in srgb,currentcolor 12%,transparent);border-radius:.3em}`)
+	b.WriteString(discs.String() + `{outline:.15em solid currentcolor;outline-offset:.1em}`)
+	b.WriteString(`@media (prefers-reduced-motion:no-preference){section ol.co-list>li{transition:background-color .15s}}`)
 	return b.String()
 }
