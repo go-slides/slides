@@ -19,13 +19,13 @@ import (
 // their baselines: what the line-number test measures.
 type runRecorder struct{ runs []paint.GlyphRun }
 
-func (*runRecorder) Save()                               {}
-func (*runRecorder) Restore()                            {}
-func (*runRecorder) Clip(*paint.Path, bool)              {}
-func (*runRecorder) Fill(*paint.Path, css.Color, bool)   {}
-func (*runRecorder) Shade(paint.Shading)                 {}
-func (*runRecorder) Image(image.Image, paint.Rect)       {}
-func (r *runRecorder) Glyphs(run *paint.GlyphRun)        { r.runs = append(r.runs, *run) }
+func (*runRecorder) Save()                             {}
+func (*runRecorder) Restore()                          {}
+func (*runRecorder) Clip(*paint.Path, bool)            {}
+func (*runRecorder) Fill(*paint.Path, css.Color, bool) {}
+func (*runRecorder) Shade(paint.Shading)               {}
+func (*runRecorder) Image(image.Image, paint.Rect)     {}
+func (r *runRecorder) Glyphs(run *paint.GlyphRun)      { r.runs = append(r.runs, *run) }
 func runText(run paint.GlyphRun) (s string) {
 	for _, g := range run.Glyphs {
 		s += g.Text
@@ -119,7 +119,7 @@ func checkBaselines(t *testing.T, name string, runs []paint.GlyphRun) []float64 
 	// keep the code's four lines, the first four baselines from the top of
 	// the block.
 	first := 0
-	for first < len(code) && code[first] < numbersTop(numbers) - 2 {
+	for first < len(code) && code[first] < numbersTop(numbers)-2 {
 		first++
 	}
 	code = code[first:]
