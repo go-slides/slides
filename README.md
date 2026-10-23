@@ -346,7 +346,7 @@ audience's screen reader reads; the presenter view takes them. `--bare` has
 none of it. The two views add about 15 KB to a page (a test keeps them under
 15 500 bytes; marp-cli's bespoke.js is 25 KB alone).
 
-**Overview view** (after v0.7.1). `o` or `Escape` — as in marp-cli, which
+**Overview view** (in v0.8.0). `o` or `Escape` — as in marp-cli, which
 toggles with both — the controller's grid button, or the presenter view's page
 counter shows every slide whole in a grid over the page. It is the page again in
 a frame, `?view=overview&sync=KEY` (`&closeOnSelect=1` over the page, not over
@@ -457,7 +457,7 @@ own faces.
   [go-rouge](https://github.com/go-rouge/rouge) in highlight.js class names,
   which is what Marp's themes style. A language go-rouge does not know is
   written as plain text, as Marp Core does.
-- **Line numbers** (after v0.7.1), optional, which Marp Core does not have
+- **Line numbers** (in v0.8.0), optional, which Marp Core does not have
   (marp-core 4.4.0 has no line numbering; it ignores what follows a fence's
   language, so a deck that uses the syntax renders in Marp as without it).
   Per block, in braces after the language: ` ```go {lineNumbers} `, `{lineNumbers=10}`
@@ -473,7 +473,7 @@ own faces.
   In a PDF they are drawn but left out of the text, so `pdftotext` reads the
   code alone. In a PPTX or ODP they are editable text at the start of each line.
   Without the option a page is as before, to the byte.
-- **Code callouts** (after v0.7.1): a numbered disc at the end of a code line
+- **Code callouts** (in v0.8.0): a numbered disc at the end of a code line
   that refers to a note below the block. The syntax is
   [Quarto's](https://quarto.org/docs/authoring/code-annotation.html), which is
   also Asciidoctor's comment form. The marker is a comment of the code's own
@@ -591,7 +591,7 @@ Decks that show them should credit them.
 The [VS Code extension](https://github.com/go-slides/vscode) runs `editor`
 compiled to WebAssembly: decks preview in VS Code's Markdown preview, on
 vscode.dev too, with problems, completion and export through `slides`.
-After v0.7.1, `editor` keeps each open deck's rendered slides and, after an
+In v0.8.0, `editor` keeps each open deck's rendered slides and, after an
 edit, re-renders only the slides whose source or inherited state (directives,
 page number, total, heading ids, link references, source lines) changed
 (`deck.RenderCache`, `Config.RenderCache`): the output is the same as a full
