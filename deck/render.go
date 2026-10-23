@@ -904,9 +904,6 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 		out.WriteString(la)
 	}
 	out.WriteByte('>')
-	if numbers {
-		out.WriteString(lineGutter(codeLines(code.String()), start) + `<span class="ln-code">`)
-	}
 	body := ""
 	highlighted := false
 	if r.opts.Highlight != nil {
@@ -921,10 +918,10 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 	if co != nil {
 		body = withCallouts(body, co)
 	}
-	out.WriteString(body)
 	if numbers {
-		out.WriteString("</span>")
+		body = withLineNumbers(body, codeLines(code.String()), start)
 	}
+	out.WriteString(body)
 	out.WriteString("</code></pre>\n")
 	if r.deck.opts.NoEmoji {
 		_, _ = w.WriteString(out.String())

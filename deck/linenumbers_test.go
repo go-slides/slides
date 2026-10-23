@@ -61,8 +61,11 @@ func render(t *testing.T, md string) string {
 	return b.String()
 }
 
+// lineNumberRe matches one line's number.
+var lineNumberRe = regexp.MustCompile(`<span class="ln" aria-hidden="true">[^<]*</span>`)
+
 // What a deck without the option renders is what it rendered before (the
-// oracle tests pin it to Marp Core's): the numbers add a gutter and a wrapper
+// oracle tests pin it to Marp Core's): the numbers add one element a line
 // and nothing else, so taking them out gives the plain block back.
 func TestLineNumbersAddOnlyTheGutter(t *testing.T) {
 	plain := render(t, "```go\nx := 1\ny := 2\n```\n")
@@ -70,10 +73,8 @@ func TestLineNumbersAddOnlyTheGutter(t *testing.T) {
 	if plain == numbered {
 		t.Fatal("no numbers")
 	}
-	strip := regexp.MustCompile(`<span class="ln-gutter"[^>]*>[^<]*</span><span class="ln-code">`)
-	got := strip.ReplaceAllString(numbered, "")
+	got := lineNumberRe.ReplaceAllString(numbered, "")
 	got = strings.Replace(got, `<pre class="line-numbers">`, "<pre>", 1)
-	got = strings.Replace(got, "</span></code>", "</code>", 1)
 	if got != plain {
 		t.Errorf("\n got %q\nwant %q", got, plain)
 	}
@@ -81,22 +82,20 @@ func TestLineNumbersAddOnlyTheGutter(t *testing.T) {
 
 func TestLineNumbersGolden(t *testing.T) {
 	got := render(t, "```go {lineNumbers=8}\na\nb\n\nc\n```\n")
-	want := "<pre class=\"line-numbers\"><code class=\"language-go\"><span class=\"ln-gutter\" aria-hidden=\"true\">8\n9\n10\n11\n</span><span class=\"ln-code\">a\nb\n\nc\n</span></code></pre>"
+	want := "<pre class=\"line-numbers\"><code class=\"language-go\">" +
+		"<span class=\"ln\" aria-hidden=\"true\"> 8</span>a\n" +
+		"<span class=\"ln\" aria-hidden=\"true\"> 9</span>b\n" +
+		"<span class=\"ln\" aria-hidden=\"true\">10</span>\n" +
+		"<span class=\"ln\" aria-hidden=\"true\">11</span>c\n</code></pre>"
 	if !strings.Contains(got, want) {
 		t.Errorf("golden:\n%q\ndoes not contain\n%q", got, want)
 	}
-	// numbers are not text of the code: the gutter is hidden from readers
-	if !strings.Contains(got, `aria-hidden="true"`) {
-		t.Error("the gutter is for the eye")
-	}
 }
 
-// The gutter's width comes from its content, never from a number written in
+// Each line starts with its number, right-aligned by spaces to the widest
+// one's digits (the code's font is monospace), never by a width written in
 // the page (a fixed width clips in a font wider than the one it was computed
-// for): it holds exactly the numbers start .. start+lines-1, one a line, so a
-// column sized from its widest line is as wide as the digits of the LAST one
-// (go-webengine's TestGutterWidthFromLinesAndCh pins that for the engine;
-// the PNG test in cmd/slides pins it through the whole pipeline).
+// for).
 func TestLineNumbersGutterWidth(t *testing.T) {
 	lines := func(n int) string { return strings.Repeat("x\n", n) }
 	for _, c := range []struct {
@@ -104,17 +103,20 @@ func TestLineNumbersGutterWidth(t *testing.T) {
 		n       int
 		numbers string
 	}{
-		{"{lineNumbers=8}", 5, "8\n9\n10\n11\n12\n"},
-		{"{lineNumbers=98}", 3, "98\n99\n100\n"}, // crosses into 3 digits
-		{"{lineNumbers=98}", 2, "98\n99\n"},
-		{"{lineNumbers=1}", 9, "1\n2\n3\n4\n5\n6\n7\n8\n9\n"},
-		{"{lineNumbers=1}", 10, "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n"},
-		{"{lineNumbers}", 3, "1\n2\n3\n"},
+		{"{lineNumbers=8}", 5, " 8| 9|10|11|12"},
+		{"{lineNumbers=98}", 3, " 98| 99|100"}, // crosses into 3 digits
+		{"{lineNumbers=98}", 2, "98|99"},
+		{"{lineNumbers=1}", 9, "1|2|3|4|5|6|7|8|9"},
+		{"{lineNumbers=1}", 10, " 1| 2| 3| 4| 5| 6| 7| 8| 9|10"},
+		{"{lineNumbers}", 3, "1|2|3"},
 	} {
 		got := render(t, "```go "+c.opt+"\n"+lines(c.n)+"```\n")
-		want := `<span class="ln-gutter" aria-hidden="true">` + c.numbers + `</span>`
-		if !strings.Contains(got, want) {
-			t.Errorf("%s on %d lines: want %q in %q", c.opt, c.n, want, got)
+		var want strings.Builder
+		for _, num := range strings.Split(c.numbers, "|") {
+			want.WriteString(`<span class="ln" aria-hidden="true">` + num + "</span>x\n")
+		}
+		if !strings.Contains(got, want.String()) {
+			t.Errorf("%s on %d lines: want %q in %q", c.opt, c.n, want.String(), got)
 		}
 		if strings.Contains(got, "width:") {
 			t.Errorf("%s on %d lines: the page fixes a width: %q", c.opt, c.n, got)
@@ -133,7 +135,7 @@ func TestLineNumbersDirective(t *testing.T) {
 	if has(0, "line-numbers") {
 		t.Error("slide 1 has none")
 	}
-	if !has(1, `<span class="ln-code">two`) || has(1, `ln-code">three`) {
+	if !has(1, `</span>two`) || has(1, `</span>three`) {
 		t.Errorf("slide 2: the directive on, the block off:\n%s", slides[1].HTML)
 	}
 	if !d.UsesLineNumbers() {

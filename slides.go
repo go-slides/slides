@@ -118,7 +118,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	after := []string{}
 	if d.UsesLineNumbers() {
 		// before the deck's own styles, so that they can change it
-		after = append(after, deck.LineNumbersCSS)
+		after = append(after, deck.LineNumbersCSS(b.Theme.Name))
 	}
 	if n := d.UsesCallouts(); n > 0 {
 		after = append(after, deck.CalloutsCSS(n))

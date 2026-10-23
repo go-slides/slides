@@ -274,11 +274,18 @@ func (d *Deck) UsesCallouts() int { return d.maxCallout }
 // the same discs.
 func CalloutsCSS(n int) string {
 	var b strings.Builder
-	b.WriteString(`section pre .co-disc,section ol.co-list>li::before{display:inline-block;box-sizing:border-box;width:1.5em;height:1.5em;line-height:1.35em;border:.08em solid currentcolor;border-radius:50%;font-size:.7em;font-weight:bold;text-align:center;vertical-align:.15em;-webkit-user-select:none;user-select:none}`)
 	// No opacity: a translucent element is drawn as a picture in the PDF and
 	// the PowerPoint, where the disc must stay a vector ring.
-	b.WriteString(`section pre .co-disc{margin-left:.7em}`)
-	b.WriteString(`section ol.co-list{list-style:none;padding-left:0}section ol.co-list>li::before{margin-right:.6em}`)
+	//
+	// In the code the disc is an inline box, which never makes its line
+	// taller: what an inline box adds to a line is its line-height alone, not
+	// its padding nor its border (CSS 2.1 §10.8.1), and its line-height here
+	// is the smaller font's 1. The ring is the padding and border around one
+	// digit of the code's monospace font, about as wide as it is high.
+	b.WriteString(`section pre .co-disc{margin-left:.6em;padding:.05em .3em;border:1px solid currentcolor;border-radius:1em;font-size:.8em;line-height:1;font-weight:bold;font-style:normal;-webkit-user-select:none;user-select:none}`)
+	// In the notes, a ring of its own size.
+	b.WriteString(`section ol.co-list>li::before{display:inline-block;box-sizing:border-box;width:1.5em;height:1.5em;line-height:1.35em;border:.08em solid currentcolor;border-radius:50%;font-size:.7em;font-weight:bold;text-align:center;vertical-align:.15em;margin-right:.6em;-webkit-user-select:none;user-select:none}`)
+	b.WriteString(`section ol.co-list{list-style:none;padding-left:0}`)
 	for i := 1; i <= n; i++ {
 		s := strconv.Itoa(i)
 		b.WriteString(`section pre .co-disc[data-co="` + s + `"]::before,section ol.co-list>li[data-co="` + s + `"]::before{content:"` + s + `"}`)

@@ -67,25 +67,38 @@ func parseFenceOptions(info string) fenceOptions {
 
 func boolp(b bool) *bool { return &b }
 
-// lineGutter is the column of numbers for n lines from start: one number a
-// line, each ended by a line feed, in an element the page hides from readers
-// and the style sheet from selection.
-func lineGutter(n, start int) string {
+// withLineNumbers writes each of the first n lines' number at the start of
+// the line, in an element the page hides from readers and the style sheet
+// from selection.
+//
+// The number is in the line's own line box, not in a column beside the code:
+// whatever makes one line taller (a callout disc, an emoji, an inline image, a
+// fallback font), the number stays on its line's baseline, by construction,
+// in a browser as in go-webengine. A separate column only lines up while every
+// line has the same height. The numbers are right-aligned by padding them with
+// spaces to the widest one's digits, in the code's monospace font.
+func withLineNumbers(markup string, n, start int) string {
 	if start < 1 {
 		start = 1
 	}
+	width := len(strconv.Itoa(start + n - 1))
 	var b strings.Builder
-	// No width is written: the column is as wide as its widest line, the
-	// last number, in whatever font the theme or the reader's CSS picks (a
-	// flex item is sized from its content, one number a line under
-	// white-space:pre; browsers always did, go-webengine does since v0.12.0,
-	// which added the widest-line rule it used to get wrong).
-	b.WriteString(`<span class="ln-gutter" aria-hidden="true">`)
+	b.Grow(len(markup) + n*(48+width))
 	for i := 0; i < n; i++ {
-		b.WriteString(strconv.Itoa(start + i))
-		b.WriteByte('\n')
+		num := strconv.Itoa(start + i)
+		b.WriteString(`<span class="ln" aria-hidden="true">`)
+		b.WriteString(strings.Repeat(" ", width-len(num)))
+		b.WriteString(num)
+		b.WriteString(`</span>`)
+		nl := strings.IndexByte(markup, '\n')
+		if nl < 0 {
+			b.WriteString(markup)
+			return b.String()
+		}
+		b.WriteString(markup[:nl+1])
+		markup = markup[nl+1:]
 	}
-	b.WriteString("</span>")
+	b.WriteString(markup)
 	return b.String()
 }
 
@@ -124,7 +137,39 @@ func (d *Deck) UsesLineNumbers() bool {
 	return false
 }
 
-// LineNumbersCSS is the style of the numbers: a column before the code, in
-// the code's own font, set apart by a rule, muted, and out of selection. It
-// is added after the theme when UsesLineNumbers.
-const LineNumbersCSS = `section pre.line-numbers>code{display:flex}section pre.line-numbers .ln-gutter{display:block;flex:none;text-align:right;padding:0 .8em 0 0;margin:0 .8em 0 0;border-right:1px solid currentcolor;opacity:.4;-webkit-user-select:none;user-select:none;pointer-events:none}section pre.line-numbers .ln-code{display:block;flex:1;min-width:0;white-space:pre}`
+// lineNumberInk is, per built-in theme, how the numbers' colour is mixed:
+// the code's colour and its box's background, the theme's own variables (so
+// light, dark and the theme's classes follow), and the code's share of the
+// mix. The shares keep the numbers at 4.5:1 or more against the box where
+// the code itself has 4.5:1 (the contrast test reads the themes' values).
+var lineNumberInk = map[string]struct {
+	fg, bg string
+	pct    int
+}{
+	"default": {"var(--fgColor-default)", "var(--bgColor-muted)", 65},
+	"gaia":    {"var(--color-background)", "var(--color-foreground)", 90},
+	"uncover": {"var(--color-foreground)", "var(--color-background-code)", 65},
+}
+
+// LineNumbersCSS is the style of the numbers for a theme: at the start of
+// each line, in the code's own font, set apart by a rule, muted, and out of
+// selection. It is added after the theme when UsesLineNumbers.
+//
+// Muted by a mixed colour, never by opacity: a translucent element is drawn
+// as a picture in the PDF, the PowerPoint and the OpenDocument file, where
+// the numbers must stay text. A theme go-slides does not know keeps the
+// code's colour.
+func LineNumbersCSS(theme string) string {
+	// Inline, not inline-block: an inline box has no baseline of its own to
+	// get wrong (go-webengine v0.13.0 sets an inline-block's text about half
+	// a leading above the line's), and adds nothing to the line's height.
+	// The block padding draws the rule across the leading between lines
+	// without making them taller (an inline box's padding is not in its
+	// line's height, CSS 2.1 §10.8.1).
+	css := `section pre.line-numbers .ln{padding:.2em .8em .2em 0;margin-right:.8em;border-right:1px solid;font-style:normal;font-weight:normal;text-decoration:none;-webkit-user-select:none;user-select:none;pointer-events:none}`
+	if ink, ok := lineNumberInk[theme]; ok {
+		mix := `color-mix(in srgb,` + ink.fg + ` ` + strconv.Itoa(ink.pct) + `%,` + ink.bg + `)`
+		css += `section pre.line-numbers .ln{color:` + mix + `;border-right:1px solid ` + mix + `}`
+	}
+	return css
+}

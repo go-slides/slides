@@ -465,10 +465,13 @@ own faces.
   `startLine=`, Pandoc's `{.numberLines startFrom="10"}` are read too. For a
   slide and the slides after it — and so for a kind — the `lineNumbers`
   directive: `<!-- lineNumbers: true -->` (`_lineNumbers` for one slide). The
-  numbers are a gutter inside the theme's code box (default, gaia and uncover
-  look right), muted, and **not selectable** in the HTML page and hidden from
-  screen readers. In a PDF they are drawn but left out of the text, so
-  `pdftotext` reads the code alone; in a PPTX or ODP a text box of their own.
+  numbers start each line inside the theme's code box, set apart by a rule.
+  Each sits on its line's baseline even when a line is taller (a callout, an
+  emoji). They are muted by a colour mixed from the code's colour and its
+  background (4.5:1 contrast or more in default, gaia and uncover, light and
+  dark), **not selectable** in the HTML page, and hidden from screen readers.
+  In a PDF they are drawn but left out of the text, so `pdftotext` reads the
+  code alone. In a PPTX or ODP they are editable text at the start of each line.
   Without the option a page is as before, to the byte.
 - **Code callouts** (after v0.7.1): a numbered disc at the end of a code line
   that refers to a note below the block. The syntax is
