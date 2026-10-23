@@ -160,12 +160,13 @@ var lineNumberInk = map[string]struct {
 // the numbers must stay text. A theme go-slides does not know keeps the
 // code's colour.
 func LineNumbersCSS(theme string) string {
-	// Inline, not inline-block: an inline box has no baseline of its own to
-	// get wrong (go-webengine v0.13.0 sets an inline-block's text about half
-	// a leading above the line's), and adds nothing to the line's height.
-	// The block padding draws the rule across the leading between lines
-	// without making them taller (an inline box's padding is not in its
-	// line's height, CSS 2.1 §10.8.1).
+	// Inline: the box shares the line's baseline by definition and adds only
+	// its line-height to the line (CSS 2.1 §10.8.1), in every engine. An
+	// inline-block does too since go-webengine v0.13.1 (§10.8: its baseline
+	// is its last line box's; before, it was its bottom edge), but gains
+	// nothing here. The block padding draws the rule across the leading
+	// between lines without making them taller (an inline box's padding is
+	// not in its line's height).
 	css := `section pre.line-numbers .ln{padding:.2em .8em .2em 0;margin-right:.8em;border-right:1px solid;font-style:normal;font-weight:normal;text-decoration:none;-webkit-user-select:none;user-select:none;pointer-events:none}`
 	if ink, ok := lineNumberInk[theme]; ok {
 		mix := `color-mix(in srgb,` + ink.fg + ` ` + strconv.Itoa(ink.pct) + `%,` + ink.bg + `)`
