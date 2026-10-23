@@ -30,8 +30,11 @@ func TestLineNumbersPage(t *testing.T) {
 	}
 	for _, theme := range []string{"default", "gaia", "uncover"} {
 		p := build(numberedDeck, "--theme", theme)
-		if strings.Count(p, "pre.line-numbers .ln-gutter") != 1 || !strings.Contains(p, `<span class="ln-gutter" aria-hidden="true">1`) {
-			t.Errorf("%s: style or gutter missing", theme)
+		if !strings.Contains(p, "pre.line-numbers .ln {") || !strings.Contains(p, `<span class="ln" aria-hidden="true">1</span>`) {
+			t.Errorf("%s: style or numbers missing", theme)
+		}
+		if !strings.Contains(p, "color: color-mix(in srgb,") {
+			t.Errorf("%s: the numbers are not muted by a mixed colour", theme)
 		}
 		// highlighted by go-rouge in its hljs classes, inside the numbered block
 		if !strings.Contains(p, `<span class="hljs-keyword">func</span>`) {
@@ -40,11 +43,9 @@ func TestLineNumbersPage(t *testing.T) {
 	}
 }
 
-// In the exports the numbers are not interleaved with the code: the PDF's
-// text (read by pdftotext, when it is installed) has none of them, in the
-// PPTX they are paragraphs apart from the code's.
-// They are still text; a reader who selects the code in the HTML page does not
-// get them: user-select is none.
+// In the exports the numbers are not in the code's text: the PDF's text
+// (read by pdftotext, when it is installed) has none of them. A reader who
+// selects the code in the HTML page does not get them: user-select is none.
 func TestLineNumbersInExports(t *testing.T) {
 	dir := t.TempDir()
 	md := write(t, dir, "d.md", numberedDeck)
@@ -81,29 +82,52 @@ func TestLineNumbersInExports(t *testing.T) {
 		t.Log("pdftotext is not installed: the PDF's text is not read")
 	}
 
-	pptx := filepath.Join(dir, "o.pptx")
-	if _, stderr, err := run(t, "build", md, "--pptx", "-o", pptx); err != nil {
-		t.Fatal(err, stderr)
+	// In the PowerPoint and the OpenDocument file the numbers are editable
+	// text, each a run of its own at the start of its line's paragraph, and
+	// nothing of the block is a picture: a muted colour, not an opacity,
+	// which the office canvas would have drawn as one.
+	for _, c := range []struct{ flag, entry, picture string }{
+		{"--pptx", "ppt/slides/slide1.xml", "<p:pic>"},
+		{"--odp", "content.xml", "<draw:image"},
+	} {
+		out := filepath.Join(dir, "o"+strings.TrimPrefix(c.flag, "--")[:0]+"."+strings.TrimPrefix(c.flag, "--"))
+		if _, stderr, err := run(t, "build", md, c.flag, "-o", out); err != nil {
+			t.Fatal(err, stderr)
+		}
+		xml := zipEntry(t, out, c.entry)
+		if strings.Contains(xml, c.picture) {
+			t.Errorf("%s: a picture in the slide", c.flag)
+		}
+		for _, n := range []string{"1", "2", "3"} {
+			if !strings.Contains(xml, ">"+n+"<") && !strings.Contains(xml, ">"+n+" <") {
+				t.Errorf("%s: number %s is not a text run of its own", c.flag, n)
+			}
+		}
 	}
-	zr, err := zip.OpenReader(pptx)
+}
+
+// zipEntry reads one file of a zip archive.
+func zipEntry(t *testing.T, archive, name string) string {
+	t.Helper()
+	zr, err := zip.OpenReader(archive)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer zr.Close()
 	for _, f := range zr.File {
-		if f.Name != "ppt/slides/slide1.xml" {
-			continue
-		}
-		rc, _ := f.Open()
-		xml, _ := io.ReadAll(rc)
-		rc.Close()
-		for _, para := range strings.Split(string(xml), "</a:p>") {
-			if strings.Contains(para, "<a:t>func</a:t>") && strings.Contains(para, "<a:t>1</a:t>") {
-				t.Errorf("a line number in the code's paragraph: %s", para)
+		if f.Name == name {
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		if !strings.Contains(string(xml), "<a:t>1</a:t>") {
-			t.Error("the numbers are in the slide, as text of their own")
+			defer rc.Close()
+			b, err := io.ReadAll(rc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return string(b)
 		}
 	}
+	t.Fatalf("no %s in %s", name, archive)
+	return ""
 }

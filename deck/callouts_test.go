@@ -134,7 +134,8 @@ func TestCalloutsCopyPlainCode(t *testing.T) {
 		markup := renderOne(t, src, RenderOptions{})
 		got := codeText(markup)
 		if strings.Contains(src, "lineNumbers") {
-			got = strings.TrimPrefix(got, "1\n2\n3\n4\n") // the gutter, unselectable
+			// the numbers, unselectable
+			got = codeText(lineNumberRe.ReplaceAllString(markup, ""))
 		}
 		if got != want {
 			t.Errorf("copied %q, want %q\n%s", got, want, markup)
