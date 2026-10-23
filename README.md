@@ -502,7 +502,7 @@ own faces.
   4.4.0), so in Marp the comments and the numbered list show as written. A deck
   without callouts renders as before, to the byte.
 
-  After v0.8.1, in the HTML page, hovering a disc or giving it the keyboard's
+  In v0.9.0, in the HTML page, hovering a disc or giving it the keyboard's
   focus (Tab) tints its note, and a note does the same for its disc, as
   Quarto's `code-annotations: hover` does. The style sheet does this alone
   (`:has()`), with no script, so it works the same in the playground's
