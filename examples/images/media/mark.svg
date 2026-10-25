@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <title>An abstract mark</title>
+  <rect width="400" height="400" rx="72" fill="#4f46e5"/>
+  <rect x="84" y="96" width="232" height="148" rx="14" fill="#fff"/>
+  <rect x="108" y="122" width="120" height="14" rx="7" fill="#4f46e5"/>
+  <rect x="108" y="152" width="184" height="10" rx="5" fill="#a5b4fc"/>
+  <rect x="108" y="174" width="156" height="10" rx="5" fill="#a5b4fc"/>
+  <rect x="172" y="244" width="56" height="48" fill="#fff"/>
+  <rect x="136" y="292" width="128" height="16" rx="8" fill="#fff"/>
+</svg>

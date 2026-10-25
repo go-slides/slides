@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <title>Hills at dusk</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2b64"/>
+      <stop offset="0.6" stop-color="#c0506a"/>
+      <stop offset="1" stop-color="#f8b26a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <circle cx="1150" cy="520" r="120" fill="#ffe3a6" opacity="0.95"/>
+  <path d="M0 640 C 250 520 450 560 700 620 C 950 680 1200 540 1600 610 L1600 900 L0 900 Z" fill="#5b3a6b"/>
+  <path d="M0 720 C 300 630 560 700 820 730 C 1080 760 1320 650 1600 710 L1600 900 L0 900 Z" fill="#35234f"/>
+  <path d="M0 810 C 350 760 620 830 900 830 C 1200 830 1400 770 1600 800 L1600 900 L0 900 Z" fill="#1b1233"/>
+</svg>
