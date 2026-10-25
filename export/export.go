@@ -19,8 +19,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-opentype/fonts/lato"
-	"github.com/go-opentype/fonts/robotomono"
 	"github.com/go-pdfkit/pdfkit"
 	"github.com/go-webengine/engine"
 	"github.com/go-webengine/engine/paint"
@@ -267,37 +265,21 @@ func page(themeCSS, slide string) string {
 // synthesising one (Lato's 700 keeps the bold slot, being nearer 700 than
 // its 900).
 //
-// They are given to the engine as installed fonts (engine.FontFaces),
-// parsed once per process, rather than declared in every slide as @font-face
+// They are given to the engine as installed fonts (engine.FontFaces), each
+// fetched and parsed once per process the first time a slide draws it
+// (engine.LazyFontFace), rather than declared in every slide as @font-face
 // rules with data: URIs, which the engine had to read, decode and parse on
-// every slide.
-var bundledFaces = sync.OnceValues(func() ([]engine.LoadedFontFace, error) {
+// every slide. A deck in the default theme loads none of them.
+var bundledFaces = sync.OnceValues(newBundledFaces)
+
+func newBundledFaces() ([]engine.LoadedFontFace, error) {
 	var faces []engine.LoadedFontFace
-	for _, f := range []struct {
-		family string
-		weight int
-		italic bool
-		ttf    []byte
-	}{
-		{"Lato", 400, false, lato.TTF},
-		{"Lato", 700, false, lato.Bold},
-		{"Lato", 900, false, lato.Black},
-		{"Lato", 400, true, lato.Italic},
-		{"Lato", 700, true, lato.BoldItalic},
-		{"Lato", 900, true, lato.BlackItalic},
-		{"Roboto Mono", 400, false, robotomono.TTF},
-		{"Roboto Mono", 700, false, robotomono.Bold},
-		{"Roboto Mono", 400, true, robotomono.Italic},
-		{"Roboto Mono", 700, true, robotomono.BoldItalic},
-	} {
-		face, err := engine.ParseFontFace(f.family, f.weight, f.italic, f.ttf)
-		if err != nil {
-			return nil, fmt.Errorf("export: bundled font %s %d: %w", f.family, f.weight, err)
-		}
-		faces = append(faces, face)
+	for _, f := range themeFaces {
+		name := f.file
+		faces = append(faces, engine.LazyFontFace(f.family, f.weight, f.italic, func() ([]byte, error) { return themeFont(name) }))
 	}
 	return faces, nil
-})
+}
 
 // PNG encodes an image as PNG.
 func PNG(w io.Writer, img image.Image) error { return png.Encode(w, img) }
