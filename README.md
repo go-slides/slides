@@ -442,7 +442,13 @@ against 1.8 s, in a ninth of the memory; the PDF is 758 KiB against marp-cli's
 
 Lato (Regular, Bold, Black) and Roboto Mono (Regular, Bold) are embedded
 upright and italic, so gaia's headings, code and emphasis render with their
-own faces.
+own faces. Each face is parsed the first time a slide draws it, so a deck in
+the default theme loads none of them. Built with the `slides_fontsext` tag,
+the exports embed none of these fonts. The host then serves `export.FontNames()`
+(the bytes are `export.FontData` in a normal build) and passes them in with
+`export.SetFontSource`. go-slides' playground does this, together with
+go-webengine's `webengine_fontsext`: its browser worker fetches only the faces
+a deck draws.
 
 ## Math and code
 
