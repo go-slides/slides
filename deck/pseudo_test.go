@@ -43,11 +43,11 @@ func TestDataURIBackgroundKeepsItsSemicolon(t *testing.T) {
 func TestPseudoAfterUsesTheThemeExpression(t *testing.T) {
 	d := parseDeck(t, "---\npaginate: true\n---\na\n\n---\n\nb\n", Options{})
 	rs := d.Render(RenderOptions{Frame: FrameBox, GeneratedContent: true, AfterContent: `attr(data-marpit-pagination) "/" attr(data-marpit-pagination-total)`})
-	if want := `<span data-slides-pseudo="after">2/2</span>`; !strings.Contains(rs[1].HTML, want) {
+	if want := `<span data-slides-pseudo="after" aria-hidden="true">2/2</span>`; !strings.Contains(rs[1].HTML, want) {
 		t.Errorf("missing %s in %s", want, rs[1].HTML)
 	}
 	rs = d.Render(RenderOptions{Frame: FrameBox, GeneratedContent: true})
-	if want := `<span data-slides-pseudo="after">1</span>`; !strings.Contains(rs[0].HTML, want) {
+	if want := `<span data-slides-pseudo="after" aria-hidden="true">1</span>`; !strings.Contains(rs[0].HTML, want) {
 		t.Errorf("without an expression the page number shows: %s", rs[0].HTML)
 	}
 }

@@ -45,7 +45,7 @@ func TestBoxFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := b.Slides[0].HTML
-	for _, want := range []string{`class="marpit-svg"`, `class="marpit-fo"`, `width:60%`, `<span data-slides-pseudo="after">1</span>`} {
+	for _, want := range []string{`class="marpit-svg"`, `class="marpit-fo"`, `width:60%`, `<span data-slides-pseudo="after" aria-hidden="true">1</span>`} {
 		if !strings.Contains(h, want) {
 			t.Errorf("missing %q in %s", want, h)
 		}

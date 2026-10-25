@@ -2,6 +2,7 @@ package slides
 
 import (
 	"fmt"
+	"html"
 	"strings"
 	"sync"
 
@@ -44,7 +45,11 @@ func Math(tex string, display bool) (string, error) {
 	// The size goes in the SVG's style: CSS sizes an SVG in any length,
 	// and its viewBox scales the drawing to it.
 	style := `width:` + em(m.Width) + `;height:` + em(m.Height+m.Depth) + `;vertical-align:-` + em(m.Depth)
-	inner := sized(svg, `class="slides-math" style="`+style+`"`)
+	// A formula says what it is: role="math" and its TeX source as its
+	// name, which a screen reader reads, and a tagged PDF makes the
+	// Formula's /Alt (go-webengine's pdfcanvas).
+	label := html.EscapeString(strings.TrimSpace(tex))
+	inner := sized(svg, `class="slides-math" style="`+style+`" role="math" aria-label="`+label+`"`)
 	if display {
 		return `<span class="slides-math-display" style="display:block;text-align:center">` + inner + `</span>`, nil
 	}

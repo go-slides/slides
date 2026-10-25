@@ -231,7 +231,9 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.BoolVar(&o.noPDFOutlines, "no-pdf-outlines", false, "same as --pdf-outlines=false, marp-cli's spelling")
 	f.BoolVar(&o.noOutlinePages, "no-pdf-outlines.pages", false, "same as --pdf-outlines.pages=false")
 	f.BoolVar(&o.noOutlineHeadings, "no-pdf-outlines.headings", false, "same as --pdf-outlines.headings=false")
-	for _, n := range []string{"no-pdf-outlines", "no-pdf-outlines.pages", "no-pdf-outlines.headings"} {
+	f.BoolVar(&o.pdfTags, "pdf-tags", true, "write a tagged PDF, which screen readers read: headings, paragraphs, lists, tables, links, images and formulas with their text, in reading order (PDF/UA-1); --pdf-tags=false turns it off")
+	f.BoolVar(&o.noPDFTags, "no-pdf-tags", false, "same as --pdf-tags=false")
+	for _, n := range []string{"no-pdf-outlines", "no-pdf-outlines.pages", "no-pdf-outlines.headings", "no-pdf-tags"} {
 		_ = f.MarkHidden(n)
 	}
 	f.BoolVarP(&o.watch, "watch", "w", false, "build again when a deck, a theme, a kinds or data file or the configuration changes, and tell the open pages to reload")
