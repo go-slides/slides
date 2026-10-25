@@ -26,7 +26,7 @@ kinds:
 
 <!-- _kind: title -->
 
-![bg left:38%](media/hills.svg)
+![bg right:38%](media/hills.svg)
 
 # Decks are code
 

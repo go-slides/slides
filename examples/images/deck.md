@@ -31,15 +31,15 @@ Everything on these slides is an SVG in `media/`.
 
 ---
 
-![bg left:40%](media/grid.svg)
+![bg right:40%](media/grid.svg)
 
 ## A split background
 
 ```markdown
-![bg left:40%](media/grid.svg)
+![bg right:40%](media/grid.svg)
 ```
 
-The image takes the left 40% and the text flows into the rest.
+The image takes the right 40% (`left` takes the left) and the text flows into the rest.
 
 ---
 
