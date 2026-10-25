@@ -158,19 +158,21 @@ func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, conve
 		}
 		e.FontFaces = faces
 	}
-	// Only slides with a fitting heading run a script (deck.FitScript): the
-	// others render without JavaScript, deterministic and faster. The engine
-	// that runs it is made before the workers start, since they share it.
-	var scripted *engine.Engine
+	// Only slides with a fitting heading are fitted (fitHeadings, deck.FitScript
+	// in Go, through engine.Adjust): the others are laid out once. No slide
+	// runs JavaScript. The engine that fits is made before the workers start,
+	// since they share it.
+	var fitting *engine.Engine
 	if slices.ContainsFunc(b.Slides, func(s deck.Rendered) bool { return fits(s.HTML) }) {
-		scripted = engine.New()
-		scripted.FileRoot, scripted.DeviceScale, scripted.FontFaces = e.FileRoot, e.DeviceScale, e.FontFaces
+		fitting = engine.New()
+		fitting.DisableJS = true
+		fitting.FileRoot, fitting.DeviceScale, fitting.FontFaces = e.FileRoot, e.DeviceScale, e.FontFaces
+		fitting.Adjust = fitHeadings
 	}
 	render := func(ctx context.Context, i int) (T, error) {
 		eng, html := e, page(b.Packed.CSS, b.Slides[i].HTML)
 		if fits(b.Slides[i].HTML) {
-			eng = scripted
-			html = strings.Replace(html, "</body>", "<script>"+deck.FitScript+"</script></body>", 1)
+			eng = fitting
 		}
 		l, err := eng.LayoutHTML(ctx, html, opts.BaseURL, view)
 		if err != nil {
