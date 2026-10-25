@@ -1,0 +1,13 @@
+# Kinds for a house style. A kind is a named preset of local directives; a
+# slide says what it is, and the kind says how it looks.
+chapter:
+  extends: section        # starts from the built-in section kind
+  class: invert
+  footer: ""
+callout:
+  extends: content
+  backgroundColor: "#fff7e0"
+  header: "Remember"
+quote:
+  extends: blank
+  class: lead

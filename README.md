@@ -583,6 +583,18 @@ contributors, licensed [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 continued by the [jdecked/twemoji](https://github.com/jdecked/twemoji) project.
 Decks that show them should credit them.
 
+## Examples
+
+[`examples/`](examples) holds twelve small decks, each showing one thing well:
+the three themes, kinds (with a kinds file), Go templates, an HCL front matter,
+math, images and backgrounds, code with line numbers and callouts, emoji and
+fitting headings, transitions and speaker notes, and a complete short talk.
+CI builds each of them to HTML and PDF. The documentation has a
+[gallery](https://go-slides.github.io/docs/latest/gallery/) of them with an
+"Open in the playground" link, and the
+[playground](https://go-slides.github.io/playground/) offers the single-file
+ones in its Example menu.
+
 ## Packages
 
 | | |
