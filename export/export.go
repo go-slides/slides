@@ -50,6 +50,11 @@ type Options struct {
 	// DefaultWorkers(). It also bounds memory, since Each holds at most
 	// this many slide images at a time.
 	Workers int
+	// Fetcher, when set, fetches the slides' http(s) URLs (images,
+	// backgrounds, style sheets, fonts) instead of go-webengine's HTTP
+	// client (engine.Engine.Fetcher): a host whose platform fetches for it,
+	// such as a browser's fetch in a WebAssembly build without network.
+	Fetcher func(ctx context.Context, url string) (body []byte, contentType string, err error)
 }
 
 // DefaultWorkers is how many slides Each renders at once by default: the
@@ -140,6 +145,7 @@ func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, conve
 	e := engine.New()
 	e.DisableJS = true
 	e.FileRoot = opts.FileRoot
+	e.Fetcher = opts.Fetcher
 	scale := opts.Scale
 	if scale <= 0 {
 		scale = 1
@@ -165,7 +171,7 @@ func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, conve
 	if slices.ContainsFunc(b.Slides, func(s deck.Rendered) bool { return fits(s.HTML) }) {
 		fitting = engine.New()
 		fitting.DisableJS = true
-		fitting.FileRoot, fitting.DeviceScale, fitting.FontFaces = e.FileRoot, e.DeviceScale, e.FontFaces
+		fitting.FileRoot, fitting.DeviceScale, fitting.FontFaces, fitting.Fetcher = e.FileRoot, e.DeviceScale, e.FontFaces, e.Fetcher
 		fitting.Adjust = fitHeadings
 	}
 	render := func(ctx context.Context, i int) (T, error) {
