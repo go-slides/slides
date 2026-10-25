@@ -82,10 +82,11 @@ func structureOf(t *testing.T, b []byte) []string {
 
 func taggedPDF(t *testing.T, opts PDFOptions) []byte {
 	t.Helper()
-	b, err := slides.Render([]byte(taggedDeck), slides.Config{}, deck.FrameBox)
+	built, err := slides.Render([]byte(taggedDeck), slides.Config{}, deck.FrameBox)
 	if err != nil {
 		t.Fatal(err)
 	}
+	b := built.Doc()
 	p := NewPDFWith(b, opts)
 	if err := EachLayout(context.Background(), b, Options{}, func(_ int, l *engine.PageLayout) error { return p.AddLayout(l) }); err != nil {
 		t.Fatal(err)

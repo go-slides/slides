@@ -135,10 +135,11 @@ func insideRepo(dir string) error {
 
 func check(out, name string, src []byte, tol int) error {
 	ctx := context.Background()
-	b, err := slides.Render(src, slides.Config{}, deck.FrameBox)
+	built, err := slides.Render(src, slides.Config{}, deck.FrameBox)
 	if err != nil {
 		return err
 	}
+	b := built.Doc()
 	opts := export.Options{}
 
 	t0 := time.Now()

@@ -159,10 +159,11 @@ type adder interface {
 
 func check(w io.Writer, out, soffice, name string, src []byte, format string, tol int) error {
 	ctx := context.Background()
-	b, err := slides.Render(src, slides.Config{}, deck.FrameBox)
+	built, err := slides.Render(src, slides.Config{}, deck.FrameBox)
 	if err != nil {
 		return err
 	}
+	b := built.Doc()
 	opts := export.Options{}
 	imgs, err := export.Rasterize(ctx, b, opts)
 	if err != nil {

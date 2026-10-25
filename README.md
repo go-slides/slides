@@ -635,11 +635,18 @@ ones in its Example menu.
 | [`interp`](interp) | the template stage |
 | [`theme`](theme) | Marp themes and the Marpit theme pipeline |
 | [`viewer`](viewer) | the HTML page |
-| [`export`](export) | images and PDF, through go-webengine and go-pdfkit |
-| [`slides`](slides.go) | wires them together |
+| [`export`](export) | images, PDF, PPTX and ODP, through go-webengine, go-pdfkit, go-ooxml and go-odf, from a `doc.Doc` |
+| [`doc`](doc) | a built deck as the exports need it: each slide's HTML, the theme's style sheet and size, headings, notes, metadata; plain data, JSON-ready (in v0.13.0) |
+| [`slides`](slides.go) | wires them together; `Build.Doc` makes the `doc.Doc` |
 | [`project`](project) | the configuration a deck is built with: built-ins, `slides.hcl`/`slides.yaml`, then the flags (in v0.6.0) |
 | [`vfs`](vfs) | the files a build reads: the disk, or a map an editor hands over, which reports what it lacked (in v0.6.0) |
 | [`editor`](editor) | for editors, as data: the preview, problems positioned on lines, completion and hover (in v0.6.0) |
+
+Since v0.13.0 the exports take a `*doc.Doc` (`b.Doc()` of a `*slides.Build`),
+and `export` imports none of the renderer (goldmark, rouge, hcl, the
+templates, the themes). A host can render a deck in one place and export it
+in another. go-slides' playground renders in its preview worker and exports
+in a worker that carries only the layout engine and the writers.
 
 The [VS Code extension](https://github.com/go-slides/vscode) runs `editor`
 compiled to WebAssembly: decks preview in VS Code's Markdown preview, on

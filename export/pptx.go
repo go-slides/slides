@@ -11,7 +11,7 @@ import (
 	"github.com/go-webengine/engine"
 	"github.com/go-webengine/engine/officecanvas"
 
-	"github.com/go-slides/slides"
+	"github.com/go-slides/slides/doc"
 )
 
 // emuPerPixel converts a CSS pixel to EMU: 914400 EMU per inch, 96 px per
@@ -22,7 +22,7 @@ const emuPerPixel = 9525
 // picture, at the slide's size, with the slide's speaker notes, as marp-cli's
 // --pptx does. The pictures are PNG; render them at Scale 2 for a sharp deck
 // (marp-cli's default for PPTX).
-func PPTX(w io.Writer, b *slides.Build, images []*image.RGBA) error {
+func PPTX(w io.Writer, b *doc.Doc, images []*image.RGBA) error {
 	p := NewPPTX(b)
 	for _, img := range images {
 		var buf bytes.Buffer
@@ -38,7 +38,7 @@ func PPTX(w io.Writer, b *slides.Build, images []*image.RGBA) error {
 // slide's PNG (EachEncoded gives them), so that the deck is never held as
 // images.
 type PPTXWriter struct {
-	b     *slides.Build
+	b     *doc.Doc
 	p     ooxml.Presentation
 	pics  pictures
 	faces map[*opentype.Font]*officecanvas.Face
@@ -66,7 +66,7 @@ func (w *PPTXWriter) AddLayout(l *engine.PageLayout) error {
 		sl.Background = &ooxml.Fill{Kind: ooxml.FillSolid, Color: ooxml.RGBA{R: 255, G: 255, B: 255, A: 255}}
 	}
 	if i < len(w.b.Slides) {
-		s := w.b.Slides[i].Slide
+		s := w.b.Slides[i]
 		if len(s.Headings) > 0 {
 			sl.Name = s.Headings[0].Text
 		}
@@ -77,15 +77,14 @@ func (w *PPTXWriter) AddLayout(l *engine.PageLayout) error {
 }
 
 // NewPPTX starts the PowerPoint deck of b.
-func NewPPTX(b *slides.Build) *PPTXWriter {
-	g := b.Deck.Global
+func NewPPTX(b *doc.Doc) *PPTXWriter {
 	return &PPTXWriter{b: b, p: ooxml.Presentation{
-		Width:    int64(b.Packed.Width) * emuPerPixel,
-		Height:   int64(b.Packed.Height) * emuPerPixel,
-		Title:    g.Get("title"),
-		Author:   g.Get("author"),
-		Subject:  g.Get("description"),
-		Keywords: g.Get("keywords"),
+		Width:    int64(b.Width) * emuPerPixel,
+		Height:   int64(b.Height) * emuPerPixel,
+		Title:    b.TitleDirective,
+		Author:   b.Author,
+		Subject:  b.Description,
+		Keywords: b.KeywordsDirective,
 	}}
 }
 
@@ -94,7 +93,7 @@ func (w *PPTXWriter) Add(png []byte) {
 	i := len(w.p.Slides)
 	sl := ooxml.PresentationSlide{Image: png, ImageType: "png"}
 	if i < len(w.b.Slides) {
-		s := w.b.Slides[i].Slide
+		s := w.b.Slides[i]
 		if len(s.Headings) > 0 {
 			sl.Name = s.Headings[0].Text
 		}
