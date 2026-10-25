@@ -41,10 +41,11 @@ for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !f.endsWi
   fs.writeFileSync(path.join(dir, 'theme-case.packed.css'), css + '\n')
 }
 
-// Inline SVG mode, for the advanced backgrounds.
-{
+// Inline SVG mode, for the advanced backgrounds: images.md, and split.md, the
+// split backgrounds (left and right, with and without a size).
+for (const name of ['images', 'split']) {
   const marp = new Marp({ container: false, math: false, emoji: { shortcode: false, unicode: false }, script: false })
   marp.highlighter = () => ''
-  const { html } = marp.render(fs.readFileSync(path.join(dir, 'images.md'), 'utf8'))
-  fs.writeFileSync(path.join(dir, 'images.svg.html'), `<!-- marp-core ${pkg.version} -->\n` + html)
+  const { html } = marp.render(fs.readFileSync(path.join(dir, name + '.md'), 'utf8'))
+  fs.writeFileSync(path.join(dir, name + '.svg.html'), `<!-- marp-core ${pkg.version} -->\n` + html)
 }

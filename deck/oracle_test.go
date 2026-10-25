@@ -148,35 +148,42 @@ func normalizeHTML(s string) string {
 }
 
 // TestOracleSVG compares Marp Core's inline SVG mode, where backgrounds
-// become layers, on testdata/oracle/images.md.
+// become layers, on testdata/oracle/images.md and split.md (the split
+// backgrounds: left and right, with and without a size, one image or several:
+// go-slides#53 drew the right ones on the left, and the markup was never at
+// fault, which this test shows).
 func TestOracleSVG(t *testing.T) {
-	src, err := os.ReadFile("../testdata/oracle/images.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want, err := os.ReadFile("../testdata/oracle/images.svg.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	d, err := Parse(src, Options{NoTemplate: true, NoEmoji: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got strings.Builder
-	for _, r := range d.Render(RenderOptions{}) {
-		got.WriteString(r.HTML)
-	}
-	g, w := strings.Split(normalizeHTML(got.String()), "\n"), strings.Split(normalizeHTML(string(want)), "\n")
-	for i := range max(len(g), len(w)) {
-		var a, b string
-		if i < len(g) {
-			a = g[i]
-		}
-		if i < len(w) {
-			b = w[i]
-		}
-		if a != b {
-			t.Fatalf("first difference at token %d:\n got: %s\nwant: %s", i, a, b)
-		}
+	for _, name := range []string{"images", "split"} {
+		t.Run(name, func(t *testing.T) {
+			src, err := os.ReadFile("../testdata/oracle/" + name + ".md")
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.ReadFile("../testdata/oracle/" + name + ".svg.html")
+			if err != nil {
+				t.Fatal(err)
+			}
+			d, err := Parse(src, Options{NoTemplate: true, NoEmoji: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got strings.Builder
+			for _, r := range d.Render(RenderOptions{}) {
+				got.WriteString(r.HTML)
+			}
+			g, w := strings.Split(normalizeHTML(got.String()), "\n"), strings.Split(normalizeHTML(string(want)), "\n")
+			for i := range max(len(g), len(w)) {
+				var a, b string
+				if i < len(g) {
+					a = g[i]
+				}
+				if i < len(w) {
+					b = w[i]
+				}
+				if a != b {
+					t.Fatalf("first difference at token %d:\n got: %s\nwant: %s", i, a, b)
+				}
+			}
+		})
 	}
 }
