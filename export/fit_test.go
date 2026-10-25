@@ -58,7 +58,7 @@ func TestFitHeadingsMatchFitScript(t *testing.T) {
 	plain := engine.New()
 	plain.DisableJS = true
 	plain.FontFaces = faces
-	view := image.Rect(0, 0, int(b.Packed.Width), int(b.Packed.Height))
+	view := image.Rect(0, 0, int(b.Width), int(b.Height))
 	paint := func(e *engine.Engine, html string) []byte {
 		l, err := e.LayoutHTML(context.Background(), html, "", view)
 		if err != nil {
@@ -68,7 +68,7 @@ func TestFitHeadingsMatchFitScript(t *testing.T) {
 	}
 	fitted := 0
 	for i, s := range b.Slides {
-		html := page(b.Packed.CSS, s.HTML)
+		html := page(b.CSS, s.HTML)
 		if !fits(s.HTML) {
 			continue
 		}

@@ -155,19 +155,20 @@ func (o *options) exportOptions(path, format string) (export.Options, error) {
 // with, and what a build writes.
 func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.Options, path, format string) ([]byte, error) {
 	kind, imgFormat, _ := strings.Cut(format, ":")
+	d := b.Doc()
 	var buf bytes.Buffer
 	switch kind {
 	case "pdf":
-		pdf := export.NewPDFWith(b, o.pdfOptions())
+		pdf := export.NewPDFWith(d, o.pdfOptions())
 		var err error
 		if o.pdfRaster {
 			// The escape hatch: every page one image, as before vectors.
-			err = export.Each(ctx, b, opts, func(_ int, img *image.RGBA) error {
+			err = export.Each(ctx, d, opts, func(_ int, img *image.RGBA) error {
 				pdf.Add(img)
 				return nil
 			})
 		} else {
-			err = export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+			err = export.EachLayout(ctx, d, opts, func(_ int, l *engine.PageLayout) error {
 				return pdf.AddLayout(l)
 			})
 		}
@@ -178,16 +179,16 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 			return nil, err
 		}
 	case "pptx":
-		pptx := export.NewPPTX(b)
+		pptx := export.NewPPTX(d)
 		var err error
 		if o.pptxRaster {
 			// One picture a slide, PNG-encoded by the worker that rendered it.
-			err = export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
+			err = export.EachEncoded(ctx, d, opts, "png", func(_ int, png []byte) error {
 				pptx.Add(png)
 				return nil
 			})
 		} else {
-			err = export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+			err = export.EachLayout(ctx, d, opts, func(_ int, l *engine.PageLayout) error {
 				return pptx.AddLayout(l)
 			})
 		}
@@ -198,15 +199,15 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 			return nil, err
 		}
 	case "odp":
-		odp := export.NewODP(b)
+		odp := export.NewODP(d)
 		var err error
 		if o.odpRaster {
-			err = export.EachEncoded(ctx, b, opts, "png", func(_ int, png []byte) error {
+			err = export.EachEncoded(ctx, d, opts, "png", func(_ int, png []byte) error {
 				odp.Add(png)
 				return nil
 			})
 		} else {
-			err = export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
+			err = export.EachLayout(ctx, d, opts, func(_ int, l *engine.PageLayout) error {
 				return odp.AddLayout(l)
 			})
 		}
@@ -217,12 +218,12 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 			return nil, err
 		}
 	case "image":
-		if len(b.Slides) == 0 {
+		if len(d.Slides) == 0 {
 			return nil, fmt.Errorf("%s: the deck has no slide", path)
 		}
 		// Only the first slide is written, so only it is rendered.
-		first := *b
-		first.Slides = b.Slides[:1]
+		first := *d
+		first.Slides = d.Slides[:1]
 		if err := export.Each(ctx, &first, opts, func(_ int, img *image.RGBA) error {
 			return encode(&buf, img, imgFormat, opts)
 		}); err != nil {
@@ -269,7 +270,7 @@ func exportDeck(e env, o *options, src []byte, path string, cfg slides.Config, f
 		return err
 	}
 	// Each image is encoded by the worker that rendered it.
-	if err := export.EachEncoded(e.ctx, b, opts, imgFormat, func(i int, data []byte) error {
+	if err := export.EachEncoded(e.ctx, b.Doc(), opts, imgFormat, func(i int, data []byte) error {
 		name := fmt.Sprintf("%s.%03d.%s", prefix, i+1, ext(imgFormat))
 		return os.WriteFile(name, data, 0o644)
 	}); err != nil {

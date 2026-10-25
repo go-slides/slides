@@ -22,15 +22,17 @@ import (
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/doc"
 )
 
-func build(t *testing.T, src string) *slides.Build {
+// build renders a deck in the box frame, as the exports take it.
+func build(t *testing.T, src string) *doc.Doc {
 	t.Helper()
 	b, err := slides.Render([]byte(src), slides.Config{}, deck.FrameBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return b
+	return b.Doc()
 }
 
 func near(c color.RGBA, r, g, b uint8) bool {
@@ -284,7 +286,7 @@ func objOf(t *testing.T, v pdf.Value) []byte {
 // by the image exports.
 func TestVectorPDFNoSize(t *testing.T) {
 	b := build(t, "x")
-	b.Packed.Width = 0
+	b.Width = 0
 	if err := VectorPDF(context.Background(), io.Discard, b, Options{}); err == nil {
 		t.Error("a slide without a size cannot be drawn")
 	}
@@ -375,7 +377,7 @@ func TestBundledFonts(t *testing.T) {
 
 func TestNoSize(t *testing.T) {
 	b := build(t, "x")
-	b.Packed.Width = 0
+	b.Width = 0
 	if _, err := Rasterize(context.Background(), b, Options{}); err == nil {
 		t.Error("a slide without a size cannot be rendered")
 	}

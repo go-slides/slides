@@ -39,7 +39,7 @@ func TestRasterizeEmoji(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	imgs, err = Rasterize(context.Background(), c, Options{})
+	imgs, err = Rasterize(context.Background(), c.Doc(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

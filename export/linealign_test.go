@@ -67,7 +67,7 @@ func TestLineNumbersOnTheCodeBaselines(t *testing.T) {
 				t.Fatal(err)
 			}
 			var rec runRecorder
-			if err := EachLayout(context.Background(), b, Options{}, func(_ int, l *engine.PageLayout) error {
+			if err := EachLayout(context.Background(), b.Doc(), Options{}, func(_ int, l *engine.PageLayout) error {
 				l.PaintVector(&rec)
 				return nil
 			}); err != nil {

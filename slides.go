@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/doc"
 	"github.com/go-slides/slides/theme"
 	"github.com/go-slides/slides/viewer"
 )
@@ -216,6 +217,31 @@ func HTML(src []byte, cfg Config) (string, *Build, error) {
 		WatchWS: cfg.WatchWS,
 	})
 	return page, b, nil
+}
+
+// Doc is the build as the exports need it (package doc): what a host hands
+// to an export made elsewhere, such as a browser worker that carries no
+// renderer.
+func (b *Build) Doc() *doc.Doc {
+	g := b.Deck.Global
+	d := &doc.Doc{
+		CSS: b.Packed.CSS, Width: b.Packed.Width, Height: b.Packed.Height,
+		Title: Title(b.Deck), Author: g.Get("author"), Description: g.Get("description"),
+		Lang: g.Get("lang"), Keywords: deck.KeywordList(g.Get("keywords")),
+		TitleDirective: g.Get("title"), KeywordsDirective: g.Get("keywords"),
+		Slides: make([]doc.Slide, len(b.Slides)),
+	}
+	for i, r := range b.Slides {
+		s := doc.Slide{HTML: r.HTML}
+		if r.Slide != nil {
+			for _, h := range r.Slide.Headings {
+				s.Headings = append(s.Headings, doc.Heading{Level: h.Level, Text: h.Text})
+			}
+			s.Notes = r.Slide.Notes
+		}
+		d.Slides[i] = s
+	}
+	return d
 }
 
 // Title is the deck's title: the title directive, else the first heading of

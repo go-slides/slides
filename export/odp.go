@@ -11,13 +11,13 @@ import (
 	"github.com/go-webengine/engine"
 	"github.com/go-webengine/engine/officecanvas"
 
-	"github.com/go-slides/slides"
+	"github.com/go-slides/slides/doc"
 )
 
 // ODP writes an OpenDocument presentation through go-odf: each slide is a
 // full-slide picture at the slide's size, with the slide's speaker notes, as
 // PPTX does. Render at Scale 2 for a sharp deck.
-func ODP(w io.Writer, b *slides.Build, images []*image.RGBA) error {
+func ODP(w io.Writer, b *doc.Doc, images []*image.RGBA) error {
 	p := NewODP(b)
 	for _, img := range images {
 		var buf bytes.Buffer
@@ -33,7 +33,7 @@ func ODP(w io.Writer, b *slides.Build, images []*image.RGBA) error {
 // slide's PNG (EachEncoded gives them), so that the deck is never held as
 // images.
 type ODPWriter struct {
-	b     *slides.Build
+	b     *doc.Doc
 	p     odf.Presentation
 	pics  pictures
 	faces map[*opentype.Font]*officecanvas.Face
@@ -57,7 +57,7 @@ func (w *ODPWriter) AddLayout(l *engine.PageLayout) error {
 		sl.Background = &odf.RGBA{R: 255, G: 255, B: 255, A: 255}
 	}
 	if i < len(w.b.Slides) {
-		s := w.b.Slides[i].Slide
+		s := w.b.Slides[i]
 		if len(s.Headings) > 0 {
 			sl.Name = s.Headings[0].Text
 		}
@@ -69,15 +69,14 @@ func (w *ODPWriter) AddLayout(l *engine.PageLayout) error {
 
 // NewODP starts the OpenDocument deck of b. go-odf takes the size in CSS
 // pixels.
-func NewODP(b *slides.Build) *ODPWriter {
-	g := b.Deck.Global
+func NewODP(b *doc.Doc) *ODPWriter {
 	return &ODPWriter{b: b, p: odf.Presentation{
-		Width:    int(b.Packed.Width),
-		Height:   int(b.Packed.Height),
-		Title:    g.Get("title"),
-		Author:   g.Get("author"),
-		Subject:  g.Get("description"),
-		Keywords: g.Get("keywords"),
+		Width:    int(b.Width),
+		Height:   int(b.Height),
+		Title:    b.TitleDirective,
+		Author:   b.Author,
+		Subject:  b.Description,
+		Keywords: b.KeywordsDirective,
 	}}
 }
 
@@ -86,7 +85,7 @@ func (w *ODPWriter) Add(png []byte) {
 	i := len(w.p.Slides)
 	sl := odf.PresentationSlide{Image: png, ImageType: "png"}
 	if i < len(w.b.Slides) {
-		s := w.b.Slides[i].Slide
+		s := w.b.Slides[i]
 		if len(s.Headings) > 0 {
 			sl.Name = s.Headings[0].Text
 		}

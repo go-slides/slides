@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/doc"
 	"github.com/go-slides/slides/internal/benchdeck"
 )
 
@@ -18,13 +19,13 @@ import (
 // with marp-cli (every slide kind twice), to keep an iteration short; the
 // time per slide is the figure to compare. See BENCHMARKS.md.
 
-func benchBuild(b *testing.B, src []byte) *slides.Build {
+func benchBuild(b *testing.B, src []byte) *doc.Doc {
 	b.Helper()
 	bd, err := slides.Render(src, slides.Config{}, deck.FrameBox)
 	if err != nil {
 		b.Fatal(err)
 	}
-	return bd
+	return bd.Doc()
 }
 
 func BenchmarkRasterize(b *testing.B) {

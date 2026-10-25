@@ -3,7 +3,10 @@
 // the PDF. Marp CLI drives a headless Chrome for the same outputs.
 //
 // The slides are rendered in the box frame (deck.FrameBox), which needs
-// neither <foreignObject> nor generated content from the layout engine.
+// neither <foreignObject> nor generated content from the layout engine. The
+// writers take the deck as a *doc.Doc (slides.Build.Doc), so that this
+// package carries no renderer: a host may build the deck in one place and
+// export it in another.
 package export
 
 import (
@@ -25,8 +28,7 @@ import (
 	"github.com/go-webengine/engine/paint"
 	"github.com/go-webengine/engine/pdfcanvas"
 
-	"github.com/go-slides/slides"
-	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/doc"
 )
 
 // Options configures the export.
@@ -68,7 +70,7 @@ func DefaultWorkers() int { return min(runtime.GOMAXPROCS(0), 4) }
 // Rasterize renders every slide of b, which must have been rendered in
 // deck.FrameBox, to an image of the slide's size times opts.Scale. It holds
 // every image at once; Each hands them over one at a time.
-func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGBA, error) {
+func Rasterize(ctx context.Context, b *doc.Doc, opts Options) ([]*image.RGBA, error) {
 	out := make([]*image.RGBA, len(b.Slides))
 	err := Each(ctx, b, opts, func(i int, img *image.RGBA) error {
 		out[i] = img
@@ -87,14 +89,14 @@ func Rasterize(ctx context.Context, b *slides.Build, opts Options) ([]*image.RGB
 // of the one that many places before it has been emitted. emit may keep
 // the image. An error from a slide or from emit stops the render and is
 // returned.
-func Each(ctx context.Context, b *slides.Build, opts Options, emit func(i int, img *image.RGBA) error) error {
+func Each(ctx context.Context, b *doc.Doc, opts Options, emit func(i int, img *image.RGBA) error) error {
 	return each(ctx, b, opts, func(img *image.RGBA) (*image.RGBA, error) { return img, nil }, emit)
 }
 
 // EachEncoded is Each with every image encoded, as "png" or "jpeg", by the
 // worker that rendered it, so that encoding runs in parallel too and only
 // the encoded bytes wait for their turn.
-func EachEncoded(ctx context.Context, b *slides.Build, opts Options, format string, emit func(i int, data []byte) error) error {
+func EachEncoded(ctx context.Context, b *doc.Doc, opts Options, format string, emit func(i int, data []byte) error) error {
 	var enc func(io.Writer, image.Image) error
 	switch format {
 	case "png":
@@ -111,12 +113,12 @@ func EachEncoded(ctx context.Context, b *slides.Build, opts Options, format stri
 	}, emit)
 }
 
-func each[T any](ctx context.Context, b *slides.Build, opts Options, convert func(*image.RGBA) (T, error), emit func(int, T) error) error {
+func each[T any](ctx context.Context, b *doc.Doc, opts Options, convert func(*image.RGBA) (T, error), emit func(int, T) error) error {
 	scale := opts.Scale
 	if scale <= 0 {
 		scale = 1
 	}
-	w, h := int(b.Packed.Width), int(b.Packed.Height)
+	w, h := int(b.Width), int(b.Height)
 	// The viewport is in CSS pixels; the image comes back in device pixels.
 	device := image.Rect(0, 0, int(float64(w)*scale+0.5), int(float64(h)*scale+0.5))
 	return eachLayout(ctx, b, opts, func(l *engine.PageLayout) (T, error) {
@@ -137,11 +139,11 @@ func each[T any](ctx context.Context, b *slides.Build, opts Options, convert fun
 // paints it — as vectors, for a PDF (see PDFWriter.AddLayout). Up to
 // opts.Workers slides are laid out concurrently, and no more layouts than
 // that exist at once.
-func EachLayout(ctx context.Context, b *slides.Build, opts Options, emit func(i int, l *engine.PageLayout) error) error {
+func EachLayout(ctx context.Context, b *doc.Doc, opts Options, emit func(i int, l *engine.PageLayout) error) error {
 	return eachLayout(ctx, b, opts, func(l *engine.PageLayout) (*engine.PageLayout, error) { return l, nil }, emit)
 }
 
-func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, convert func(*engine.PageLayout) (T, error), emit func(int, T) error) error {
+func eachLayout[T any](ctx context.Context, b *doc.Doc, opts Options, convert func(*engine.PageLayout) (T, error), emit func(int, T) error) error {
 	e := engine.New()
 	e.DisableJS = true
 	e.FileRoot = opts.FileRoot
@@ -151,7 +153,7 @@ func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, conve
 		scale = 1
 	}
 	e.DeviceScale = scale
-	w, h := int(b.Packed.Width), int(b.Packed.Height)
+	w, h := int(b.Width), int(b.Height)
 	if w <= 0 || h <= 0 {
 		return fmt.Errorf("export: the theme gives the slides no size")
 	}
@@ -168,14 +170,14 @@ func eachLayout[T any](ctx context.Context, b *slides.Build, opts Options, conve
 	// runs JavaScript. The engine that fits is made before the workers start,
 	// since they share it.
 	var fitting *engine.Engine
-	if slices.ContainsFunc(b.Slides, func(s deck.Rendered) bool { return fits(s.HTML) }) {
+	if slices.ContainsFunc(b.Slides, func(s doc.Slide) bool { return fits(s.HTML) }) {
 		fitting = engine.New()
 		fitting.DisableJS = true
 		fitting.FileRoot, fitting.DeviceScale, fitting.FontFaces, fitting.Fetcher = e.FileRoot, e.DeviceScale, e.FontFaces, e.Fetcher
 		fitting.Adjust = fitHeadings
 	}
 	render := func(ctx context.Context, i int) (T, error) {
-		eng, html := e, page(b.Packed.CSS, b.Slides[i].HTML)
+		eng, html := e, page(b.CSS, b.Slides[i].HTML)
 		if fits(b.Slides[i].HTML) {
 			eng = fitting
 		}
@@ -305,7 +307,7 @@ func JPEG(w io.Writer, img image.Image, opts Options) error {
 // size, a CSS pixel being 3/4 of a point, as Chrome prints Marp's @page
 // size. The outline lists each slide and, under it, its headings (marp
 // --pdf-outlines).
-func PDF(w io.Writer, b *slides.Build, images []*image.RGBA) error {
+func PDF(w io.Writer, b *doc.Doc, images []*image.RGBA) error {
 	p := NewPDF(b)
 	for _, img := range images {
 		p.Add(img)
@@ -315,7 +317,7 @@ func PDF(w io.Writer, b *slides.Build, images []*image.RGBA) error {
 
 // VectorPDF writes one page per slide drawn as vectors (see
 // PDFWriter.AddLayout), laying the slides out as Each renders them.
-func VectorPDF(ctx context.Context, w io.Writer, b *slides.Build, opts Options) error {
+func VectorPDF(ctx context.Context, w io.Writer, b *doc.Doc, opts Options) error {
 	p := NewPDF(b)
 	if err := EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error {
 		return p.AddLayout(l)
@@ -330,7 +332,7 @@ func VectorPDF(ctx context.Context, w io.Writer, b *slides.Build, opts Options) 
 // a layout, as vectors (AddLayout) — and what it was drawn from can be
 // dropped.
 type PDFWriter struct {
-	b     *slides.Build
+	b     *doc.Doc
 	opts  PDFOptions
 	doc   *pdfkit.Document
 	size  pdfkit.PageSize
@@ -371,16 +373,15 @@ type PDFOptions struct {
 var DefaultPDFOptions = PDFOptions{OutlinePages: true, OutlineHeadings: true}
 
 // NewPDF starts the PDF of b, with DefaultPDFOptions.
-func NewPDF(b *slides.Build) *PDFWriter { return NewPDFWith(b, DefaultPDFOptions) }
+func NewPDF(b *doc.Doc) *PDFWriter { return NewPDFWith(b, DefaultPDFOptions) }
 
 // NewPDFWith starts the PDF of b.
-func NewPDFWith(b *slides.Build, opts PDFOptions) *PDFWriter {
-	g := b.Deck.Global
+func NewPDFWith(b *doc.Doc, opts PDFOptions) *PDFWriter {
 	po := pdfkit.Options{
-		Title:    slides.Title(b.Deck),
-		Author:   g.Get("author"),
-		Subject:  g.Get("description"),
-		Keywords: strings.Join(deck.KeywordList(g.Get("keywords")), "; "),
+		Title:    b.Title,
+		Author:   b.Author,
+		Subject:  b.Description,
+		Keywords: strings.Join(b.Keywords, "; "),
 		Producer: "go-slides",
 		// Content and font streams flated, the many small objects of a
 		// vector page (link annotations, font dictionaries, structure
@@ -391,13 +392,13 @@ func NewPDFWith(b *slides.Build, opts PDFOptions) *PDFWriter {
 	p := &PDFWriter{
 		b:     b,
 		opts:  opts,
-		size:  pdfkit.NewPageSize(b.Packed.Width*0.75, b.Packed.Height*0.75),
+		size:  pdfkit.NewPageSize(b.Width*0.75, b.Height*0.75),
 		fonts: pdfcanvas.NewFonts(),
 	}
 	if !opts.Untagged {
 		// What PDF/UA-1 asks of the file: the language, the title in the
 		// window's title bar, the identification in the metadata.
-		po.Lang = cmp.Or(g.Get("lang"), opts.Lang, "en")
+		po.Lang = cmp.Or(b.Lang, opts.Lang, "en")
 		po.DisplayDocTitle = true
 		po.PDFUA = true
 		if po.Title == "" {
@@ -483,7 +484,7 @@ func (p *PDFWriter) next() *pdfkit.Page {
 	p.n++
 	pg := p.doc.AddPage(p.size)
 	if i < len(p.b.Slides) {
-		s := p.b.Slides[i].Slide
+		s := p.b.Slides[i]
 		// As marp-cli's pdf-lib post-processing builds it: "Page N", bold,
 		// open, and the slide's headings nested by their level under it —
 		// or, without the pages, at the top. A heading jumps to its slide;
@@ -506,7 +507,7 @@ func (p *PDFWriter) next() *pdfkit.Page {
 			pg.AddTextAnnotation(pdfkit.TextAnnotation{
 				Rect:     pdfkit.Rect{X: 0, Y: 20, Width: 20},
 				Contents: strings.Join(s.Notes, "\n\n"),
-				Title:    p.b.Deck.Global.Get("author"),
+				Title:    p.b.Author,
 				Subject:  "Note",
 				Name:     "Note",
 				Color:    []float64{1, 0.92, 0.42},
