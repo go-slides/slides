@@ -28,10 +28,10 @@ The built-in kinds, and one of ours.
 
 | Kind      | What it is                                    |
 | --------- | --------------------------------------------- |
-| **title**   | a cover: no header, footer or page number   |
-| **section** | a chapter break                             |
-| **content** | the deck's defaults                         |
-| **blank**   | nothing around the content                  |
+| `title`   | a cover: no header, footer or page number   |
+| `section` | a chapter break                             |
+| `content` | the deck's defaults                         |
+| `blank`   | nothing around the content                  |
 
 ---
 
@@ -39,8 +39,8 @@ The built-in kinds, and one of ours.
 
 ## Our own kinds
 
-The file **kinds/brand.yaml** defines **chapter**, **callout** and **quote**.
-This slide is a **callout**: a warm background and a header, from one word.
+The file `kinds/brand.yaml` defines `chapter`, `callout` and `quote`.
+This slide is a `callout`: a warm background and a header, from one word.
 
 ---
 

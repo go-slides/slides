@@ -30,7 +30,7 @@ left of ordinary slides.
 
 ## Lead, inverted
 
-The **lead** class centres a slide. Add **invert** for a dark one.
+The `lead` class centres a slide. Add `invert` for a dark one.
 
 ---
 
