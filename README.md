@@ -537,10 +537,14 @@ before. Pictures render at scale 2 unless `--image-scale` says otherwise.
 ## Fitting headings
 
 `# <!-- fit --> Title` scales the heading so its one line fills the slide's
-width, up or down, as Marp Core does. The HTML page and the image, PDF and
-PPTX outputs all run the same small script: it measures the heading's natural
-width and scales its font size by the ratio. Only slides with a fitting heading
-run a script when exporting.
+width, up or down, as Marp Core does. The HTML page runs a small script in
+the browser. It measures the heading's natural width and scales the font size
+by the ratio. The image, PDF, PPTX and ODP exports do the same in Go, through
+go-webengine's `Engine.Adjust`, so no export runs JavaScript. The native fit
+reads the same geometry and computes the same lengths as the script.
+`TestFitHeadingsMatchFitScript` checks that the two give the same pixels, and
+exports made the old way are byte-identical. Only slides with a fitting
+heading are laid out twice.
 
 ## Emoji
 
