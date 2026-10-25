@@ -261,6 +261,7 @@ input is read only for `-`, not whenever it is a pipe.
 | `--bare` | build | stack the slides, without the presenting script |
 | `--pdf` | build | write a PDF, one page per slide, with an outline — text and shapes as vectors (also chosen by `-o file.pdf`) |
 | `--pdf-raster` | build | write the PDF with each page one image of the slide, as before the vector PDF |
+| `--pdf-tags=false` | build | write the PDF without its structure tags (after v0.9.0 a vector PDF is tagged, for screen readers, and declares PDF/UA-1); `--no-pdf-tags` too |
 | `--notes` | build | write the speaker notes as a text file, slides separated by `---` exactly as marp-cli does (also chosen by `-o file.txt`; the `notes` command prints them in another layout) |
 | `--pdf-notes` | build | add each slide's speaker notes to its PDF page as a note annotation, as marp-cli does: a yellow Note icon bottom left, the deck's `author` as its title. Asks for a PDF when nothing else says what to write |
 | `--pdf-outlines`, `--pdf-outlines.pages`, `--pdf-outlines.headings` | build | the PDF's bookmarks: "Page N" per slide (bold) and the slide's headings nested by level under it. **On by default here, off in marp-cli**: go-slides has always written an outline, it costs a few hundred bytes and makes a deck navigable. `=false` (or marp-cli's `--no-pdf-outlines`, `--no-pdf-outlines.pages`, `--no-pdf-outlines.headings`) turns it, or a part, off. A heading bookmark jumps to its slide; marp-cli also scrolls to the heading |
@@ -425,6 +426,27 @@ the go-* libraries instead:
 - The fonts the built-in themes ask for (Lato, Roboto Mono) come from
   [go-opentype/fonts](https://github.com/go-opentype/fonts), embedded, so no
   render touches the network.
+- **Tagged, accessible PDF** (after v0.9.0): the vector PDF carries its
+  logical structure, which screen readers read in order:
+  - each slide is a `Sect`, holding its headings, paragraphs, lists (with
+    their labels), tables (header cells with their scope), links and
+    images with their alt text;
+  - each formula is a `Formula` whose description is its TeX source;
+  - code stays text, without its line numbers or callout discs;
+  - backgrounds, page numbers and decorations are artifacts, which a reader
+    skips;
+  - speaker notes (`--pdf-notes`) are annotations in the structure.
+
+  The file declares PDF/UA-1, with the deck's `title` and `lang` (`--lang`,
+  else `en`), and the viewer shows the title. It passes veraPDF's PDF/UA-1
+  profile, unless the deck itself starts below `#` or skips a heading level,
+  as `#` then `###` does: PDF/UA forbids both, and only the deck's author can
+  fix them. Chrome's
+  PDF of the same deck (marp-cli) is tagged too, but fails seven of
+  PDF/UA's rules, and has no section per slide and no formula. Tagging the
+  100-slide benchmark deck costs 4% in size (788 against 757 KiB) and nothing
+  measurable in time (379 against 375 ms). `--pdf-tags=false` writes the PDF
+  without tags.
 
 - `--image-scale 2` renders at two device pixels per CSS pixel (2560×1440 for
   16:9). Text and vectors are drawn at that density, not enlarged.

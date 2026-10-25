@@ -20,7 +20,9 @@ func (r *slideRenderer) pseudoAfter(s *Slide) string {
 	if r.opts.AfterContent != "" {
 		text = evalContent(r.opts.AfterContent, attrs)
 	}
-	return `<span data-slides-pseudo="after">` + escapeHTML(text) + "</span>"
+	// Generated content, the page number most often: out of the
+	// accessibility tree, and so a pagination artifact of a tagged PDF.
+	return `<span data-slides-pseudo="after" aria-hidden="true">` + escapeHTML(text) + "</span>"
 }
 
 // evalContent evaluates the subset of a CSS content value a slide's ::after

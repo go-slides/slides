@@ -106,6 +106,9 @@ func (o *options) pdfOptions() export.PDFOptions {
 		Notes:           o.pdfNotes,
 		OutlinePages:    on && o.outlinePages && !o.noOutlinePages,
 		OutlineHeadings: on && o.outlineHeadings && !o.noOutlineHeadings,
+		// a raster page is one picture: nothing to tag
+		Untagged: !o.pdfTags || o.noPDFTags || o.pdfRaster,
+		Lang:     o.lang,
 	}
 }
 

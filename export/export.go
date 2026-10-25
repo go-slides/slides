@@ -8,6 +8,7 @@ package export
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"image"
@@ -347,6 +348,8 @@ type PDFWriter struct {
 	size  pdfkit.PageSize
 	n     int
 	fonts *pdfcanvas.Fonts
+	// root is the structure's root, nil for an untagged PDF.
+	root *pdfkit.StructElem
 
 	// Stats adds up what AddLayout drew as vectors and what it had to
 	// draw as bitmaps (paint.VectorStats).
@@ -363,6 +366,15 @@ type PDFOptions struct {
 	// OutlineHeadings one for each heading of the slide, nested by level
 	// under it (marp-cli --pdf-outlines.pages and .headings).
 	OutlinePages, OutlineHeadings bool
+	// Untagged writes the PDF without its logical structure. By default a
+	// PDF is tagged, as Chrome's and so marp-cli's are: a screen reader
+	// reads its headings, paragraphs, lists, tables, links, images and
+	// formulas in reading order, and the file declares PDF/UA-1, with the
+	// deck's title and language.
+	Untagged bool
+	// Lang is the language when the deck's lang directive gives none
+	// (--lang); with neither, a tagged PDF says "en", as it must say one.
+	Lang string
 }
 
 // DefaultPDFOptions are what NewPDF uses: no notes, and the whole outline.
@@ -376,29 +388,51 @@ func NewPDF(b *slides.Build) *PDFWriter { return NewPDFWith(b, DefaultPDFOptions
 // NewPDFWith starts the PDF of b.
 func NewPDFWith(b *slides.Build, opts PDFOptions) *PDFWriter {
 	g := b.Deck.Global
-	return &PDFWriter{
-		b:    b,
-		opts: opts,
-		doc: pdfkit.New(pdfkit.Options{
-			Title:    slides.Title(b.Deck),
-			Author:   g.Get("author"),
-			Subject:  g.Get("description"),
-			Keywords: strings.Join(deck.KeywordList(g.Get("keywords")), "; "),
-			Producer: "go-slides",
-			// Content and font streams flated, the many small objects of
-			// a vector page (link annotations, font dictionaries) packed
-			// into object streams.
-			Compress:      true,
-			ObjectStreams: true,
-		}),
+	po := pdfkit.Options{
+		Title:    slides.Title(b.Deck),
+		Author:   g.Get("author"),
+		Subject:  g.Get("description"),
+		Keywords: strings.Join(deck.KeywordList(g.Get("keywords")), "; "),
+		Producer: "go-slides",
+		// Content and font streams flated, the many small objects of a
+		// vector page (link annotations, font dictionaries, structure
+		// elements) packed into object streams.
+		Compress:      true,
+		ObjectStreams: true,
+	}
+	p := &PDFWriter{
+		b:     b,
+		opts:  opts,
 		size:  pdfkit.NewPageSize(b.Packed.Width*0.75, b.Packed.Height*0.75),
 		fonts: pdfcanvas.NewFonts(),
 	}
+	if !opts.Untagged {
+		// What PDF/UA-1 asks of the file: the language, the title in the
+		// window's title bar, the identification in the metadata.
+		po.Lang = cmp.Or(g.Get("lang"), opts.Lang, "en")
+		po.DisplayDocTitle = true
+		po.PDFUA = true
+		if po.Title == "" {
+			po.Title = "Slides"
+		}
+	}
+	p.doc = pdfkit.New(po)
+	if !opts.Untagged {
+		p.root = p.doc.Structure()
+	}
+	return p
 }
 
 // Add adds the next slide's page, drawn from its image.
 func (p *PDFWriter) Add(img image.Image) {
 	pg := p.next()
+	if p.root != nil {
+		// in a tagged PDF, a page that is one picture is one figure
+		fig := p.root.Add(pdfkit.StructFigure)
+		fig.Alt = fmt.Sprintf("Slide %d", p.n)
+		pg.BeginTag(fig)
+		defer pg.EndMarkedContent()
+	}
 	pg.DrawImage(img, pdfkit.Rect{Width: p.size.Width, Height: p.size.Height})
 }
 
@@ -417,11 +451,16 @@ func (p *PDFWriter) AddLayout(l *engine.PageLayout) error {
 	}
 	s := p.size.Width / float64(dev.Dx()) // points per device pixel
 	c := pdfcanvas.New(pg, s, p.fonts)
+	if p.root != nil {
+		// each slide's <section> is a Sect, its content in reading order
+		c.Tag(p.root)
+	}
 	pg.Save()
 	pg.Rectangle(pdfkit.Rect{Width: p.size.Width, Height: p.size.Height})
 	pg.Clip()
 	pg.EndPath()
 	st := l.PaintVector(c)
+	c.Finish()
 	pg.Restore()
 	if c.Err != nil {
 		return fmt.Errorf("export: slide %d: %w", p.n, c.Err)
@@ -436,10 +475,16 @@ func (p *PDFWriter) AddLayout(l *engine.PageLayout) error {
 		if r.Empty() {
 			continue
 		}
-		pg.AddLink(pdfkit.Rect{
+		rect := pdfkit.Rect{
 			X: float64(r.Min.X) * s, Y: p.size.Height - float64(r.Max.Y)*s,
 			Width: float64(r.Dx()) * s, Height: float64(r.Dy()) * s,
-		}, ln.Href)
+		}
+		if e := c.Element(ln.Node); e != nil {
+			// under its Link element, its text as its description
+			pg.AddTaggedLink(e, rect, ln.Href, cmp.Or(pdfcanvas.TextOf(ln.Node), ln.Href))
+			continue
+		}
+		pg.AddLink(rect, ln.Href)
 	}
 	return nil
 }

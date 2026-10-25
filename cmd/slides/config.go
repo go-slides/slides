@@ -48,6 +48,9 @@ type options struct {
 	outlineHeadings bool // --pdf-outlines.headings
 	// the marp-cli spellings of turning them off
 	noPDFOutlines, noOutlinePages, noOutlineHeadings bool
+	// pdfTags writes a tagged PDF (on by default), noPDFTags its off
+	// spelling
+	pdfTags, noPDFTags bool
 	// pdfOptionsAsked is set when --pdf-notes or a --pdf-outlines flag was
 	// given: the PDF is then what build writes, unless the output says
 	// otherwise.
