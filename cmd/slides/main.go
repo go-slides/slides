@@ -240,6 +240,7 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.BoolVarP(&o.server, "server", "s", false, "serve a directory, converting its decks on request: deck.md as HTML, deck.md?pdf, ?pptx, ?png, ?jpg, ?notes; reloads the pages when a deck changes. Listens on 127.0.0.1, port 8080 or $PORT")
 	f.BoolVarP(&o.preview, "preview", "p", false, "open the result in the default browser: the HTML pages with --watch (implied), the server's index with --server")
 	f.StringVar(&o.host, "host", "127.0.0.1", "address the server listens on; anything but the loopback serves the directory to the network")
+	f.StringArrayVar(&o.allowedHosts, "allowed-host", nil, "a public host name the server answers to behind a reverse proxy (slides.example.org); repeatable. The server keeps listening on the loopback, and its Host and Origin checks against DNS rebinding accept this name too")
 	f.StringVar(&o.template, "template", "", "template of the HTML page: `bespoke` (the default: presenting script, controller, transitions) or bare (the slides stacked, as --bare)")
 	f.BoolVar(&o.bespokeOSC, "bespoke.osc", true, "bespoke template: the on-screen controller (--bespoke.osc=false hides it)")
 	f.BoolVar(&o.bespokeProgress, "bespoke.progress", false, "bespoke template: a progress bar")

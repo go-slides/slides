@@ -198,6 +198,7 @@ func runServer(cmd *cobra.Command, o *options, args []string) error {
 		DirectoryIndex: []string{"index.md", "PITCHME.md"},
 		Hub:            hub,
 		Exposed:        exposed,
+		AllowedHosts:   o.allowedHosts,
 		Log:            func(format string, args ...any) { fmt.Fprintf(e.stderr, "slides: "+format+"\n", args...) },
 	})
 	if err != nil {
