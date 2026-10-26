@@ -56,8 +56,9 @@ type options struct {
 	// otherwise.
 	pdfOptionsAsked bool
 
-	watch, server, preview bool   // -w, -s, -p
-	host                   string // --host: where the server listens
+	watch, server, preview bool     // -w, -s, -p
+	host                   string   // --host: where the server listens
+	allowedHosts           []string // --allowed-host: a reverse proxy's public names
 	// hub and hubPort are the live reload of the watch mode: the pages built
 	// open its socket, on the loopback at hubPort.
 	hub     *serve.Hub

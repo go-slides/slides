@@ -352,6 +352,66 @@ func TestExposedServerHostCheck(t *testing.T) {
 	}
 }
 
+// Behind a reverse proxy (Caddy at slides.example.org passes that Host
+// through), AllowedHosts admits the proxy's public name, and only it: the
+// Host check stays on, and the live reload socket accepts an Origin of that
+// name and refuses another.
+func TestAllowedHostsBehindAProxy(t *testing.T) {
+	root, _ := tree(t)
+	f := &fake{}
+	hub := NewHub()
+	id := hub.Register(filepath.Join(root, "deck.md"))
+	s, err := New(Options{Dir: root, Convert: f.convert, Hub: hub, AllowedHosts: []string{"Slides.Example.org"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for host, want := range map[string]int{
+		"slides.example.org":      200,
+		"slides.example.org:443":  200,
+		"SLIDES.EXAMPLE.ORG.":     200,
+		"localhost:8080":          200,
+		"127.0.0.1":               200,
+		"evil.example.org":        403,
+		"slides.example.org.evil": 403,
+	} {
+		if rec := get(t, s.Handler(), "GET", "/deck.md", host); rec.Code != want {
+			t.Errorf("Host %q: %d, want %d", host, rec.Code, want)
+		}
+	}
+	ws := func(origin string) int {
+		r := httptest.NewRequest("GET", WebSocketPath+id, nil)
+		r.Host = "slides.example.org"
+		r.Header.Set("Origin", origin)
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, r)
+		return rec.Code
+	}
+	if got := ws("https://evil.example.org"); got != 403 {
+		t.Errorf("a socket from another origin: %d, want 403", got)
+	}
+	if got := ws("https://slides.example.org"); got == 403 {
+		t.Error("the proxy's own origin was refused the live reload socket")
+	}
+	// without the option, the proxied Host is refused, as before
+	plain, err := New(Options{Dir: root, Convert: f.convert})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := get(t, plain.Handler(), "GET", "/deck.md", "slides.example.org"); rec.Code != 403 {
+		t.Errorf("a proxied Host without --allowed-host: %d, want 403", rec.Code)
+	}
+	for _, bad := range []string{"", "*", "*.example.org", "https://slides.example.org", "slides.example.org:443", "a/b", "0.0.0.0", "-x.org", "a..b"} {
+		if _, err := New(Options{Dir: root, Convert: f.convert, AllowedHosts: []string{bad}}); err == nil {
+			t.Errorf("AllowedHosts %q accepted", bad)
+		}
+	}
+	for _, good := range []string{"slides.example.org", "localhost", "192.0.2.7", "[2001:db8::1]", "x.org."} {
+		if !ValidHostName(good) {
+			t.Errorf("ValidHostName(%q) = false", good)
+		}
+	}
+}
+
 func TestNew(t *testing.T) {
 	if _, err := New(Options{Dir: filepath.Join(t.TempDir(), "missing"), Convert: (&fake{}).convert}); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Errorf("missing directory: %v", err)

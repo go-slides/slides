@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -66,6 +67,36 @@ type Options struct {
 	// Exposed says the listener is not the loopback and the Host header is
 	// not checked; the caller has warned.
 	Exposed bool
+	// AllowedHosts are host names the server answers to besides the
+	// loopback's: the public name of a reverse proxy in front of it (Caddy at
+	// slides.example.org passes that Host through). They are compared
+	// without case and without the port. The Host check and the live reload
+	// socket's Origin check stay on and accept them; nothing else is
+	// accepted. See ValidHostName.
+	AllowedHosts []string
+}
+
+// ValidHostName reports whether s can be an AllowedHosts entry: a DNS name
+// (letters, digits, hyphens, dots; no wildcard) or an IP address, without a
+// scheme, port, path or user.
+func ValidHostName(s string) bool {
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	if ip := net.ParseIP(strings.Trim(s, "[]")); ip != nil {
+		return !ip.IsUnspecified()
+	}
+	for _, label := range strings.Split(strings.TrimSuffix(s, "."), ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, c := range label {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // Server serves a directory.
@@ -101,19 +132,29 @@ func New(o Options) (*Server, error) {
 			o.Port = p
 		}
 	}
+	for _, h := range o.AllowedHosts {
+		if !ValidHostName(h) {
+			return nil, fmt.Errorf("serve: %q is not a host name to allow (a name such as slides.example.org, no scheme, port or wildcard)", h)
+		}
+	}
 	s := &Server{root: root, opts: o}
 	mux := http.NewServeMux()
 	if o.Hub != nil {
 		mux.Handle(WebSocketPath, o.Hub.Handler(nil))
 	}
 	mux.HandleFunc("/", s.serve)
-	allowed := isLoopbackHost
-	switch {
-	case o.Exposed:
+	names := slices.Clone(o.AllowedHosts)
+	if !isLoopbackHost(o.Host) {
+		names = append(names, o.Host)
+	}
+	allowed := func(host string) bool {
+		host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
+		return isLoopbackHost(host) || slices.ContainsFunc(names, func(n string) bool {
+			return strings.EqualFold(strings.TrimSuffix(strings.Trim(n, "[]"), "."), host)
+		})
+	}
+	if o.Exposed {
 		allowed = func(string) bool { return true }
-	case !isLoopbackHost(o.Host):
-		h := o.Host
-		allowed = func(host string) bool { return isLoopbackHost(host) || strings.EqualFold(host, h) }
 	}
 	s.mux = hostGuard(secure(mux), allowed)
 	return s, nil

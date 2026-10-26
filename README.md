@@ -254,6 +254,7 @@ input is read only for `-`, not whenever it is a pipe.
 | `-s`, `--server dir` | build | serve `dir` (or `-I dir`): its decks converted on request — `deck.md` as HTML, `deck.md?pdf`, `?pptx`, `?png`, `?jpg`, `?notes` — an index of each directory, live reload of the pages. Listens on **127.0.0.1**, port 8080 or `$PORT` |
 | `-p`, `--preview` | build | open the result in the default browser: the HTML pages with `--watch` (implied), the server with `--server` |
 | `--host addr` | build | the address `--server` listens on (default `127.0.0.1`); anything else serves the directory to the network, with a warning |
+| `--allowed-host name` | build | a reverse proxy's public host name that `--server` answers to (repeatable); the Host and Origin checks accept it and stay on |
 | `-I`, `--input-dir dir` | build | convert the Markdown files (`.md`, `.mdown`, `.markdown`, `.markdn`) under `dir`, recursively, as marp-cli does — node_modules, dot directories and `UPPER.MD` left out. With `-o out/` each deck is written at its path under `dir`, mirrored under `out/` (`dir/sub/b.md` gives `out/sub/b.html`); without `-o`, next to the deck. Naming decks as well is an error |
 | `-P`, `--parallel n` | build | decks built at once (default 5, at most the number of cores; 1 for one after the other). Messages stay together per deck; one failing deck does not stop the others and the exit status says how many failed |
 | `--html` | build | allow all raw HTML |
@@ -387,7 +388,10 @@ security a local server needs:
 - **Bound to the loopback** (marp-cli listens on every interface). `--host`
   changes it and warns. The **Host** header must be a loopback name (or the
   host it listens on), which stops DNS rebinding; a WebSocket's **Origin** must
-  be the server's own; cross-site subresource requests (`<script src>`,
+  be the server's own. Behind a reverse proxy, `--allowed-host
+  slides.example.org` (repeatable) adds the proxy's public name to the
+  accepted Hosts, and so to the accepted Origins. The checks stay on, and the
+  server stays on the loopback. Cross-site subresource requests (`<script src>`,
   `fetch`) are refused by their `Sec-Fetch-*` headers. A path is cleaned,
   its symbolic links are resolved and the result must be inside the directory
   (`..` and a link out of it are refused, `?pdf` included); dotfiles
