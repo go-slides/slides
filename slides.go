@@ -7,10 +7,10 @@
 package slides
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/doc"
 	"github.com/go-slides/slides/theme"
 	"github.com/go-slides/slides/viewer"
@@ -112,7 +112,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	b := &Build{Deck: d, Warnings: d.Warnings}
 	name := d.Global.Theme()
 	if name != "" && !set.Has(name) {
-		b.Warnings = append(b.Warnings, fmt.Sprintf("theme %q is not known; using %q (known: %v)", name, set.Resolve("").Name, set.Names()))
+		b.Warnings = append(b.Warnings, diag.ThemeUnknown(name, set.Resolve("").Name, set.Names()))
 	}
 	b.Theme = set.Resolve(name)
 

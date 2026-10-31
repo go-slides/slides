@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
+	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/internal/hclx"
 	"github.com/go-slides/slides/theme"
 	"github.com/go-slides/slides/vfs"
@@ -194,7 +195,7 @@ func readConfig(fsys vfs.FS, o Options, baseDir string) (*fileConfig, string, er
 	}
 	var fc fileConfig
 	if err := yaml.Unmarshal(b, &fc); err != nil {
-		return nil, "", fmt.Errorf("%s: %v", path, err)
+		return nil, "", diag.Wrap("yaml.syntax", fmt.Errorf("%s: %v", path, err))
 	}
 	return &fc, filepath.Dir(path), nil
 }
@@ -204,6 +205,7 @@ func readConfig(fsys vfs.FS, o Options, baseDir string) (*fileConfig, string, er
 // no data: the data attribute is where data comes from.
 func decodeHCLConfig(fsys vfs.FS, src []byte, path string) (*fileConfig, error) {
 	body, err := hclx.Parse(src, path, hcl.InitialPos)
+	err = diag.Wrap("hcl.syntax", err)
 	if err != nil {
 		return nil, err
 	}
@@ -248,14 +250,14 @@ func decodeHCLConfig(fsys vfs.FS, src []byte, path string) (*fileConfig, error) 
 		case "kinds":
 			fc.Kinds = g
 		default:
-			return nil, hclx.Errorf(a.NameRange, "Unsupported attribute", "%q is not a configuration key (want themes, html, lang, data or kinds)", a.Name)
+			return nil, diag.Wrap("hcl.unsupported", hclx.Errorf(a.NameRange, "Unsupported attribute", "%q is not a configuration key (want themes, html, lang, data or kinds)", a.Name))
 		}
 	}
 	// Kind blocks are read later, with the data; a wrong block is an
 	// error now.
 	for _, b := range body.Blocks {
 		if b.Type != "kind" {
-			return nil, hclx.Errorf(b.TypeRange, "Unsupported block type", "only kind blocks are expected here, not %q", b.Type)
+			return nil, diag.Wrap("hcl.unsupported", hclx.Errorf(b.TypeRange, "Unsupported block type", "only kind blocks are expected here, not %q", b.Type))
 		}
 	}
 	return fc, nil
@@ -287,7 +289,7 @@ func ThemeSet(fsys vfs.FS, paths ...string) (*theme.Set, error) {
 				return nil, err
 			}
 			if _, err := set.Add(string(b)); err != nil {
-				return nil, fmt.Errorf("%s: %v", file, err)
+				return nil, fmt.Errorf("%s: %w", file, err)
 			}
 		}
 	}

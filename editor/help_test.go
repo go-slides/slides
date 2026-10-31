@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/go-slides/slides/diag"
 )
 
 func TestHelpIsEnglishUnlessRegistered(t *testing.T) {
@@ -93,35 +95,65 @@ func contains(s []string, v string) bool {
 }
 
 func TestDiagnosticCodes(t *testing.T) {
-	cases := map[string]string{
-		`unknown kind "x"`:                              "kind.unknown",
-		`function "foo" not defined`:                    "template.function",
-		`template: deck.md:3:5: executing "deck.md" at`: "template.exec",
-		`yaml: line 4: mapping values are not allowed`:  "yaml.syntax",
-		`Unsupported directive: x`:                      "hcl.unsupported_placeholder",
-		`something unheard of`:                          "",
+	// the real failures of go-slides, through the real pipeline: each user-facing
+	// error carries its code from where it is made, whatever its wording
+	cases := []struct {
+		name, src, code string
+		files           map[string]string
+	}{
+		{"unknown kind", "---\nslides: true\n---\n\n# A\n\n---\n\n<!-- _kind: nope -->\n# B\n", "kind.unknown", nil},
+		{"template function", "---\nslides: true\n---\n\n# A {{ nofunc 1 }}\n", "template.function", nil},
+		{"template syntax", "---\nslides: true\n---\n\n# A {{ if }}\n", "template.syntax", nil},
+		{"template exec", "---\nslides: true\n---\n\n# A {{ .nope }}\n", "template.exec", nil},
+		{"front matter template", "---\nslides: true\ntitle: x\nfooter: \"{{ .nope }}\"\n---\n\n# A\n", "template.exec", nil},
+		{"kinds yaml", "---\nslides: true\nkinds: k.yaml\n---\n\n# A\n", "yaml.syntax", map[string]string{path("k.yaml"): "a:\n  class: [\n"}},
+		{"include missing", "---\nslides: true\n---\n\n{{ include \"gone.md\" }}\n", "file.missing", nil},
+		{"hcl kinds", "---\nslides: true\nkinds: k.hcl\n---\n\n# A\n", "directive.unknown", map[string]string{path("k.hcl"): "kind \"a\" {\n  nosuchdirective = 1\n}\n"}},
+		{"theme", "---\nslides: true\ntheme: nothere\n---\n\n# A\n", "theme.unknown", nil},
+		{"hcl syntax", "---hcl\nslides = = true\n---\n\n# A\n", "hcl.syntax", nil},
 	}
-	for msg, want := range cases {
-		got := CodeOf(msg)
-		if want == "hcl.unsupported_placeholder" {
-			want = "directive.unknown" // a go-slides directive the file does not know
-		}
-		if got != want {
-			t.Errorf("%q: %q, want %q", msg, got, want)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := Render(req(c.src, c.files))
+			if len(r.Diagnostics) == 0 {
+				t.Fatal("no diagnostic")
+			}
+			found := false
+			for _, d := range r.Diagnostics {
+				if d.Code == "" {
+					t.Errorf("a diagnostic with no code: %+v", d)
+				}
+				found = found || d.Code == c.code
+			}
+			if !found {
+				t.Errorf("no %q among %+v", c.code, r.Diagnostics)
+			}
+		})
+	}
+	// every code a diagnostic can carry is documented, and the other way round
+	used := map[string]bool{}
+	for _, c := range cases {
+		used[c.code] = true
+	}
+	for code, doc := range Codes {
+		if code == "" || doc == "" {
+			t.Errorf("code %q: %q", code, doc)
 		}
 	}
-	for code := range Codes {
-		if code == "" {
-			t.Error("empty code")
+	for _, code := range []string{"hcl.syntax", "hcl.unsupported"} {
+		if _, ok := Codes[code]; !ok {
+			t.Errorf("%q is not in Codes", code)
 		}
 	}
-	for _, r := range codeRules {
-		if _, ok := Codes[r.code]; !ok {
-			t.Errorf("rule %q has no entry in Codes", r.code)
+	for code := range used {
+		if _, ok := Codes[code]; !ok {
+			t.Errorf("%q is not in Codes", code)
 		}
 	}
-	ds := Diagnose(errors.New(`deck.md:2: unknown kind "x"`), "deck.md", "---\n_kind: x\n---\n")
-	if len(ds) != 1 || ds[0].Code != "kind.unknown" || !strings.Contains(ds[0].Message, "unknown kind") {
-		t.Errorf("diagnose: %+v", ds)
+	// a leaf of a join keeps its own code
+	e := errors.Join(diag.Errorf("yaml.syntax", "a.yaml: bad"), errors.New("deck.md:2: plain"))
+	ds := Diagnose(e, "deck.md", "---\nx: 1\n---\n")
+	if len(ds) != 2 || ds[0].Code != "yaml.syntax" || ds[1].Code != "" {
+		t.Errorf("join: %+v", ds)
 	}
 }

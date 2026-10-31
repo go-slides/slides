@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/go-slides/slides/diag"
 )
 
 // A Kind is a named preset of local directives: the header, the footer,
@@ -139,7 +141,7 @@ func (k Kinds) resolve(name string, seen []string) (Dirs, error) {
 	}
 	kind, ok := k[name]
 	if !ok {
-		return Dirs{}, fmt.Errorf("unknown kind %q (known: %s)", name, strings.Join(k.Names(), ", "))
+		return Dirs{}, diag.Errorf("kind.unknown", "unknown kind %q (known: %s)", name, strings.Join(k.Names(), ", "))
 	}
 	var d Dirs
 	if kind.Extends != "" {

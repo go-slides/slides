@@ -15,6 +15,7 @@ import (
 	"github.com/yuin/goldmark/text"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/interp"
 	"github.com/go-slides/slides/vfs"
 )
@@ -143,7 +144,7 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 			for _, key := range c.Dirs.Keys() {
 				v, err := interp.Expand(c.Dirs.Get(key), valueOpts)
 				if err != nil {
-					return nil, fmt.Errorf("kind %q, %s: %v", name, key, err)
+					return nil, fmt.Errorf("kind %q, %s: %w", name, key, err)
 				}
 				c.Dirs.Set(key, v)
 			}
@@ -197,7 +198,15 @@ func (d *Deck) errorf(line int, format string, args ...any) error {
 	if name == "" {
 		name = "deck"
 	}
-	return fmt.Errorf("%s:%d: %s", name, line, fmt.Sprintf(format, args...))
+	err := fmt.Errorf("%s:%d: %s", name, line, fmt.Sprintf(format, args...))
+	// the code of the error this one is about (unknown kind, a template...)
+	// stays with the message, whatever verb the caller used for it
+	for _, a := range args {
+		if e, ok := a.(error); ok && diag.CodeOf(e) != "" {
+			return diag.Wrap(diag.CodeOf(e), err)
+		}
+	}
+	return err
 }
 
 // markdown returns a parser configured like Marp Core's markdown-it:
@@ -259,7 +268,7 @@ func expandValues(m map[string]any, opts interp.Options) (map[string]any, error)
 		}
 		e, err := walk(v)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %v", k, err)
+			return nil, fmt.Errorf("%s: %w", k, err)
 		}
 		out[k] = e
 	}
@@ -304,7 +313,7 @@ func LoadKindsFile(path string) (Kinds, error) {
 func ParseKindsYAML(src []byte, name string) (Kinds, error) {
 	var n yaml.Node
 	if err := yaml.Unmarshal(src, &n); err != nil {
-		return nil, fmt.Errorf("%s: %v", name, err)
+		return nil, diag.Wrap("yaml.syntax", fmt.Errorf("%s: %v", name, err))
 	}
 	m, _ := failsafe(&n).(map[string]any)
 	if m == nil {
@@ -315,7 +324,7 @@ func ParseKindsYAML(src []byte, name string) (Kinds, error) {
 	}
 	k, err := ParseKinds(m)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", name, err)
+		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	return k, nil
 }
