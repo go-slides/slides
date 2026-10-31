@@ -182,7 +182,7 @@ func Complete(r Request, line, char int) []Item {
 			if s.where != comment && strings.TrimSpace(s.before) != m[1]+m[2] {
 				return nil
 			}
-			return keys(s.where, m[1] == "_")
+			return keys(r.Lang, s.where, m[1] == "_")
 		}
 	case action:
 		m := identRE.FindStringSubmatch(s.before)
@@ -191,7 +191,7 @@ func Complete(r Request, line, char int) []Item {
 		}
 		var out []Item
 		for _, f := range funcDocs {
-			out = append(out, Item{Label: f.Name, Kind: "function", Detail: f.Signature, Doc: f.Doc})
+			out = append(out, Item{Label: f.Name, Kind: "function", Detail: f.Signature, Doc: doc(r.Lang, "func."+f.Name, f.Doc)})
 		}
 		return out
 	}
@@ -199,7 +199,7 @@ func Complete(r Request, line, char int) []Item {
 }
 
 // keys are the directive keys a context takes; spot keeps the local ones.
-func keys(w where, spot bool) []Item {
+func keys(lang string, w where, spot bool) []Item {
 	sep := ": "
 	if w == frontHCL {
 		sep = " = "
@@ -216,7 +216,7 @@ func keys(w where, spot bool) []Item {
 		if d.Scope == "deck" {
 			detail = "go-slides front-matter key"
 		}
-		out = append(out, Item{Label: d.Name, Kind: "directive", Detail: detail, Doc: d.Doc, Insert: d.Name + sep})
+		out = append(out, Item{Label: d.Name, Kind: "directive", Detail: detail, Doc: doc(lang, "dir."+d.Name, d.Doc), Insert: d.Name + sep})
 	}
 	return out
 }
@@ -344,7 +344,7 @@ func HoverAt(r Request, line, char int) *Hover {
 	switch s.where {
 	case action:
 		if f, ok := funcDoc(word); ok {
-			h.Doc = "```\n" + f.Signature + "\n```\n\n" + f.Doc
+			h.Doc = "```\n" + f.Signature + "\n```\n\n" + doc(r.Lang, "func."+f.Name, f.Doc)
 			return h
 		}
 		return nil
@@ -369,13 +369,13 @@ func HoverAt(r Request, line, char int) *Hover {
 	if !ok {
 		return nil
 	}
-	scope := d.Scope + " directive"
+	scope := doc(r.Lang, "ui.scope."+d.Scope, d.Scope+" directive")
 	if word != name {
-		scope = "spot directive (this slide only)"
+		scope = doc(r.Lang, "ui.scope.spot", "spot directive (this slide only)")
 	} else if d.Scope == "deck" {
-		scope = "go-slides front-matter key"
+		scope = doc(r.Lang, "ui.scope.deck", "go-slides front-matter key")
 	}
-	h.Doc = "**" + d.Name + "**: " + scope + "\n\n" + d.Doc
+	h.Doc = "**" + d.Name + "**: " + scope + "\n\n" + doc(r.Lang, "dir."+d.Name, d.Doc)
 	return h
 }
 
