@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/go-slides/slides/diag"
 )
 
 // Diagnostic is a problem positioned in a file. Lines are 0-based and
@@ -31,44 +33,11 @@ type Diagnostic struct {
 
 // Codes are the diagnostic codes, with what each means in English (the text a
 // UI translates).
-var Codes = map[string]string{
-	"kind.unknown":      "The slide names a kind that is not defined.",
-	"directive.unknown": "The directive is not one go-slides knows.",
-	"template.function": "The template calls a function that does not exist.",
-	"template.exec":     "The template failed while it was filled in.",
-	"template.syntax":   "The template is not well formed ({{ … }} unbalanced or unexpected).",
-	"yaml.syntax":       "The YAML is not well formed.",
-	"hcl.unsupported":   "The HCL file uses something go-slides does not read.",
-	"theme.unknown":     "The deck's theme is not one that exists.",
-	"file.missing":      "A file the deck reads cannot be found.",
-}
-
-// codeRules map a message to its Code, first match wins. The messages are the
-// ones go-slides and its parsers write; a message that matches none has no code.
-var codeRules = []struct {
-	code string
-	re   *regexp.Regexp
-}{
-	{"kind.unknown", regexp.MustCompile(`unknown kind`)},
-	{"directive.unknown", regexp.MustCompile(`unknown directive|Unsupported directive`)},
-	{"template.function", regexp.MustCompile(`function "[^"]+" not defined`)},
-	{"template.exec", regexp.MustCompile(`executing "|error calling`)},
-	{"template.syntax", regexp.MustCompile(`unexpected .*in|unclosed action|unexpected "}"|unterminated`)},
-	{"yaml.syntax", regexp.MustCompile(`^yaml:|did not find expected|mapping values are not allowed|could not find expected`)},
-	{"hcl.unsupported", regexp.MustCompile(`^Unsupported (attribute|argument|block)`)},
-	{"theme.unknown", regexp.MustCompile(`^theme .*(not found|unknown|no such)`)},
-	{"file.missing", regexp.MustCompile(`no such file|cannot find|not found`)},
-}
-
-// CodeOf is the Code of a diagnostic message, "" if none.
-func CodeOf(msg string) string {
-	for _, r := range codeRules {
-		if r.re.MatchString(msg) {
-			return r.code
-		}
-	}
-	return ""
-}
+//
+// The codes are made where the errors are (package diag): go-slides' own
+// errors carry them, and Diagnose reads them; nothing here guesses from the
+// words of a message.
+var Codes = diag.Codes
 
 // Positions in the errors go-slides returns:
 //
@@ -131,11 +100,17 @@ func Diagnose(err error, path, src string) []Diagnostic {
 		return nil
 	}
 	var out []Diagnostic
-	for msg := range strings.SplitSeq(err.Error(), "\n") {
-		if strings.TrimSpace(msg) == "" {
-			continue
+	for _, leaf := range diag.Leaves(err) {
+		code := diag.CodeOf(leaf)
+		for msg := range strings.SplitSeq(leaf.Error(), "\n") {
+			if strings.TrimSpace(msg) == "" {
+				continue
+			}
+			for _, d := range diagnose(msg, path, src) {
+				d.Code = code
+				out = append(out, d)
+			}
 		}
-		out = append(out, diagnose(msg, path, src)...)
 	}
 	return out
 }
@@ -158,7 +133,7 @@ func diagnose(msg, path, src string) []Diagnostic {
 		d := []Diagnostic{{
 			File: inner.file, Line: max(inner.line-1, 0), Column: 0,
 			EndLine: max(inner.line-1, 0), EndColumn: 1 << 16,
-			Severity: "error", Message: text, Code: CodeOf(text),
+			Severity: "error", Message: text,
 		}}
 		line := locate(inner.file, lines)
 		if samePath(outer.file, path) && outer.line > 1 {
@@ -188,7 +163,9 @@ func warning(msg, path, src string) Diagnostic {
 	} else {
 		line = locate(msg, lines)
 	}
-	return at(path, lines, line, 0, "warning", msg)
+	d := at(path, lines, line, 0, "warning", msg)
+	d.Code = diag.WarningCode(msg)
+	return d
 }
 
 // at makes a diagnostic on a 0-based line, from a 1-based byte column (0
@@ -210,7 +187,7 @@ func at(path string, lines []string, line, col int, severity, msg string) Diagno
 	if end <= start {
 		end = start + 1
 	}
-	return Diagnostic{File: path, Line: line, Column: start, EndLine: line, EndColumn: end, Severity: severity, Message: msg, Code: CodeOf(msg)}
+	return Diagnostic{File: path, Line: line, Column: start, EndLine: line, EndColumn: end, Severity: severity, Message: msg}
 }
 
 // locate returns the 0-based line of the first thing a message quotes or

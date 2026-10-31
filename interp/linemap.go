@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/go-slides/slides/diag"
 )
 
 // Line marks tag the template's own lines so that, after execution, every
@@ -194,11 +196,18 @@ func execute(body string, opts Options) (string, error) {
 	}
 	t, err := t.Parse(body)
 	if err != nil {
-		return "", err
+		// text/template's parse errors are plain: the one that names a
+		// function that does not exist is told from the rest here, where the
+		// parser is called
+		code := "template.syntax"
+		if strings.Contains(err.Error(), "not defined") {
+			code = "template.function"
+		}
+		return "", diag.Wrap(code, err)
 	}
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, opts.Data); err != nil {
-		return "", err
+		return "", diag.Wrap("template.exec", err)
 	}
 	return buf.String(), nil
 }

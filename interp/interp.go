@@ -14,7 +14,9 @@
 package interp
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -23,6 +25,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/vfs"
 )
 
@@ -131,6 +134,9 @@ func Funcs(opts Options) template.FuncMap {
 			}
 			b, err := vfs.Or(opts.FS).ReadFile(path)
 			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					err = diag.Wrap("file.missing", err)
+				}
 				return "", err
 			}
 			sub := opts

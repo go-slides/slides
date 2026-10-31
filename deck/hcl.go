@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/internal/hclx"
 	"github.com/go-slides/slides/vfs"
 )
@@ -50,7 +51,7 @@ func hclFront(text string, opts Options) (string, Kinds, error) {
 	start := hcl.Pos{Line: 2, Column: 1, Byte: len(hclOpener) + 1}
 	body, err := hclx.Parse([]byte(text), name, start)
 	if err != nil {
-		return "", nil, err
+		return "", nil, diag.Wrap("hcl.syntax", err)
 	}
 	env := HCLEnv{BaseDir: opts.BaseDir, Now: opts.Now, Data: maps.Clone(opts.Data), FS: opts.FS}
 	if env.Data == nil {
@@ -104,7 +105,7 @@ func hclKinds(body *hclsyntax.Body, env HCLEnv) (Kinds, error) {
 	k := Kinds{}
 	for _, blk := range body.Blocks {
 		if blk.Type != "kind" {
-			return nil, hclx.Errorf(blk.TypeRange, "Unsupported block type", "only kind blocks are expected here, not %q", blk.Type)
+			return nil, diag.Wrap("hcl.unsupported", hclx.Errorf(blk.TypeRange, "Unsupported block type", "only kind blocks are expected here, not %q", blk.Type))
 		}
 		if len(blk.Labels) != 1 {
 			return nil, hclx.Errorf(blk.DefRange(), "Invalid kind block", `a kind block takes one label, its name: kind "title" { ... }`)
@@ -129,7 +130,7 @@ func hclKinds(body *hclsyntax.Body, env HCLEnv) (Kinds, error) {
 				continue
 			}
 			if !isLocal(a.Name) {
-				return nil, hclx.Errorf(a.NameRange, "Unsupported directive", "kind %q: %q is not a local directive (want one of %s)", name, a.Name, strings.Join(kindKeys, ", "))
+				return nil, diag.Wrap("directive.unknown", hclx.Errorf(a.NameRange, "Unsupported directive", "kind %q: %q is not a local directive (want one of %s)", name, a.Name, strings.Join(kindKeys, ", ")))
 			}
 			if v.IsNull() {
 				continue
@@ -150,7 +151,7 @@ func hclKinds(body *hclsyntax.Body, env HCLEnv) (Kinds, error) {
 func ParseKindsHCL(src []byte, name string, env HCLEnv) (Kinds, error) {
 	body, err := hclx.Parse(src, name, hcl.InitialPos)
 	if err != nil {
-		return nil, err
+		return nil, diag.Wrap("hcl.syntax", err)
 	}
 	return hclKinds(body, env)
 }
@@ -183,7 +184,7 @@ func LoadDataFile(path string, env HCLEnv) (map[string]any, error) {
 	}
 	m := map[string]any{}
 	if err := yaml.Unmarshal(b, &m); err != nil {
-		return nil, fmt.Errorf("%s: %v", path, err)
+		return nil, diag.Wrap("yaml.syntax", fmt.Errorf("%s: %v", path, err))
 	}
 	return m, nil
 }
