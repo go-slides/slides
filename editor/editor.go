@@ -24,6 +24,11 @@ import (
 
 // Request is a deck and what the editor knows around it.
 type Request struct {
+	// Lang is the language the help is wanted in ("fr", "pt-BR"…): the help
+	// of a directive or a template function comes from the catalogue
+	// RegisterHelp gave for it, English when it has none. Diagnostics stay
+	// in English; their Code is what a UI explains in its own language.
+	Lang string `json:"lang,omitempty"`
 	// Path is the deck's path; relative paths in the deck resolve from its
 	// directory.
 	Path string `json:"path"`
