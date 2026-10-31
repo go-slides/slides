@@ -5,7 +5,7 @@
 [![Docs](https://img.shields.io/badge/docs-hugo%20%2B%20hextra-4F46E5)](https://go-slides.github.io/docs/)
 [![CI](https://github.com/go-slides/slides/actions/workflows/ci.yml/badge.svg)](https://github.com/go-slides/slides/actions/workflows/ci.yml)
 [![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-slides-007d9c?logo=go&logoColor=white)](https://pkg.go.dev/github.com/go-slides/slides)
-![go](https://img.shields.io/badge/Go-1.27.2%2B-00ADD8?logo=go&logoColor=white)
+![go](https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?logo=go&logoColor=white)
 ![cgo](https://img.shields.io/badge/CGO-0-555)
 [![release](https://img.shields.io/github/v/release/go-slides/slides)](https://github.com/go-slides/slides/releases)
 [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](./LICENSE)
