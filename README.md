@@ -5,7 +5,7 @@
 [![Docs](https://img.shields.io/badge/docs-hugo%20%2B%20hextra-4F46E5)](https://go-slides.github.io/docs/)
 [![CI](https://github.com/go-slides/slides/actions/workflows/ci.yml/badge.svg)](https://github.com/go-slides/slides/actions/workflows/ci.yml)
 [![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-slides-007d9c?logo=go&logoColor=white)](https://pkg.go.dev/github.com/go-slides/slides)
-![go](https://img.shields.io/badge/Go-1.27.2%2B-00ADD8?logo=go&logoColor=white)
+![go](https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?logo=go&logoColor=white)
 ![cgo](https://img.shields.io/badge/CGO-0-555)
 [![release](https://img.shields.io/github/v/release/go-slides/slides)](https://github.com/go-slides/slides/releases)
 [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](./LICENSE)
@@ -428,8 +428,11 @@ the go-* libraries instead:
   on many slides is embedded once, and links are clickable. An element with
   no vector form here (`opacity`, a `filter`, a blurred shadow, a fading
   gradient) is drawn as a bitmap of that element only, its text kept
-  selectable over it; formulas are still bitmaps. `--pdf-raster` writes one
-  image per page instead.
+  selectable over it. Formulas, emoji and SVG images are **vectors** too: each
+  distinct drawing is one form XObject, painted wherever it is used. A formula
+  is tagged as a Formula whose `/Alt` and `/ActualText` hold its TeX. Its glyphs
+  are outlines, so poppler and mupdf do not extract that text, but a reader of
+  the structure does. `--pdf-raster` writes one image per page instead.
 - The fonts the built-in themes ask for (Lato, Roboto Mono) come from
   [go-opentype/fonts](https://github.com/go-opentype/fonts), embedded, so no
   render touches the network.
@@ -560,9 +563,16 @@ the slide was laid out with (embedded in the file, so the slide looks the
 same on a machine without Lato or Inter), with bold, italic, colours, letter
 spacing and links; backgrounds, borders and rounded boxes as shapes;
 gradients as gradient fills (as pictures in the ODP, whose gradients have two
-colours); pictures stored once however many slides show them. What a slide
-cannot express — an element under `opacity`, a `filter`, a blurred shadow, a
-formula — is a picture of that element, its text kept over it. Rendered back
+colours); pictures stored once however many slides show them. A formula, an
+emoji or an SVG image is a **group of vector shapes** (`p:grpSp`, `draw:g`),
+which you can move and resize as one, sharp at any zoom. Some things a slide
+cannot express, and those become a picture of that element, its text kept
+over it:
+
+- an element under `opacity`;
+- a `filter`;
+- a blurred shadow;
+- an SVG that needs a clip or a radial gradient. Rendered back
 by LibreOffice, a slide is within 0.04–2 % of the PNG export's pixels
 (`go run ./internal/cmd/officecheck`).
 
@@ -597,8 +607,9 @@ into a PDF cannot fetch; here it is a `data:` URI of the SVG, taken from the
 embedded set of [go-icons/twemoji](https://github.com/go-icons/twemoji) (2 MB
 compressed, read lazily: a deck without emoji pays nothing). The rule that
 sizes the image (`img[data-marp-twemoji]`, one `em`) is added to the theme as
-Marp Core adds it. HTML, images, PDF, PPTX and ODP all draw them. The SVG is
-rasterised by go-webengine through
+Marp Core adds it. HTML, images, PDF, PPTX and ODP all draw them, as vector
+shapes in the PDF and the editable decks. The SVG is drawn by go-webengine
+through
 [go-gfx/oksvg](https://github.com/go-gfx/oksvg), the fleet's fork of oksvg with
 `clipPath` and correct multi-set arc commands: all 4,009 graphics are drawn, and
 the ones that srwiley/oksvg got wrong (🪇, about 200 in all) match Chrome.

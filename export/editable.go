@@ -153,15 +153,31 @@ func pptxShapes(pg officecanvas.Page, k, pt float64, pics *pictures) (*ooxml.Fil
 	if pg.Background != nil {
 		bg = &ooxml.Fill{Kind: ooxml.FillSolid, Color: rgba(*pg.Background)}
 	}
+	out, err := pptxShapeList(pg.Shapes, k, pt, pics)
+	return bg, out, err
+}
+
+// pptxShapeList converts shapes in order, a group (an SVG drawn as vector
+// shapes) into a p:grpSp of its members.
+func pptxShapeList(shapes []officecanvas.Shape, k, pt float64, pics *pictures) ([]ooxml.Shape, error) {
 	emu := func(v float64) int64 { return int64(math.Round(v * k)) }
 	var out []ooxml.Shape
-	for _, s := range pg.Shapes {
+	for _, s := range shapes {
 		sh := ooxml.Shape{X: emu(s.Bounds.X), Y: emu(s.Bounds.Y), W: max(emu(s.Bounds.W), 1), H: max(emu(s.Bounds.H), 1)}
 		switch s.Kind {
+		case officecanvas.KindGroup:
+			members, err := pptxShapeList(s.Group, k, pt, pics)
+			if err != nil {
+				return nil, err
+			}
+			if len(members) == 0 {
+				continue
+			}
+			sh.Group = members
 		case officecanvas.KindImage:
 			n, err := pics.add(s.Image)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			sh.Image, sh.Crop = n, s.Crop
 		case officecanvas.KindText:
@@ -182,7 +198,7 @@ func pptxShapes(pg officecanvas.Page, k, pt float64, pics *pictures) (*ooxml.Fil
 				}
 				n, err := pics.add(img)
 				if err != nil {
-					return nil, nil, err
+					return nil, err
 				}
 				sh.Image = n
 				break
@@ -206,7 +222,7 @@ func pptxShapes(pg officecanvas.Page, k, pt float64, pics *pictures) (*ooxml.Fil
 		}
 		out = append(out, sh)
 	}
-	return bg, out, nil
+	return out, nil
 }
 
 func pathsEMU(p *paint.Path, b paint.Rect, k float64) [][]ooxml.PathCmd {
@@ -247,14 +263,30 @@ func odpShapes(pg officecanvas.Page, px, pt float64, pics *pictures) (*odf.RGBA,
 		c := odfRGBA(*pg.Background)
 		bg = &c
 	}
+	out, err := odpShapeList(pg.Shapes, px, pt, pics)
+	return bg, out, err
+}
+
+// odpShapeList converts shapes in order, a group (an SVG drawn as vector
+// shapes) into a draw:g of its members.
+func odpShapeList(shapes []officecanvas.Shape, px, pt float64, pics *pictures) ([]odf.Shape, error) {
 	var out []odf.Shape
-	for _, s := range pg.Shapes {
+	for _, s := range shapes {
 		sh := odf.Shape{X: s.Bounds.X * px, Y: s.Bounds.Y * px, W: s.Bounds.W * px, H: s.Bounds.H * px}
 		switch s.Kind {
+		case officecanvas.KindGroup:
+			members, err := odpShapeList(s.Group, px, pt, pics)
+			if err != nil {
+				return nil, err
+			}
+			if len(members) == 0 {
+				continue
+			}
+			sh.Group = members
 		case officecanvas.KindImage:
 			n, err := pics.add(crop(s.Image, s.Crop))
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			sh.Kind, sh.Image = odf.ShapeImage, n
 		case officecanvas.KindGradient:
@@ -264,7 +296,7 @@ func odpShapes(pg officecanvas.Page, px, pt float64, pics *pictures) (*odf.RGBA,
 			}
 			n, err := pics.add(img)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			sh.Kind, sh.Image = odf.ShapeImage, n
 		case officecanvas.KindText:
@@ -278,7 +310,7 @@ func odpShapes(pg officecanvas.Page, px, pt float64, pics *pictures) (*odf.RGBA,
 		case officecanvas.KindFill:
 			sh.Fill = odfRGBA(s.Color)
 			if !s.Rect {
-				sh.Kind = odf.ShapePath
+				sh.Kind, sh.NonZero = odf.ShapePath, !s.EvenOdd
 				// In hundredths of a pixel, then back: pathsEMU rounds.
 				for _, path := range pathsEMU(s.Path, s.Bounds, px*100) {
 					var cmds []odf.PathCmd
@@ -292,7 +324,7 @@ func odpShapes(pg officecanvas.Page, px, pt float64, pics *pictures) (*odf.RGBA,
 		}
 		out = append(out, sh)
 	}
-	return bg, out, nil
+	return out, nil
 }
 
 // slideName is a slide's name: its first heading, else empty (the writers
