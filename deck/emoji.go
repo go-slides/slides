@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-icons/twemoji"
-	"github.com/yuin/goldmark/ast"
-	ghtml "github.com/yuin/goldmark/renderer/html"
-	"github.com/yuin/goldmark/util"
+	"github.com/yuin/goldmark/v2/ast"
+	ghtml "github.com/yuin/goldmark/v2/renderer/html"
+	"github.com/yuin/goldmark/v2/util"
 )
 
 // Emoji is Marp Core's emoji support: shortcodes (:smile:, markdown-it-emoji's

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // applyGlobals collects the global directives: the front matter's first,
