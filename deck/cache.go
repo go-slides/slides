@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/v2/parser"
 )
 
 // RenderCache keeps the HTML of a deck's slides between renders, so that an

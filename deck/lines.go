@@ -3,7 +3,7 @@ package deck
 import (
 	"slices"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // SourceLine returns the 0-based line of the deck's source file that a

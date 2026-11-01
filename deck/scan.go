@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // nodeInfo is what scanning learned about a node, for the renderer.

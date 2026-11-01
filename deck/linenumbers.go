@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // Line numbers on fenced code blocks. Marp Core has none (marp-core 4.4.0:
