@@ -9,7 +9,7 @@
 package deck
 
 import (
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // Deck is a parsed slide deck.
