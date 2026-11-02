@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // Code callouts: a numbered disc at the end of a code line, referring to the
