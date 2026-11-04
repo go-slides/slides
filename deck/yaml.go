@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // parseDirectiveYAML parses directive YAML the way Marpit does: with the
