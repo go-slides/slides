@@ -11,19 +11,19 @@ require (
 	github.com/go-ooxml/ooxml v0.7.0
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
-	github.com/go-opentype/opentype v0.16.2-0.20261101005254-2c8922cb87c6
-	github.com/go-pdfkit/pdfkit v0.21.0
+	github.com/go-opentype/opentype v0.18.0
+	github.com/go-pdfkit/pdfkit v0.23.0
 	github.com/go-pdfkit/reader v0.10.0
 	github.com/go-richdoc/richdoc v0.7.0
-	github.com/go-rouge/rouge v0.7.1
+	github.com/go-rouge/rouge v0.8.1
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.23.4
+	github.com/go-webengine/engine v0.34.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/yuin/goldmark v1.8.7
-	github.com/zclconf/go-cty v1.19.0
+	github.com/zclconf/go-cty v1.20.0
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
@@ -32,21 +32,25 @@ require (
 
 require (
 	github.com/agext/levenshtein v1.2.1 // indirect
-	github.com/andybalholm/brotli v1.2.7 // indirect
+	github.com/andybalholm/brotli v1.2.8 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/breml/rootcerts v0.3.7 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9 // indirect
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
+	github.com/ebitengine/purego v0.11.3 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.37.0 // indirect
+	github.com/go-gfx/wgsl v0.4.0 // indirect
 	github.com/go-images/gif v0.2.0 // indirect
 	github.com/go-images/images v0.1.1-0.20261026203936-4ac989d310a1 // indirect
 	github.com/go-images/jpeg v0.3.0 // indirect
 	github.com/go-images/jpeg2000 v0.14.0 // indirect
 	github.com/go-images/png v0.2.0 // indirect
+	github.com/go-macos/metal v0.4.0 // indirect
+	github.com/go-macos/objc v0.11.2 // indirect
 	github.com/go-regexp/engine v0.3.2 // indirect
 	github.com/go-ruby-regexp/regexp v0.1.1 // indirect
 	github.com/go-simd/highway v0.0.14 // indirect
