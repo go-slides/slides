@@ -191,7 +191,8 @@ func execute(body string, opts Options) (string, error) {
 	if name == "" {
 		name = "deck"
 	}
-	t := template.New(name).Option("missingkey=error").Funcs(Funcs(opts))
+	// the tick function is the template's own, not one a deck may document or call
+	t := template.New(name).Option("missingkey=error").Funcs(Funcs(opts)).Funcs(template.FuncMap{tickName: opts.lim.tick})
 	if opts.Delims[0] != "" || opts.Delims[1] != "" {
 		t = t.Delims(opts.Delims[0], opts.Delims[1])
 	}
@@ -205,6 +206,9 @@ func execute(body string, opts Options) (string, error) {
 			code = "template.function"
 		}
 		return "", diag.Wrap(code, err)
+	}
+	if err := tickLoops(t); err != nil {
+		return "", err
 	}
 	var buf limitWriter
 	if err := t.Execute(&buf, opts.Data); err != nil {

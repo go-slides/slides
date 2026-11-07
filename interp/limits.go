@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"text/template"
+	"text/template/parse"
+	"time"
 
 	"github.com/go-slides/slides/diag"
 )
@@ -33,6 +36,19 @@ const (
 	MaxIterations = 1 << 22
 	// MaxWidth is the largest width or precision printf accepts.
 	MaxWidth = 1 << 16
+	// MaxSteps is how many loop iterations and template calls one expansion may
+	// run. text/template has no hook in its loops (a range over a list the deck
+	// holds calls no function), so the parsed template is given one: tickLoops.
+	// MaxDuration bounds the expansion's time as a whole, for a step that is
+	// itself slow.
+	MaxSteps    = 1 << 20
+	MaxDuration = 10 * time.Second
+)
+
+// the bounds above, as variables so that a test can lower them
+var (
+	maxSteps    = MaxSteps
+	maxDuration = MaxDuration
 )
 
 // limits is the state one expansion shares with the includes it opens: the
@@ -43,6 +59,70 @@ type limits struct {
 	files int
 	bytes int
 	iter  int
+	steps int
+	start time.Time
+}
+
+// tickName is the function tickLoops puts in every loop body and every
+// template: it counts the step, and refuses the one past the budget.
+const tickName = "goSlidesTick"
+
+func (l *limits) tick() (string, error) {
+	if l.steps++; l.steps > maxSteps {
+		return "", diag.Errorf("template.limit", "the template ran more than %d steps (loop iterations and template calls)", maxSteps)
+	}
+	if l.steps&255 == 0 && time.Since(l.start) > maxDuration {
+		return "", diag.Errorf("template.limit", "the template ran for more than %v", maxDuration)
+	}
+	return "", nil
+}
+
+// tickLoops puts a call to the tick function at the start of every range body
+// and of every template (the root of the parsed text and of each define), so that
+// a nested range over data, which writes nothing and calls nothing, is counted
+// and timed as it runs, and so is a template that calls itself. The call is
+// parsed from the template's own syntax, so it is a node like any other, and it
+// writes nothing. text/template offers no other hook: its exec takes no context,
+// and a range over a slice or a map is a loop inside the package (exec.go,
+// walkRange).
+func tickLoops(t *template.Template) error {
+	probe, err := template.New("tick").Funcs(template.FuncMap{tickName: func() string { return "" }}).Parse("{{ " + tickName + " }}")
+	if err != nil {
+		return err
+	}
+	tick := probe.Tree.Root.Nodes[0]
+	list := func(l *parse.ListNode) {
+		l.Nodes = append([]parse.Node{tick}, l.Nodes...)
+	}
+	var visit func(n parse.Node)
+	visit = func(n parse.Node) {
+		switch n := n.(type) {
+		case *parse.ListNode:
+			if n != nil {
+				for _, c := range n.Nodes {
+					visit(c)
+				}
+			}
+		case *parse.IfNode:
+			visit(n.List)
+			visit(n.ElseList)
+		case *parse.WithNode:
+			visit(n.List)
+			visit(n.ElseList)
+		case *parse.RangeNode:
+			visit(n.List)
+			visit(n.ElseList)
+			list(n.List)
+		}
+	}
+	for _, tt := range t.Templates() {
+		if tt.Tree == nil || tt.Tree.Root == nil {
+			continue
+		}
+		visit(tt.Tree.Root)
+		list(tt.Tree.Root)
+	}
+	return nil
 }
 
 // withLimits returns opts holding a limits, a new one (the root file on its
@@ -52,7 +132,7 @@ func withLimits(opts Options) Options {
 	if opts.lim != nil {
 		return opts
 	}
-	opts.lim = &limits{}
+	opts.lim = &limits{start: time.Now()}
 	if opts.Name != "" {
 		opts.lim.stack = append(opts.lim.stack, rootKey(opts))
 		opts.lim.root = 1

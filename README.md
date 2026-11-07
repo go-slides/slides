@@ -109,12 +109,16 @@ deep, a deck may make 10 000 in all and read 8 MiB through them
 (`include.limit`). A template may write 16 MiB, `seq` may be 1 048 576 long
 and all the `seq`s of a deck 4 194 304 items, `repeat`, `replace` and
 `printf` may not make more than 16 MiB, and `printf` takes no width above
-65 536 (`template.limit`). A kind may not extend itself, nor through a chain
-of more than 64 kinds (`kind.cycle`). Markdown may not start a line with more
-than 100 `>` or 1 024 columns of indentation (`deck.limit`). A template that
-calls itself through `define` and `template` is stopped by `text/template`'s
-own depth limit (an error). Data files are read once and cannot include each
-other.
+65 536 (`template.limit`). Loops are counted as they run: a template may make
+1 048 576 loop iterations and template calls in all (a `range` over data lists
+nested `{{ range .a }}{{ range $.a }}`, which writes nothing and calls no
+function, is refused after that many steps, as is a template that calls itself)
+and may run for 10 seconds (`template.limit`). A kind may not extend itself,
+nor through a chain of more than 64 kinds (`kind.cycle`). Markdown may not
+start a line with more than 100 `>` or 1 024 columns of indentation
+(`deck.limit`). A template that calls itself through `define` and `template` is
+also stopped by `text/template`'s own depth limit (an error). Data files are
+read once and cannot include each other.
 
 Code is left alone. Text inside fenced code blocks and inline code spans is
 never interpreted, so a slide about Go templates can show `{{ .Name }}` as it

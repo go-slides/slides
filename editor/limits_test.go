@@ -6,7 +6,23 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-slides/slides/internal/benchdeck"
 )
+
+// The limits leave a large, ordinary deck alone: the 100-slide bench deck, and a
+// templated one that loops over its slides and their items.
+func TestLargeDecksStillRender(t *testing.T) {
+	r := renderBounded(t, string(benchdeck.Large(100)), nil)
+	if r.HTML == "" || len(r.Diagnostics) != 0 || r.Slides < 100 {
+		t.Fatalf("bench deck: %d slides, %+v", r.Slides, r.Diagnostics)
+	}
+	src := front + "{{ range seq 100 }}\n# Slide {{ . }}\n\n{{ range seq 20 }}- item {{ . }}\n{{ end }}\n---\n{{ end }}"
+	r = renderBounded(t, src, nil)
+	if r.HTML == "" || len(r.Diagnostics) != 0 || r.Slides < 100 {
+		t.Fatalf("templated deck: %d slides, %+v", r.Slides, r.Diagnostics)
+	}
+}
 
 // renderBounded renders a hostile deck as the preview does (and as the
 // playground's worker does for a shared link), under a memory limit and a time
