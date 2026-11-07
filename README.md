@@ -100,6 +100,22 @@ error that names the file and line, rather than printing `<no value>`.
 Front-matter values and kind definitions are templates too, so
 `footer: "{{ .title }} — {{ page }}"` numbers every slide.
 
+A deck is untrusted input (a shared link, a repository one opens), so what a
+template can multiply is bounded, and a deck past a bound is refused with a
+coded error, not run (go-slides#67: a deck that included itself overflowed the
+stack). A file that includes itself, directly or through others
+(`a.md → b.md → a.md`), is refused (`include.cycle`); includes may nest 16
+deep, a deck may make 10 000 in all and read 8 MiB through them
+(`include.limit`). A template may write 16 MiB, `seq` may be 1 048 576 long
+and all the `seq`s of a deck 16 777 216 items, `repeat`, `replace` and
+`printf` may not make more than 16 MiB, and `printf` takes no width above
+65 536 (`template.limit`). A kind may not extend itself, nor through a chain
+of more than 64 kinds (`kind.cycle`). Markdown may not start a line with more
+than 100 `>` or 1 024 columns of indentation (`deck.limit`). A template that
+calls itself through `define` and `template` is stopped by `text/template`'s
+own depth limit (an error). Data files are read once and cannot include each
+other.
+
 Code is left alone. Text inside fenced code blocks and inline code spans is
 never interpreted, so a slide about Go templates can show `{{ .Name }}` as it
 is. Front matter `template: code` interpolates code too, and

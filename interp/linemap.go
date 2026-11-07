@@ -1,7 +1,6 @@
 package interp
 
 import (
-	"bytes"
 	"strconv"
 	"strings"
 	"text/template"
@@ -28,6 +27,7 @@ const (
 // not marked: a mark there would stop the trim and change the output.
 // Errors are those of Expand, with Expand's columns.
 func ExpandLines(src string, opts Options) (string, []int, error) {
+	opts = withLimits(opts)
 	var masked []string
 	body := src
 	if !opts.Code {
@@ -39,6 +39,7 @@ func ExpandLines(src string, opts Options) (string, []int, error) {
 		// The marks shift the columns errors report: fail the way Expand
 		// does. (Should the marked template alone fail, the expansion
 		// comes back unmapped rather than not at all.)
+		opts.lim = nil // the failed run's spending is not the next one's
 		s, err := Expand(src, opts)
 		return s, nil, err
 	}
@@ -205,7 +206,7 @@ func execute(body string, opts Options) (string, error) {
 		}
 		return "", diag.Wrap(code, err)
 	}
-	var buf bytes.Buffer
+	var buf limitWriter
 	if err := t.Execute(&buf, opts.Data); err != nil {
 		return "", diag.Wrap("template.exec", err)
 	}

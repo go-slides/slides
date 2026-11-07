@@ -135,9 +135,16 @@ func (k Kinds) Resolve(name string) (Dirs, error) {
 	return k.resolve(name, nil)
 }
 
+// maxExtendsDepth bounds an extends chain, so that a long one (a kinds file is
+// untrusted) does not cost time that grows with the square of its length.
+const maxExtendsDepth = 64
+
 func (k Kinds) resolve(name string, seen []string) (Dirs, error) {
 	if slices.Contains(seen, name) {
-		return Dirs{}, fmt.Errorf("kind %q extends itself (%s)", name, strings.Join(append(seen, name), " → "))
+		return Dirs{}, diag.Errorf("kind.cycle", "kind %q extends itself (%s)", name, strings.Join(append(seen, name), " → "))
+	}
+	if len(seen) >= maxExtendsDepth {
+		return Dirs{}, diag.Errorf("kind.cycle", "kind %q: the extends chain is more than %d kinds long", name, maxExtendsDepth)
 	}
 	kind, ok := k[name]
 	if !ok {
