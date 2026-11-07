@@ -42,6 +42,11 @@ func expandData(t *testing.T, src string, data map[string]any) (string, error, t
 // A nested range over data writes nothing and calls no function: the output limit
 // and the budget of seq never see it. Its steps are counted as it runs.
 func TestNestedRangeOverDataIsRefused(t *testing.T) {
+	// the budget is lowered so that each refusal is quick (at full size one takes
+	// seconds under the race detector on a small runner: see the next test)
+	prev := maxSteps
+	maxSteps = 1 << 15
+	defer func() { maxSteps = prev }()
 	data := map[string]any{"a": list(10_000), "b": list(300)}
 	for name, src := range map[string]string{
 		"two lists of 10^4":      `{{ range .a }}{{ range $.a }}{{ end }}{{ end }}`,
@@ -66,10 +71,25 @@ func TestNestedRangeOverDataIsRefused(t *testing.T) {
 			if diag.CodeOf(err) != "template.limit" && !strings.Contains(err.Error(), "maximum template depth") {
 				t.Fatalf("code %q: %v", diag.CodeOf(err), err)
 			}
-			if took > 15*time.Second {
+			if took > 45*time.Second {
 				t.Errorf("refused after %v", took)
 			}
 		})
+	}
+}
+
+// The same refusal at the real budget: the step count or, on a slow machine, the
+// deadline stops two lists of 10^4. The bound says "does not hang".
+func TestNestedRangeKeepsItsFullBudget(t *testing.T) {
+	if maxSteps != MaxSteps || maxDuration != MaxDuration {
+		t.Fatal("the bounds are not the documented ones")
+	}
+	_, err, took := expandData(t, `{{ range .a }}{{ range $.a }}{{ end }}{{ end }}`, map[string]any{"a": list(10_000)})
+	if diag.CodeOf(err) != "template.limit" {
+		t.Fatalf("%v", err)
+	}
+	if took > 45*time.Second {
+		t.Errorf("refused after %v", took)
 	}
 }
 
@@ -83,14 +103,15 @@ func TestExpansionDeadline(t *testing.T) {
 	if diag.CodeOf(err) != "template.limit" || !strings.Contains(err.Error(), "ran for more than") {
 		t.Fatalf("%v", err)
 	}
-	if took > 10*time.Second {
+	if took > 45*time.Second {
 		t.Errorf("refused after %v", took)
 	}
 }
 
 func TestLoopsWithinTheBudgetAreNotRefused(t *testing.T) {
-	// 700 x 700 = 4.9 * 10^5 steps, under half the budget
-	out, err, _ := expandData(t, `{{ range .a }}{{ range $.a }}{{ end }}{{ end }}done`, map[string]any{"a": list(700)})
+	// 300 x 300 = 9 * 10^4 steps: well within the budget, and within the
+	// deadline however slow the machine (700 x 700 took seconds under -race)
+	out, err, _ := expandData(t, `{{ range .a }}{{ range $.a }}{{ end }}{{ end }}done`, map[string]any{"a": list(300)})
 	if err != nil || out != "done" {
 		t.Fatalf("%q, %v", out, err)
 	}

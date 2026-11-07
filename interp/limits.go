@@ -47,8 +47,9 @@ const (
 
 // the bounds above, as variables so that a test can lower them
 var (
-	maxSteps    = MaxSteps
-	maxDuration = MaxDuration
+	maxSteps      = MaxSteps
+	maxDuration   = MaxDuration
+	maxIterations = MaxIterations
 )
 
 // limits is the state one expansion shares with the includes it opens: the
@@ -185,8 +186,8 @@ func (l *limits) seq(n int) ([]int, error) {
 	if n < 0 {
 		n = 0
 	}
-	if l.iter += n; l.iter > MaxIterations {
-		return nil, diag.Errorf("template.limit", "the template steps through more than %d items", MaxIterations)
+	if l.iter += n; l.iter > maxIterations {
+		return nil, diag.Errorf("template.limit", "the template steps through more than %d items", maxIterations)
 	}
 	s := make([]int, n)
 	for i := range s {

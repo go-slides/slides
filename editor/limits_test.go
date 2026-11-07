@@ -36,12 +36,12 @@ func renderBounded(t *testing.T, src string, files map[string]string) Result {
 	go func() { ch <- Render(Request{Path: "/w/deck.md", Source: src, Files: files}) }()
 	select {
 	case r := <-ch:
-		if took := time.Since(start); took > 10*time.Second {
+		if took := time.Since(start); took > 45*time.Second { // "does not hang": a small runner under -race is several times slower than a laptop
 			t.Errorf("rendered in %v: too slow", took)
 		}
 		return r
-	case <-time.After(30 * time.Second):
-		t.Fatal("the render did not finish in 30 s")
+	case <-time.After(90 * time.Second):
+		t.Fatal("the render did not finish in 90 s")
 	}
 	return Result{}
 }
