@@ -45,7 +45,8 @@ func TestThemeWarningCode(t *testing.T) {
 
 func TestEveryCodeIsDocumented(t *testing.T) {
 	for _, c := range []string{"kind.unknown", "directive.unknown", "template.function", "template.exec", "template.syntax",
-		"yaml.syntax", "hcl.syntax", "hcl.unsupported", "theme.unknown", "file.missing"} {
+		"yaml.syntax", "hcl.syntax", "hcl.unsupported", "theme.unknown", "file.missing",
+		"include.cycle", "include.limit", "template.limit", "kind.cycle", "deck.limit"} {
 		if Codes[c] == "" {
 			t.Errorf("%q has no English text", c)
 		}

@@ -328,6 +328,18 @@ func kindsFrom(v any, dir string, env deck.HCLEnv) (deck.Kinds, error) {
 // dataFrom reads template data given inline or as file paths: YAML or JSON,
 // or HCL for a .hcl file, whose expressions see the data read so far.
 func dataFrom(fsys vfs.FS, v any, dir string, sofar map[string]any) (map[string]any, error) {
+	return dataFromDepth(fsys, v, dir, sofar, 0)
+}
+
+// maxDataDepth bounds how deep a data list may nest lists of paths. A data file
+// is read once and its content is data, never another list of files, so files
+// cannot include each other; only the configuration's own nesting recurses.
+const maxDataDepth = 32
+
+func dataFromDepth(fsys vfs.FS, v any, dir string, sofar map[string]any, depth int) (map[string]any, error) {
+	if depth > maxDataDepth {
+		return nil, diag.Errorf("include.limit", "data: lists nested more than %d deep", maxDataDepth)
+	}
 	switch x := v.(type) {
 	case map[string]any:
 		return x, nil
@@ -336,7 +348,7 @@ func dataFrom(fsys vfs.FS, v any, dir string, sofar map[string]any) (map[string]
 	case []any:
 		m := map[string]any{}
 		for _, p := range x {
-			d, err := dataFrom(fsys, p, dir, sofar)
+			d, err := dataFromDepth(fsys, p, dir, sofar, depth+1)
 			if err != nil {
 				return nil, err
 			}

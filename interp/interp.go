@@ -59,10 +59,17 @@ type Options struct {
 	Now func() time.Time
 	// FS is where the include function reads; nil means the disk.
 	FS vfs.FS
+
+	// lim is what an expansion and its includes share (see limits.go).
+	lim *limits
 }
 
-// Expand executes src as a template.
+// Expand executes src as a template. A deck that includes itself, nests includes
+// past MaxIncludeDepth, or would make a template write, step through or read
+// past the bounds of limits.go is refused with a coded error (include.cycle,
+// include.limit, template.limit), not run.
 func Expand(src string, opts Options) (string, error) {
+	opts = withLimits(opts)
 	var masked []string
 	body := src
 	if !opts.Code {
@@ -77,6 +84,8 @@ func Expand(src string, opts Options) (string, error) {
 
 // Funcs is the function map available to templates.
 func Funcs(opts Options) template.FuncMap {
+	opts = withLimits(opts)
+	lim := opts.lim
 	now := opts.Now
 	if now == nil {
 		now = time.Now
@@ -98,20 +107,21 @@ func Funcs(opts Options) template.FuncMap {
 			return strings.Join(words, " ")
 		},
 		"trim":      strings.TrimSpace,
-		"replace":   func(old, repl, s string) string { return strings.ReplaceAll(s, old, repl) },
+		"replace":   replace,
+		"printf":    printf,
 		"split":     func(sep, s string) []string { return strings.Split(s, sep) },
 		"join":      joinAny,
 		"contains":  func(sub, s string) bool { return strings.Contains(s, sub) },
 		"hasPrefix": func(prefix, s string) bool { return strings.HasPrefix(s, prefix) },
 		"hasSuffix": func(suffix, s string) bool { return strings.HasSuffix(s, suffix) },
-		"repeat":    func(n int, s string) string { return strings.Repeat(s, n) },
+		"repeat":    repeat,
 		"default": func(def, v any) any {
 			if empty(v) {
 				return def
 			}
 			return v
 		},
-		"seq":  seq,
+		"seq":  lim.seq,
 		"add":  func(a, b int) int { return a + b },
 		"sub":  func(a, b int) int { return a - b },
 		"mul":  func(a, b int) int { return a * b },
@@ -132,11 +142,21 @@ func Funcs(opts Options) template.FuncMap {
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(opts.BaseDir, path)
 			}
+			// A file that is already being expanded is a cycle (a → b → a),
+			// and the depth and the totals are bounded: see limits.go.
+			leave, err := lim.enter(path)
+			if err != nil {
+				return "", err
+			}
+			defer leave()
 			b, err := vfs.Or(opts.FS).ReadFile(path)
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
 					err = diag.Wrap("file.missing", err)
 				}
+				return "", err
+			}
+			if err := lim.read(path, len(b)); err != nil {
 				return "", err
 			}
 			sub := opts
@@ -194,14 +214,6 @@ func joinAny(sep string, v any) (string, error) {
 		return strings.Join(parts, sep), nil
 	}
 	return "", fmt.Errorf("join: %T is not a list", v)
-}
-
-func seq(n int) []int {
-	s := make([]int, max(n, 0))
-	for i := range s {
-		s[i] = i + 1
-	}
-	return s
 }
 
 func dict(kv ...any) (map[string]any, error) {

@@ -171,6 +171,9 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 		}
 		body = body[len(pad):]
 	}
+	if line, err := checkNesting(body); err != nil {
+		return nil, d.errorf(fmLines+line, "%v", err)
+	}
 	d.Kinds = kinds
 	d.source = []byte(body)
 	d.fmLines = fmLines
