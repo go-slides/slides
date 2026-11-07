@@ -107,7 +107,7 @@ stack). A file that includes itself, directly or through others
 (`a.md → b.md → a.md`), is refused (`include.cycle`); includes may nest 16
 deep, a deck may make 10 000 in all and read 8 MiB through them
 (`include.limit`). A template may write 16 MiB, `seq` may be 1 048 576 long
-and all the `seq`s of a deck 16 777 216 items, `repeat`, `replace` and
+and all the `seq`s of a deck 4 194 304 items, `repeat`, `replace` and
 `printf` may not make more than 16 MiB, and `printf` takes no width above
 65 536 (`template.limit`). A kind may not extend itself, nor through a chain
 of more than 64 kinds (`kind.cycle`). Markdown may not start a line with more

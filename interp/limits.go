@@ -30,7 +30,7 @@ const (
 	// of all the seqs of one expansion (nested ranges multiply: the inner seq is
 	// called once per outer step, and each call is paid for).
 	MaxSeq        = 1 << 20
-	MaxIterations = 1 << 24
+	MaxIterations = 1 << 22
 	// MaxWidth is the largest width or precision printf accepts.
 	MaxWidth = 1 << 16
 )
