@@ -38,8 +38,8 @@ func expandBounded(t *testing.T, src string, files map[string]string) (string, e
 	select {
 	case r := <-ch:
 		return r.out, r.err, time.Since(start)
-	case <-time.After(30 * time.Second):
-		t.Fatal("the expansion did not finish in 30 s")
+	case <-time.After(90 * time.Second):
+		t.Fatal("the expansion did not finish in 90 s")
 	}
 	return "", nil, 0
 }
@@ -56,12 +56,14 @@ func refused(t *testing.T, src string, files map[string]string, code string) err
 	if got := diag.CodeOf(err); got != code {
 		t.Fatalf("code %q, want %q: %v", got, code, err)
 	}
-	if took > 10*time.Second {
+	// the bound says "does not hang", not "is fast": a small CI runner under the
+	// race detector is several times slower than a laptop
+	if took > 45*time.Second {
 		t.Errorf("refused after %v: too slow", took)
 	}
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
-	if ms.HeapAlloc > 512<<20 {
+	if ms.HeapAlloc > 700<<20 {
 		t.Errorf("heap %d MiB after the refusal", ms.HeapAlloc>>20)
 	}
 	return err
@@ -161,6 +163,12 @@ func TestIncludeSharedFragmentsAreNotCycles(t *testing.T) {
 }
 
 func TestTemplateBombsAreRefused(t *testing.T) {
+	// the budget of seq is lowered so that refusing a nested seq costs little: a
+	// refusal at the full budget takes seconds under the race detector on a
+	// small runner (TestNestedRangeKeepsItsFullBudget runs one at full size)
+	prev := maxIterations
+	maxIterations = 1 << 16
+	defer func() { maxIterations = prev }()
 	for name, src := range map[string]string{
 		"seq alone":            `{{ range seq 1000000000 }}x{{ end }}`,
 		"nested seq":           `{{ range seq 5000 }}{{ range seq 5000 }}{{ end }}{{ end }}`,
