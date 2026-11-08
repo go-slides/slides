@@ -144,6 +144,54 @@ func EachLayout(ctx context.Context, b *doc.Doc, opts Options, emit func(i int, 
 }
 
 func eachLayout[T any](ctx context.Context, b *doc.Doc, opts Options, convert func(*engine.PageLayout) (T, error), emit func(int, T) error) error {
+	return eachSlide(ctx, b, opts, func(_ int, at func(int) (*engine.PageLayout, error)) (T, error) {
+		l, err := at(-1)
+		if err != nil {
+			var zero T
+			return zero, err
+		}
+		return convert(l)
+	}, emit)
+}
+
+// EachSteps is EachLayout with a slide's fragments laid out one step at a
+// time: steps[s] shows the first s fragmented list items of the slide and
+// hides the rest (their place stays empty), so that steps[len(steps)-1] is the
+// whole slide. A slide without fragments has one step. The steps of a slide
+// are laid out by the worker that has the slide, one after the other.
+func EachSteps(ctx context.Context, b *doc.Doc, opts Options, emit func(i int, steps []*engine.PageLayout) error) error {
+	return eachSlide(ctx, b, opts, func(i int, at func(int) (*engine.PageLayout, error)) ([]*engine.PageLayout, error) {
+		n := b.Slides[i].Fragments
+		steps := make([]*engine.PageLayout, 0, n+1)
+		for s := 0; s <= n; s++ {
+			l, err := at(s)
+			if err != nil {
+				return nil, err
+			}
+			steps = append(steps, l)
+		}
+		return steps, nil
+	}, emit)
+}
+
+// hideFragmentsFrom is the rule that hides the fragments after the first
+// shown: visibility, not display, so that a hidden item keeps its place and
+// the steps of a slide are laid out the same.
+func hideFragmentsFrom(shown, n int) string {
+	if shown < 0 || shown >= n {
+		return ""
+	}
+	var sel []string
+	for k := shown + 1; k <= n; k++ {
+		sel = append(sel, fmt.Sprintf(`[data-marpit-fragment="%d"]`, k))
+	}
+	return strings.Join(sel, ",") + "{visibility:hidden}"
+}
+
+// eachSlide lays the slides of b out on opts.Workers workers and hands what
+// produce makes of each, in order, to emit. produce is given a function that
+// lays the slide out with its first shown fragments visible (-1: all).
+func eachSlide[T any](ctx context.Context, b *doc.Doc, opts Options, produce func(i int, at func(shown int) (*engine.PageLayout, error)) (T, error), emit func(int, T) error) error {
 	e := engine.New()
 	e.DisableJS = true
 	e.FileRoot = opts.FileRoot
@@ -177,16 +225,18 @@ func eachLayout[T any](ctx context.Context, b *doc.Doc, opts Options, convert fu
 		fitting.Adjust = fitHeadings
 	}
 	render := func(ctx context.Context, i int) (T, error) {
-		eng, html := e, page(b.CSS, b.Slides[i].HTML)
+		eng := e
 		if fits(b.Slides[i].HTML) {
 			eng = fitting
 		}
-		l, err := eng.LayoutHTML(ctx, html, opts.BaseURL, view)
-		if err != nil {
-			var zero T
-			return zero, fmt.Errorf("slide %d: %w", i+1, err)
-		}
-		return convert(l)
+		return produce(i, func(shown int) (*engine.PageLayout, error) {
+			html := pageWith(b.CSS, b.Slides[i].HTML, hideFragmentsFrom(shown, b.Slides[i].Fragments))
+			l, err := eng.LayoutHTML(ctx, html, opts.BaseURL, view)
+			if err != nil {
+				return nil, fmt.Errorf("slide %d: %w", i+1, err)
+			}
+			return l, nil
+		})
 	}
 	workers := opts.Workers
 	if workers <= 0 {
@@ -257,11 +307,14 @@ func copyRect(dst, src *image.RGBA) {
 
 // page is the document one slide is rendered from. The theme comes first in
 // a sheet of its own, since its @import rules must lead a sheet.
-func page(themeCSS, slide string) string {
+func page(themeCSS, slide string) string { return pageWith(themeCSS, slide, "") }
+
+// pageWith is page with one more rule, last in the page's sheet.
+func pageWith(themeCSS, slide, extra string) string {
 	var b strings.Builder
 	b.WriteString("<!DOCTYPE html><html><head><meta charset=\"utf-8\">")
 	b.WriteString("<style>" + themeCSS + "</style>")
-	b.WriteString("<style>html,body{margin:0;padding:0;background:#fff}</style>")
+	b.WriteString("<style>html,body{margin:0;padding:0;background:#fff}" + extra + "</style>")
 	b.WriteString("</head><body><div class=\"marpit\">" + slide + "</div></body></html>")
 	return b.String()
 }
@@ -332,12 +385,16 @@ func VectorPDF(ctx context.Context, w io.Writer, b *doc.Doc, opts Options) error
 // a layout, as vectors (AddLayout) — and what it was drawn from can be
 // dropped.
 type PDFWriter struct {
-	b     *doc.Doc
-	opts  PDFOptions
-	doc   *pdfkit.Document
-	size  pdfkit.PageSize
-	n     int
-	fonts *pdfcanvas.Fonts
+	b    *doc.Doc
+	opts PDFOptions
+	doc  *pdfkit.Document
+	size pdfkit.PageSize
+	n    int // pages added
+	// slide is the slide being added, and step the page of it (AddSteps), 0
+	// being the first: pages and slides are not one for one with fragments.
+	slide, step int
+	stepping    bool
+	fonts       *pdfcanvas.Fonts
 	// root is the structure's root, nil for an untagged PDF.
 	root *pdfkit.StructElem
 
@@ -412,8 +469,30 @@ func NewPDFWith(b *doc.Doc, opts PDFOptions) *PDFWriter {
 	return p
 }
 
+// AddSteps adds the next slide as a page for each of the layouts of its steps
+// (EachSteps), as Beamer's overlays do: the first page shows the slide with
+// none of its fragments, each next one a fragment more, the last the whole
+// slide. The slide's outline entries, notes and transition are on its first
+// page, and a later page comes in with a short fade, as a fragment does in the
+// viewer. A slide without fragments is one page, as AddLayout adds it.
+//
+// A tagged PDF (the default) has the slide's content in each page's structure,
+// so a screen reader reads the earlier steps again; Untagged avoids it.
+func (p *PDFWriter) AddSteps(steps []*engine.PageLayout) error {
+	p.stepping = true
+	defer func() { p.stepping, p.step = false, 0; p.slide++ }()
+	for s, l := range steps {
+		p.step = s
+		if err := p.AddLayout(l); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Add adds the next slide's page, drawn from its image.
 func (p *PDFWriter) Add(img image.Image) {
+	defer func() { p.slide++ }()
 	pg := p.next()
 	if p.root != nil {
 		// in a tagged PDF, a page that is one picture is one figure
@@ -433,6 +512,9 @@ func (p *PDFWriter) Add(img image.Image) {
 // element under opacity, a filter, a blurred shadow — is drawn as a bitmap
 // of just that element (paint.PaintVector).
 func (p *PDFWriter) AddLayout(l *engine.PageLayout) error {
+	if !p.stepping {
+		defer func() { p.slide++ }()
+	}
 	pg := p.next()
 	dev := l.Page()
 	if dev.Dx() <= 0 {
@@ -480,11 +562,21 @@ func (p *PDFWriter) AddLayout(l *engine.PageLayout) error {
 
 // next adds the next slide's page and its outline entries.
 func (p *PDFWriter) next() *pdfkit.Page {
-	i := p.n
+	pageIdx := p.n
 	p.n++
 	pg := p.doc.AddPage(p.size)
-	if i < len(p.b.Slides) {
+	if p.step > 0 {
+		// a fragment comes in as it does in the viewer: a short fade
+		_ = pg.SetTransition(pdfkit.Transition{Style: pdfkit.TransitionFade, Duration: fragmentFadeMS / 1000.0})
+	}
+	if i := p.slide; i < len(p.b.Slides) && p.step == 0 {
 		s := p.b.Slides[i]
+		if t := s.Transition; t != nil {
+			e := EffectOf(*t).PDF
+			// the effects of the table are valid by construction (the test
+			// checks each against pdfkit's rules)
+			_ = pg.SetTransition(pdfkit.Transition{Style: e.Style, Duration: seconds(*t), Direction: e.Direction, Vertical: e.Vertical, Outward: e.Outward})
+		}
 		// As marp-cli's pdf-lib post-processing builds it: "Page N", bold,
 		// open, and the slide's headings nested by their level under it —
 		// or, without the pages, at the top. A heading jumps to its slide;
@@ -492,12 +584,12 @@ func (p *PDFWriter) next() *pdfkit.Page {
 		// layout's element positions.
 		base := 0
 		if p.opts.OutlinePages {
-			p.doc.AddOutlineItemWith(fmt.Sprintf("Page %d", i+1), 1, i, pdfkit.OutlineOptions{Bold: true})
+			p.doc.AddOutlineItemWith(fmt.Sprintf("Page %d", i+1), 1, pageIdx, pdfkit.OutlineOptions{Bold: true})
 			base = 1
 		}
 		if p.opts.OutlineHeadings {
 			for _, hd := range s.Headings {
-				p.doc.AddOutlineItem(hd.Text, base+hd.Level, i)
+				p.doc.AddOutlineItem(hd.Text, base+hd.Level, pageIdx)
 			}
 		}
 		if p.opts.Notes && len(s.Notes) > 0 {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -69,6 +70,45 @@ func slideTransition(s *Slide) (transitionSpec, bool) {
 		}
 	}
 	return t, true
+}
+
+// Transition is the transition directive in effect on the slide, for an
+// export: its name, its duration in seconds (0 when the directive gives none),
+// and whether it is custom, that is a name marp-cli has no built-in for (the
+// deck's own scoped keyframes, or a name nothing defines). The transition
+// plays when the viewer leaves this slide for the next.
+func (s *Slide) Transition() (name string, seconds float64, custom, ok bool) {
+	t, ok := slideTransition(s)
+	if !ok {
+		return "", 0, false, false
+	}
+	name = t.Name
+	custom = t.BuiltinFallback == nil || !*t.BuiltinFallback
+	if custom {
+		// slideTransition renamed a name the slide's keyframes took over
+		// (foo-KEY): the directive's own word is what a person knows it by.
+		name = strings.Fields(s.Dirs.Get("transition"))[0]
+	}
+	return name, cssSeconds(t.Duration), custom, true
+}
+
+// cssSeconds reads a CSS time, "0.5s" or "500ms", as seconds; anything else
+// is 0, as marp-cli's own parse leaves the browser's default.
+func cssSeconds(v string) float64 {
+	var unit float64
+	switch {
+	case strings.HasSuffix(v, "ms"):
+		v, unit = strings.TrimSuffix(v, "ms"), 0.001
+	case strings.HasSuffix(v, "s"):
+		v, unit = strings.TrimSuffix(v, "s"), 1
+	default:
+		return 0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || !(f >= 0 && f <= 3600) { // also refuses NaN
+		return 0
+	}
+	return f * unit
 }
 
 // transitionAttr is the attribute value of the transition in effect.

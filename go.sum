@@ -64,6 +64,8 @@ github.com/go-opentype/opentype v0.16.2-0.20261101005254-2c8922cb87c6 h1:NwHf+ql
 github.com/go-opentype/opentype v0.16.2-0.20261101005254-2c8922cb87c6/go.mod h1:RujaDgR2h/ErgMkc5y/KYbX8NJtWw3yLRtVxbCfdvFQ=
 github.com/go-pdfkit/pdfkit v0.21.0 h1:wZx42J3daQ/x7Hi5qHi5HZ5ZTe/9fpaebRxsCwYvIWQ=
 github.com/go-pdfkit/pdfkit v0.21.0/go.mod h1:XF5T4lAKlfleY927itwr5ZlB2r/MfvdejVrJE9gia4E=
+github.com/go-pdfkit/pdfkit v0.23.1-0.20261108134007-039fbe6d1cde h1:D6aG4id8yR0XmGOUtNB4shhI7cfsbD/inWMoQE1R6Lg=
+github.com/go-pdfkit/pdfkit v0.23.1-0.20261108134007-039fbe6d1cde/go.mod h1:XF5T4lAKlfleY927itwr5ZlB2r/MfvdejVrJE9gia4E=
 github.com/go-pdfkit/reader v0.10.0 h1:Wi0GCUADMZFxL9iuVwxuiDhv10nGxbZZjNKJIqtj63E=
 github.com/go-pdfkit/reader v0.10.0/go.mod h1:EYHHREPKT/orDzlGiFPnPVPPuaRDLiAYezIr0cCFXaA=
 github.com/go-regexp/engine v0.3.2 h1:zublnb1Vf5Cclh59+cp35htv2aATddBMNp5VwMAeZcc=

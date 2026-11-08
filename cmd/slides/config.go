@@ -27,15 +27,18 @@ type options struct {
 	strictYAML bool
 	noEmoji    bool
 
-	pdf         bool
-	pdfRaster   bool // --pdf-raster: the PDF's pages as images
-	pptxRaster  bool // --pptx-raster: one picture a slide
-	odpRaster   bool // --odp-raster: one picture a slide
-	pptx        bool
-	odp         bool
-	images      string
-	image       string
-	jpegQuality int
+	pdf       bool
+	pdfRaster bool // --pdf-raster: the PDF's pages as images
+	// pdfFragments is --pdf-fragments: one page for each step of a slide's
+	// fragmented list.
+	pdfFragments bool
+	pptxRaster   bool // --pptx-raster: one picture a slide
+	odpRaster    bool // --odp-raster: one picture a slide
+	pptx         bool
+	odp          bool
+	images       string
+	image        string
+	jpegQuality  int
 
 	imageScale      float64
 	allowLocalFiles bool

@@ -37,21 +37,79 @@ type ODPWriter struct {
 	p     odf.Presentation
 	pics  pictures
 	faces map[*opentype.Font]*officecanvas.Face
+	// anims holds, by slide index, the transition and builds go-odf has no
+	// field for: written into content.xml with the deck (odpanim.go).
+	anims map[int]odpAnim
+}
+
+// noteAnim records the transition into slide i and, when it has fragment
+// steps, its builds (clicks makes them: it is called only then).
+func (w *ODPWriter) noteAnim(i int, steps bool, clicks func() [][]int) {
+	var a odpAnim
+	if i < len(w.b.Slides) {
+		a.transition = w.b.Slides[i].Transition
+	}
+	if steps && clicks != nil {
+		a.clicks = clicks()
+	}
+	if a.transition == nil && len(a.clicks) == 0 {
+		return
+	}
+	if w.anims == nil {
+		w.anims = map[int]odpAnim{}
+	}
+	w.anims[i] = a
+}
+
+// odpClicks turns the fragments' shapes (indexes of the recorded page) into
+// click targets: the indexes of the emitted shapes, shapes[j] having been
+// made from the page's shape from[j].
+func odpClicks(from []int, fragments [][]int) [][]int {
+	pos := make(map[int]int, len(from))
+	for j, f := range from {
+		pos[f] = j
+	}
+	var clicks [][]int
+	for _, frag := range fragments {
+		var c []int
+		for _, f := range frag {
+			if j, ok := pos[f]; ok {
+				c = append(c, j)
+			}
+		}
+		if len(c) > 0 {
+			clicks = append(clicks, c)
+		}
+	}
+	return clicks
 }
 
 // AddLayout adds the next slide as editable content, as PPTXWriter.AddLayout
 // does. A gradient is a picture of itself: an ODF gradient has two colours.
 func (w *ODPWriter) AddLayout(l *engine.PageLayout) error {
+	return w.AddSteps([]*engine.PageLayout{l})
+}
+
+// AddSteps adds the next slide from the layouts of its steps (EachSteps), as
+// PPTXWriter.AddSteps does: the shapes each earlier step leaves out are
+// revealed by a click each (see builds.go and odpanim.go).
+func (w *ODPWriter) AddSteps(steps []*engine.PageLayout) error {
 	if w.faces == nil {
 		w.faces = map[*opentype.Font]*officecanvas.Face{}
 	}
-	pg, dev := record(l, w.faces)
+	pages := make([]officecanvas.Page, len(steps))
+	var dev image.Rectangle
+	for s, l := range steps {
+		pages[s], dev = record(l, w.faces)
+	}
+	pg := pages[len(pages)-1]
 	px := float64(w.p.Width) / float64(dev.Dx()) // CSS px per device pixel
-	bg, shapes, err := odpShapes(pg, px, px*0.75, &w.pics)
+	bg, shapes, from, err := odpShapes(pg, px, px*0.75, &w.pics)
 	if err != nil {
 		return err
 	}
 	i := len(w.p.Slides)
+	w.noteAnim(i, len(steps) > 1, func() [][]int { return odpClicks(from, fragmentShapes(pages)) })
 	sl := odf.PresentationSlide{Background: bg, Shapes: shapes}
 	if bg == nil && len(shapes) == 0 {
 		sl.Background = &odf.RGBA{R: 255, G: 255, B: 255, A: 255}
@@ -83,6 +141,7 @@ func NewODP(b *doc.Doc) *ODPWriter {
 // Add adds the next slide, its picture given as PNG bytes.
 func (w *ODPWriter) Add(png []byte) {
 	i := len(w.p.Slides)
+	w.noteAnim(i, false, nil)
 	sl := odf.PresentationSlide{Image: png, ImageType: "png"}
 	if i < len(w.b.Slides) {
 		s := w.b.Slides[i]
@@ -107,6 +166,11 @@ func (w *ODPWriter) Write(out io.Writer) error {
 	data, err := odf.WritePresentation(w.p)
 	if err != nil {
 		return err
+	}
+	if len(w.anims) > 0 {
+		if data, err = addODPAnimations(data, w.anims); err != nil {
+			return err
+		}
 	}
 	_, err = out.Write(data)
 	return err
