@@ -87,6 +87,14 @@ var Codes = map[string]string{
 	"template.limit":    "The template would write, repeat or step through more than go-slides allows.",
 	"deck.limit":        "The deck nests blocks (quotes, lists) deeper than go-slides allows.",
 	"kind.cycle":        "A kind extends itself, directly or through other kinds, or its chain is too long.",
+	"theme.archive":     "The theme package is not a safe ZIP archive (unsafe path, link, duplicate name, unsupported method or damaged).",
+	"theme.limit":       "The theme package is larger, has more files or compresses better than go-slides allows.",
+	"theme.meta":        "The theme package's theme.hcl is missing, not well formed or invalid.",
+	"theme.css":         "A CSS file of the theme package imports or loads something from outside the package.",
+	"theme.svg":         "An SVG of the theme package has a script, an event handler or an external reference.",
+	"theme.font":        "A font of the theme package is not a font, or is too large.",
+	"theme.checksum":    "A file of the theme package does not match its declared sha256.",
+	"theme.version":     "The theme package needs a newer go-slides.",
 }
 
 // ThemeUnknownPrefix starts the build warning for a theme no theme set has:

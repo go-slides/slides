@@ -360,7 +360,7 @@ func (s *Set) replaceImports(nodes []css.Node, seen []string) []css.Node {
 			continue
 		}
 		name, quotedOK := quoted(a.Params)
-		imp := s.themes[name]
+		imp := s.get(name)
 		if !quotedOK || imp == nil || containsString(seen, name) {
 			out = append(out, n)
 			continue

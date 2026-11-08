@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("theme {\n name = \"x\"\n version = \"1.0.0\"\n license = \"MIT\"\n}\ncss \"a.css\" {}\nkind \"k\" {\n header = \"{{ x }}\"\n}\n")

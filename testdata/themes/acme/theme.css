@@ -1,0 +1,28 @@
+section {
+  font-family: "Roboto Mono", monospace;
+  background-color: #fdfdfd;
+  color: #1b2a41;
+}
+
+section h1 {
+  color: #0b5394;
+}
+
+section::after {
+  content: "";
+  position: absolute;
+  right: 24px;
+  bottom: 16px;
+  width: 96px;
+  height: 32px;
+  background: url(assets/logo.svg) no-repeat right center / contain;
+}
+
+section.lead {
+  background: url("assets/bg.png") center / cover;
+  color: #ffffff;
+}
+
+section.lead h1 {
+  color: #ffffff;
+}

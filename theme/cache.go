@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -64,16 +63,12 @@ func (s *Set) packKey(t *Theme, opts PackOptions) (key lru.Key, ok bool) {
 		}
 		return strconv.FormatUint(t.id, 10)
 	}
-	names := make([]string, 0, len(s.themes))
-	for name := range s.themes {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := s.Names()
 	var themes strings.Builder
 	for _, name := range names {
 		themes.WriteString(strconv.Quote(name))
 		themes.WriteString("=")
-		themes.WriteString(id(s.themes[name]))
+		themes.WriteString(id(s.get(name)))
 		themes.WriteString(";")
 	}
 	list := func(v []string) string {
