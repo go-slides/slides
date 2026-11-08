@@ -119,6 +119,7 @@ func (d *Deck) contextKey(opts RenderOptions) string {
 	k.flag(opts.Math != nil)
 	k.str(opts.AfterContent)
 	k.flag(opts.SourceLines)
+	k.flag(opts.Cast != nil)
 	return k.String()
 }
 
@@ -213,7 +214,8 @@ func (d *Deck) RenderCached(opts RenderOptions, c *RenderCache) []Rendered {
 		h.WriteString(src)
 		sum := h.Sum64()
 		e, ok := c.slides[sum]
-		if ok && e.meta == meta && e.src == src {
+		// a slide with a recording reads a file the key does not hold
+		if ok && e.meta == meta && e.src == src && !(opts.Cast != nil && strings.Contains(strings.ToLower(src), ".cast")) {
 			c.Hits++
 		} else {
 			if r == nil {

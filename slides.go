@@ -150,7 +150,9 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		opts.GeneratedContent = true
 	}
 	b.Packed = set.Pack(b.Theme, opts)
+	casts := newCastRenderer(popts, frame == deck.FrameSVG, int(b.Packed.Width), int(b.Packed.Height))
 	b.Slides = d.RenderCached(deck.RenderOptions{
+		Cast:             casts.render,
 		Frame:            frame,
 		HTML:             cfg.HTML,
 		Lang:             cfg.Lang,
@@ -163,6 +165,7 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		FitHeadings:      true,
 		SourceLines:      cfg.SourceLines,
 	}, cfg.RenderCache)
+	b.Warnings = append(b.Warnings, casts.warnings...)
 	return b, nil
 }
 
