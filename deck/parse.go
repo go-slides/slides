@@ -28,6 +28,10 @@ type Options struct {
 	// Kinds add to (and override) the built-in kinds; the deck's own
 	// kinds front-matter key overrides these in turn.
 	Kinds Kinds
+	// ThemeKinds, when set, gives the kinds a theme brings (an installed
+	// theme package's) for the theme the deck's front matter names; nil
+	// result or error-free "no such theme" is no kinds.
+	ThemeKinds func(theme string) (Kinds, error)
 	// NoTemplate turns template interpolation off.
 	NoTemplate bool
 	// BaseDir resolves relative paths: included files and kinds files.
@@ -105,6 +109,15 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 	maps.Copy(data, opts.Data)
 
 	kinds := BuiltinKinds().Merge(opts.Kinds)
+	// The kinds of the theme the front matter names, an installed theme
+	// package's, under the deck's own.
+	if name, _ := fmDirs["theme"].(string); name != "" && opts.ThemeKinds != nil {
+		k, err := opts.ThemeKinds(name)
+		if err != nil {
+			return nil, d.errorf(1, "theme %q: %v", name, err)
+		}
+		kinds = kinds.Merge(k)
+	}
 	if v, ok := fmDirs[keyKinds]; ok && v != nil {
 		env := HCLEnv{Data: data, BaseDir: opts.BaseDir, Now: opts.Now, FS: opts.FS}
 		k, err := loadKinds(v, opts.BaseDir, env)
