@@ -130,7 +130,7 @@ type Theme struct {
 var DefaultTheme = Theme{
 	FG: RGB{0xd4, 0xd4, 0xd4}, BG: RGB{0x1e, 0x1e, 0x1e},
 	Palette: [16]RGB{
-		{0, 0, 0}, {0xcd, 0, 0}, {0, 0xcd, 0}, {0xcd, 0xcd, 0}, {0x3b, 0x78, 0xff}, {0xcd, 0, 0xcd}, {0, 0xcd, 0xcd}, {0xe5, 0xe5, 0xe5},
+		{0, 0, 0}, {0xe0, 0x4b, 0x4b}, {0x2e, 0xc2, 0x4a}, {0xcd, 0xcd, 0}, {0x3b, 0x78, 0xff}, {0xcd, 0, 0xcd}, {0, 0xcd, 0xcd}, {0xe5, 0xe5, 0xe5},
 		{0x7f, 0x7f, 0x7f}, {0xff, 0x55, 0x55}, {0x55, 0xff, 0x55}, {0xff, 0xff, 0x55}, {0x6c, 0x9e, 0xff}, {0xff, 0x55, 0xff}, {0x55, 0xff, 0xff}, {0xff, 0xff, 0xff},
 	},
 }
@@ -156,13 +156,13 @@ type Cast struct {
 }
 
 type header struct {
-	Version       int      `json:"version"`
-	Width         int      `json:"width"`
-	Height        int      `json:"height"`
-	Title         string   `json:"title"`
-	IdleTimeLimit float64  `json:"idle_time_limit"`
-	Theme         *jtheme  `json:"theme"`
-	Term          *jterm   `json:"term"`
+	Version       int     `json:"version"`
+	Width         int     `json:"width"`
+	Height        int     `json:"height"`
+	Title         string  `json:"title"`
+	IdleTimeLimit float64 `json:"idle_time_limit"`
+	Theme         *jtheme `json:"theme"`
+	Term          *jterm  `json:"term"`
 }
 
 type jterm struct {

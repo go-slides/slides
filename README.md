@@ -742,6 +742,52 @@ contributors, licensed [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 continued by the [jdecked/twemoji](https://github.com/jdecked/twemoji) project.
 Decks that show them should credit them.
 
+## Terminal recordings
+
+An [asciinema](https://asciinema.org) recording is an image whose file ends in
+`.cast` (asciicast v2 and v3):
+
+```markdown
+![cast](demo.cast)
+![A build, at the failure](demo.cast#t=12.5)
+```
+
+The alternative text names the recording for screen readers (`cast` alone
+means the recording's title). `#t=12.5` (or `#t=1:23`) picks the moment the
+static outputs show; without it that is the end of the recording. The file is
+read from the deck's folder (a URL, an absolute path or a `..` is refused).
+
+- **HTML** (the page, and the playground's preview): the recording replays in
+  a small player of ours, embedded in the page. It has play and pause, a
+  speed button and a position bar. It fetches nothing, evaluates nothing and
+  loads no third-party script: the recording is replayed to frames in Go and
+  the page carries them as data (`<script type="application/json">`) that the
+  player turns into text nodes and CSS properties, never markup. It plays once
+  when it first comes on screen, and starts paused, showing its poster, when
+  the browser asks for reduced motion (`prefers-reduced-motion`). Its buttons
+  do not turn the slide.
+- **PDF, PPTX and ODP:** the terminal at the moment `#t=` names, as vector
+  text in the theme's monospace font (the 16, 256 and direct colours, bold,
+  italic, underline, strike-through and inverse; backgrounds as shapes), text
+  that can be selected and searched. Never a bitmap. Bold and italic are drawn
+  where the theme's monospace font has such a face (Roboto Mono in `gaia`);
+  the engine's own fallback monospace face, which the default and `uncover`
+  themes end on, has only a regular one.
+
+The emulator (`internal/vt`) reads the control sequences of ECMA-48 clause 5.4
+and the xterm subset a screen needs; it answers nothing and the title, clipboard
+and similar strings are dropped. A recording is untrusted input and is
+bounded (`internal/cast.DefaultLimits`): the file 16 MiB, a line 1 MiB, 500,000
+events, 3 hours after the idle time limit, a terminal of 400 by 200 cells, the
+work of the emulator (a billion cell updates, so that a few bytes of
+`CSI 65535 S` cannot ask for much) and the frames 6 MiB (the player's frames
+are made coarser, then the recording is refused). A recording over a bound or
+not well formed is refused with a coded error (`cast.limit`, `cast.syntax`,
+`cast.version`, `cast.path`): the build goes on, the slide shows a note in its
+place, and the problem is a warning with that code. The parser and the emulator
+are fuzzed (`go test -fuzz FuzzParse ./internal/cast`, `-fuzz FuzzWrite
+./internal/vt`) with their corpus in `testdata/fuzz`.
+
 ## Examples
 
 [`examples/`](examples) holds twelve small decks, each showing one thing well:

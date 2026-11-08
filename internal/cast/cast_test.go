@@ -50,7 +50,7 @@ func TestParseV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := s.HTML()
-	for _, want := range []string{"hello ", "red", "&lt;b&gt;&amp;", "color:#cd0000;font-weight:bold"} {
+	for _, want := range []string{"hello ", "red", "&lt;b&gt;&amp;", "color:#e04b4b;font-weight:bold"} {
 		if !strings.Contains(h, want) {
 			t.Errorf("html lacks %q: %s", want, h)
 		}

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"version\":3,\"term\":{\"cols\":10,\"rows\":4}}\n# comment\n[0.1,\"o\",\"a\"]\n[-1,\"o\",\"b\"]\n[1e999,\"o\"]\n[0.1,\"zz\",[1,{\"a\":null}]]\n[\"x\",\"o\",\"\\u00zz\"]\n[0.1,\"o\",\"unterminated")

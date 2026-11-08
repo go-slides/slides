@@ -128,7 +128,6 @@ func TestCastPDFIsVectorText(t *testing.T) {
 	}
 }
 
-
 func castSlideXML(t *testing.T, deckSrc string) (string, map[string][]byte) {
 	t.Helper()
 	d := castDoc(t, deckSrc, deck.FrameBox)
@@ -148,7 +147,7 @@ func castSlideXML(t *testing.T, deckSrc string) (string, map[string][]byte) {
 // the backgrounds as shapes, no bitmap.
 func TestCastPPTXHoldsStyledRuns(t *testing.T) {
 	slide, files := castSlideXML(t, "![cast](demo.cast#t=0.5)\n")
-	for _, want := range []string{"red", "bold green", "truecolor", `val="CD0000"`, `val="0AC8FF"`, `val="FF8700"`, `val="3B78FF"`, `val="1E1E1E"`} {
+	for _, want := range []string{"red", "bold green", "truecolor", `val="E04B4B"`, `val="0AC8FF"`, `val="FF8700"`, `val="3B78FF"`, `val="1E1E1E"`} {
 		if !strings.Contains(strings.ToUpper(slide), strings.ToUpper(want)) {
 			t.Errorf("slide1.xml lacks %q", want)
 		}
@@ -203,7 +202,7 @@ func TestCastODPHoldsStyledRuns(t *testing.T) {
 	}
 	files := zipFiles(t, buf.Bytes())
 	content := strings.ToLower(string(files["content.xml"]))
-	for _, want := range []string{"bold green", "truecolor", `fo:color="#cd0000"`, `fo:color="#0ac8ff"`, `fo:font-weight="bold"`, `fo:font-style="italic"`} {
+	for _, want := range []string{"bold green", "truecolor", `fo:color="#e04b4b"`, `fo:color="#0ac8ff"`, `fo:font-weight="bold"`, `fo:font-style="italic"`} {
 		if !strings.Contains(content, want) {
 			t.Errorf("content.xml lacks %q", want)
 		}
