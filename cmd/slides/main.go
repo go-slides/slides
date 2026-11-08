@@ -224,6 +224,7 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	f.Float64Var(&o.imageScale, "image-scale", 1, "device pixels per CSS pixel for images and PDF (2 = 2560×1440 for 16:9)")
 	f.BoolVar(&o.allowLocalFiles, "allow-local-files", false, "let images and PDF load local files from under the deck's directory")
 	f.BoolVar(&o.notes, "notes", false, "write the speaker notes as a text file, slides separated by ---, as marp-cli does (also chosen by -o file.txt)")
+	f.BoolVar(&o.pdfFragments, "pdf-fragments", false, "write one PDF page for each step of a slide's fragmented list, as Beamer's overlays do (off: one page a slide, as marp-cli)")
 	f.BoolVar(&o.pdfNotes, "pdf-notes", false, "add the speaker notes to the PDF as note annotations, as marp-cli does")
 	f.BoolVar(&o.pdfOutlines, "pdf-outlines", true, "write the PDF's outline, of pages and headings (on by default, unlike marp-cli; --pdf-outlines=false turns it off)")
 	f.BoolVar(&o.outlinePages, "pdf-outlines.pages", true, "outline: a bookmark \"Page N\" for each slide")

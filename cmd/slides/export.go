@@ -157,6 +157,9 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 	kind, imgFormat, _ := strings.Cut(format, ":")
 	d := b.Doc()
 	var buf bytes.Buffer
+	if o.pdfFragments && o.pdfRaster {
+		return nil, fmt.Errorf("--pdf-fragments needs the vector PDF: --pdf-raster draws each page as one image of the slide")
+	}
 	switch kind {
 	case "pdf":
 		pdf := export.NewPDFWith(d, o.pdfOptions())
@@ -166,6 +169,11 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 			err = export.Each(ctx, d, opts, func(_ int, img *image.RGBA) error {
 				pdf.Add(img)
 				return nil
+			})
+		} else if o.pdfFragments {
+			// A page for each step of a fragmented slide, as Beamer's overlays.
+			err = export.EachSteps(ctx, d, opts, func(_ int, steps []*engine.PageLayout) error {
+				return pdf.AddSteps(steps)
 			})
 		} else {
 			err = export.EachLayout(ctx, d, opts, func(_ int, l *engine.PageLayout) error {
@@ -188,8 +196,8 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 				return nil
 			})
 		} else {
-			err = export.EachLayout(ctx, d, opts, func(_ int, l *engine.PageLayout) error {
-				return pptx.AddLayout(l)
+			err = export.EachSteps(ctx, d, opts, func(_ int, steps []*engine.PageLayout) error {
+				return pptx.AddSteps(steps)
 			})
 		}
 		if err != nil {
@@ -207,8 +215,8 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 				return nil
 			})
 		} else {
-			err = export.EachLayout(ctx, d, opts, func(_ int, l *engine.PageLayout) error {
-				return odp.AddLayout(l)
+			err = export.EachSteps(ctx, d, opts, func(_ int, steps []*engine.PageLayout) error {
+				return odp.AddSteps(steps)
 			})
 		}
 		if err != nil {
@@ -248,6 +256,8 @@ func exportDeck(e env, o *options, src []byte, path string, cfg slides.Config, f
 	}
 	base := o.base(path)
 	kind, imgFormat, _ := strings.Cut(format, ":")
+	// one warning for the transitions the format has no exact equivalent for
+	e.warn(export.Substitutions(b.Doc(), kind))
 	if kind != "images" {
 		data, err := exportBytes(e.ctx, o, b, opts, path, format)
 		if err != nil {

@@ -371,6 +371,7 @@ input is read only for `-`, not whenever it is a pipe.
 | `--bare` | build | stack the slides, without the presenting script |
 | `--pdf` | build | write a PDF, one page per slide, with an outline — text and shapes as vectors (also chosen by `-o file.pdf`) |
 | `--pdf-raster` | build | write the PDF with each page one image of the slide, as before the vector PDF |
+| `--pdf-fragments` | build | write one PDF page for each step of a slide's fragmented list (`*` bullets), as Beamer's overlays do: the first page has none of the items, each next one an item more. **Off by default**, so the PDF is marp-cli's: a page a slide. Not with `--pdf-raster`. A tagged PDF repeats the slide's structure on each of its pages (`--pdf-tags=false` avoids it) |
 | `--pdf-tags=false` | build | write the PDF without its structure tags (after v0.9.0 a vector PDF is tagged, for screen readers, and declares PDF/UA-1); `--no-pdf-tags` too |
 | `--notes` | build | write the speaker notes as a text file, slides separated by `---` exactly as marp-cli does (also chosen by `-o file.txt`; the `notes` command prints them in another layout) |
 | `--pdf-notes` | build | add each slide's speaker notes to its PDF page as a note annotation, as marp-cli does: a yellow Note icon bottom left, the deck's `author` as its title. Asks for a PDF when nothing else says what to write |
@@ -438,6 +439,38 @@ marp-cli's output). The on-screen controller (previous, page, next, full screen)
 the pointer or a key moves and hides after 2.5 s. `--bespoke.progress`,
 `--bespoke.osc=false`, `--bespoke.transition=false` and `--template bare` choose
 what the page has. The page was driven in headless Chrome to check it.
+
+### Transitions and fragments in the PDF, PPTX and ODP
+
+The exports carry what the HTML plays. A slide's `transition` is written on
+the **next** slide, which it comes in on (marp-cli plays a slide's directive when
+leaving it), at the nearest effect the format has:
+
+| format | where | exactly | approximately |
+| --- | --- | --- | --- |
+| PPTX | `p:transition` (ECMA-376 19.5) with `spd` | 8 of 33: `clockwise`, `diamond`, `fade`, `iris-in`, `pull`, `push`, `slide`, `wipe` | 25 |
+| ODP | `smil:type`, `smil:subtype`, `smil:direction` on the page style, and the duration in the page's timing (OpenDocument 1.3 20.242-20.245, SMIL 2.0 12.8) | 11 of 33 | 22 |
+| PDF | `/Trans` (ISO 32000-1 12.4.4.1, Table 162), with `/D` | 2 of 33: `fade`, `wipe` | 31 |
+
+The mapping is one table, `export/animation.go`, and a test checks each entry
+against what the format allows. A PDF's Push, Cover and Uncover move left to
+right or top to bottom only, so Marp's right-to-left ones are approximate there.
+A custom transition (a theme's or slide's own keyframes) is a fade. One warning
+lists the substitutions of an export. Durations keep the nearest of PowerPoint's
+three speeds (`spd`) and OpenDocument's page style; a PDF and an ODP's timing keep
+the seconds. The transitions are not drawn by the pictures-only exports
+(`--pptx-raster`'s slides have theirs too, as pictures). Marp's `backward`
+keyframes, played going back, have no equivalent in any of them.
+
+**Fragments** are builds in the editable decks (`--pptx`, `--odp`): one click for
+each fragment, in order, that fades in the shapes of that item (its text, its
+marker), written as PowerPoint's entrance effect Fade (`p:timing`) and as
+OpenDocument's `ooo-entrance-fade-in` (`anim:par`, `anim:set`,
+`anim:transitionFilter`). Which shapes are an item's is read from the layout: the
+slide is laid out once for each step, with the later fragments hidden in place. A
+deck with fragments takes that many more layouts to write (measured in
+BENCHMARKS.md); one without is as fast as before. In the PDF they are pages only
+with `--pdf-fragments`.
 
 **Presenter view** (in v0.7.0). The `p` key, or the controller's last
 button, opens marp-cli's presenter view in a window: the current slide, the

@@ -40,6 +40,25 @@ type Slide struct {
 	Headings []Heading `json:"headings,omitempty"`
 	// Notes are its speaker notes.
 	Notes []string `json:"notes,omitempty"`
+	// Transition is the transition into this slide: the directive of the
+	// slide before it, as marp-cli plays it when the viewer goes on. Nil for
+	// the first slide and when the slide before has none.
+	Transition *Transition `json:"transition,omitempty"`
+	// Fragments counts the slide's fragmented list items (`*` bullets), which
+	// the slide's HTML marks data-marpit-fragment="1" … "N" in reading order.
+	Fragments int `json:"fragments,omitempty"`
+}
+
+// Transition is a slide transition: marp-cli's directive, "name duration".
+type Transition struct {
+	// Name is the directive's word: one of marp-cli's built-in names, or the
+	// deck's own.
+	Name string `json:"name"`
+	// Duration is in seconds; 0 when the directive gives none.
+	Duration float64 `json:"duration,omitempty"`
+	// Custom is set for a name that is not a built-in: the deck's own
+	// keyframes, which no export can carry.
+	Custom bool `json:"custom,omitempty"`
 }
 
 // Heading is one heading of a slide.

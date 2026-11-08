@@ -42,6 +42,28 @@ type PPTXWriter struct {
 	p     ooxml.Presentation
 	pics  pictures
 	faces map[*opentype.Font]*officecanvas.Face
+	// anims holds, by slide index, the transition and builds go-ooxml has no
+	// field for: written into the slides' XML when the deck is (pptxanim.go).
+	anims map[int]pptxAnim
+}
+
+// noteAnim records the transition into slide i and, when it has fragment
+// steps, its builds (clicks makes them: it is called only then).
+func (w *PPTXWriter) noteAnim(i int, steps bool, clicks func() [][]pptxTarget) {
+	var a pptxAnim
+	if i < len(w.b.Slides) {
+		a.transition = w.b.Slides[i].Transition
+	}
+	if steps && clicks != nil {
+		a.clicks = clicks()
+	}
+	if a.transition == nil && len(a.clicks) == 0 {
+		return
+	}
+	if w.anims == nil {
+		w.anims = map[int]pptxAnim{}
+	}
+	w.anims[i] = a
 }
 
 // AddLayout adds the next slide as editable content: its text in text boxes
@@ -50,16 +72,31 @@ type PPTXWriter struct {
 // layout, so at the positions of the image and PDF exports. What a slide
 // cannot hold is a picture of that element (see officecanvas).
 func (w *PPTXWriter) AddLayout(l *engine.PageLayout) error {
+	return w.AddSteps([]*engine.PageLayout{l})
+}
+
+// AddSteps adds the next slide from the layouts of its steps (EachSteps): the
+// last is the slide, and the shapes each earlier step leaves out are revealed
+// by a click each, as the slide's fragments are in the viewer (see builds.go).
+// The slide's transition, which the writer takes from the deck, is written
+// either way.
+func (w *PPTXWriter) AddSteps(steps []*engine.PageLayout) error {
 	if w.faces == nil {
 		w.faces = map[*opentype.Font]*officecanvas.Face{}
 	}
-	pg, dev := record(l, w.faces)
+	pages := make([]officecanvas.Page, len(steps))
+	var dev image.Rectangle
+	for s, l := range steps {
+		pages[s], dev = record(l, w.faces)
+	}
+	pg := pages[len(pages)-1]
 	k := float64(w.p.Width) / float64(dev.Dx()) // EMU per device pixel
-	bg, shapes, err := pptxShapes(pg, k, k/12700, &w.pics)
+	bg, shapes, from, err := pptxShapes(pg, k, k/12700, &w.pics)
 	if err != nil {
 		return err
 	}
 	i := len(w.p.Slides)
+	w.noteAnim(i, len(steps) > 1, func() [][]pptxTarget { return pptxClicks(shapes, from, fragmentShapes(pages)) })
 	sl := ooxml.PresentationSlide{Background: bg, Shapes: shapes}
 	if bg == nil && len(shapes) == 0 {
 		// A blank slide still needs something to be a slide of.
@@ -91,6 +128,7 @@ func NewPPTX(b *doc.Doc) *PPTXWriter {
 // Add adds the next slide, its picture given as PNG bytes.
 func (w *PPTXWriter) Add(png []byte) {
 	i := len(w.p.Slides)
+	w.noteAnim(i, false, nil)
 	sl := ooxml.PresentationSlide{Image: png, ImageType: "png"}
 	if i < len(w.b.Slides) {
 		s := w.b.Slides[i]
@@ -115,6 +153,11 @@ func (w *PPTXWriter) Write(out io.Writer) error {
 	data, err := ooxml.WritePresentation(w.p)
 	if err != nil {
 		return err
+	}
+	if len(w.anims) > 0 {
+		if data, err = addPPTXAnimations(data, w.anims); err != nil {
+			return err
+		}
 	}
 	_, err = out.Write(data)
 	return err

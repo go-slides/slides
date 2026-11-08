@@ -95,6 +95,7 @@ func decks() []namedDeck {
 		{"gaia-20", benchdeck.Gaia(20)},
 		{"math-code-20", benchdeck.MathCode(20)},
 		{"effects", []byte(effects)},
+		{"animations", []byte(animations)},
 	}
 	oracle, _ := filepath.Glob(filepath.Join("testdata", "oracle", "*.md"))
 	for _, p := range oracle {
@@ -104,6 +105,40 @@ func decks() []namedDeck {
 	}
 	return ds
 }
+
+// animations has transitions and fragmented lists: LibreOffice must still load
+// the decks the writers add them to, and draw each slide as the raster render
+// does (the animations are not drawn: the pages are the finished slides).
+const animations = `---
+transition: push 1s
+---
+
+# One
+
+---
+
+<!-- transition: fade -->
+
+# Two
+
+* alpha
+* beta
+* gamma
+
+---
+
+<!-- transition: cube -->
+
+# Three
+
+* red
+  * deep one
+* green
+
+---
+
+# Four
+`
 
 // effects is the deck pdfcheck uses for what is drawn differently.
 const effects = `---
@@ -153,7 +188,7 @@ func insideRepo(dir string) error {
 }
 
 type adder interface {
-	AddLayout(*engine.PageLayout) error
+	AddSteps([]*engine.PageLayout) error
 	Write(io.Writer) error
 }
 
@@ -179,7 +214,7 @@ func check(w io.Writer, out, soffice, name string, src []byte, format string, to
 		return fmt.Errorf("unknown format %q", format)
 	}
 	t0 := time.Now()
-	if err := export.EachLayout(ctx, b, opts, func(_ int, l *engine.PageLayout) error { return a.AddLayout(l) }); err != nil {
+	if err := export.EachSteps(ctx, b, opts, func(_ int, steps []*engine.PageLayout) error { return a.AddSteps(steps) }); err != nil {
 		return err
 	}
 	var buf bytes.Buffer

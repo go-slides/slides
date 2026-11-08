@@ -252,6 +252,38 @@ PDF and PPTX export but the smallest decks: 27 s against 1.9 s for the
 
 </details>
 
+## Animations in the exports
+
+`go test ./export -bench BenchmarkWrite` writes the 10-slide decks (the ones
+above, and `animated-10`: a transition and three fragments on each slide) as
+PDF, PPTX and ODP, one worker, and reports the file's size and the allocations.
+Baseline: the same benchmark on a clean checkout of main (a86d193), which has
+only the `layout` path and ignores the directives, so on `animated-10` it writes
+the decks without their animations. "steps" is the path `--pptx`, `--odp` and
+`--pdf-fragments` take: a slide with fragments is laid out once for each step.
+Sizes and allocation counts are exact; **times are not given: the machine's 1-minute load
+was about 30 when this was measured, far over the 8 the method allows**, so they
+are deferred (a figure taken then moved by a factor of two between runs).
+
+| deck, format | main: size, allocs | layout: size, allocs | steps: size, allocs |
+| --- | --- | --- | --- |
+| default-10 PDF | 671.4 KiB, 963 711 | 671.4 KiB, 963 719 | 671.4 KiB, 946 607 |
+| default-10 PPTX | 578.2 KiB, 474 549 | 578.2 KiB, 474 592 | 578.2 KiB, 474 592 |
+| default-10 ODP | 560.2 KiB, 475 213 | 560.2 KiB, 475 254 | 560.2 KiB, 475 265 |
+| gaia-10 PPTX | 874.6 KiB, 183 172 | 874.6 KiB, 183 211 | 874.6 KiB, 183 221 |
+| math-code-10 PDF | 94.29 KiB, 589 542 | 94.29 KiB, 589 605 | 94.29 KiB, 589 617 |
+| animated-10 PDF | 14.90 KiB, 468 641 | 14.96 KiB, 468 761 | 31.61 KiB, 1 857 099 (11 → 31 pages) |
+| animated-10 PPTX | 493.6 KiB, 461 407 | 494.0 KiB, 462 306 | 499.9 KiB, 1 838 244 |
+| animated-10 ODP | 476.2 KiB, 461 206 | 476.6 KiB, 461 526 | 477.7 KiB, 1 837 350 |
+
+A deck without fragments writes the same files and allocates 0.01 % more (the
+steps path of a slide without fragments is one layout). A slide with *n*
+fragments costs *n* + 1 layouts in the steps path, hence the four times the
+allocations of `animated-10` (three fragments a slide); the transitions alone
+add under 0.3 % in allocations (4 % in bytes allocated for the PPTX: its slide
+parts are read and written again) and 0.1 % to 0.4 % in size, and the builds
+1.2 % of a PPTX's size and 0.2 % of an ODP's.
+
 ## What was optimised
 
 Profiling the generated deck (`go test -bench Rasterize -cpuprofile

@@ -239,7 +239,14 @@ func (b *Build) Doc() *doc.Doc {
 	}
 	for i, r := range b.Slides {
 		s := doc.Slide{HTML: r.HTML}
+		if i > 0 && b.Slides[i-1].Slide != nil {
+			// the directive of the slide before plays on the way here
+			if name, sec, custom, ok := b.Slides[i-1].Slide.Transition(); ok {
+				s.Transition = &doc.Transition{Name: name, Duration: sec, Custom: custom}
+			}
+		}
 		if r.Slide != nil {
+			s.Fragments = r.Slide.Fragments
 			for _, h := range r.Slide.Headings {
 				s.Headings = append(s.Headings, doc.Heading{Level: h.Level, Text: h.Text})
 			}
