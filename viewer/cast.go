@@ -103,6 +103,7 @@ const CastJS = `(function () {
     }
     function tick(now) {
       if (!playing) return;
+      if (!box.isConnected) { playing = false; return; } // its slide was replaced
       time = Math.min(base + (now - t0) / 1000 * SPEEDS[speed], D);
       var dirty = {}, any = false;
       while (idx < F.length && F[idx][0] <= time) { apply(F[idx++], dirty); any = true; }
@@ -145,8 +146,13 @@ const CastJS = `(function () {
       }, { threshold: 0.6 }).observe(box);
     }
   }
-  var boxes = document.querySelectorAll('.slides-cast');
-  for (var i = 0; i < boxes.length; i++) setup(boxes[i]);
+  // a page that puts slides in after it loaded (the playground's preview)
+  // calls this again for the recordings it added
+  window.slidesCastInit = function () {
+    var boxes = document.querySelectorAll('.slides-cast');
+    for (var i = 0; i < boxes.length; i++) setup(boxes[i]);
+  };
+  window.slidesCastInit();
 })();`
 
 // CastCSS styles the player's controls. The recording's own colours and sizes
