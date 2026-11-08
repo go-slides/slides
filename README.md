@@ -165,6 +165,94 @@ one file. `slides kinds deck.md` lists what a deck can use; with `--json`
 (in v0.6.0), as a list of `{name, extends, directives: [{key, value}]}`, the
 directives resolved through `extends`.
 
+## Theme packages
+
+A theme package is one file, `<name>.slidestheme`: a ZIP archive (deflate) with
+`theme.hcl` at its root and the files it declares. It carries a theme's CSS, its
+fonts, its logos and backgrounds, and slide kinds, with a name, a version and a
+licence, so that a theme can be passed around and installed.
+
+```hcl
+# theme.hcl
+theme {
+  name        = "acme"
+  version     = "1.0.0"                 # semantic version
+  description = "Example theme"
+  authors     = ["go-slides contributors"]
+  license     = "MIT"                   # SPDX expression
+  homepage    = "https://go-slides.github.io"
+  extends     = "default"               # the base theme, built in or installed
+  min_slides  = "0.17.0"                # oldest go-slides it works with
+}
+
+css "theme.css" {}                      # in order; sha256 = "…" is optional
+
+font "Roboto Mono" {
+  weight  = 400                         # or "100 900"
+  style   = "normal"
+  file    = "fonts/RobotoMono-Regular.ttf"
+  license = "OFL-1.1"                   # required for a font
+}
+
+asset "logo" { file = "assets/logo.svg" }
+
+kind "acme-title" {                     # optional slide kinds
+  class    = "lead"
+  paginate = "false"
+}
+```
+
+The CSS refers to fonts and assets by their path in the package, relative to the
+CSS file: `background: url(assets/logo.svg)`. On loading, each such reference
+becomes a `data:` URL, so the page is self-contained. A font block becomes an
+`@font-face`. A package may also carry `LICENSE`, `NOTICE` and `README` files;
+any other file that `theme.hcl` does not declare is refused.
+
+```
+slides theme pack dir               write dir/theme.hcl and its files as <name>.slidestheme
+slides theme verify file            run every check on a package
+slides theme install file           check it, then install it for the current user
+slides theme list                   the installed packages
+slides theme remove name
+```
+
+Installed packages are in `go-slides/themes` under `os.UserConfigDir()`
+(`~/Library/Application Support`, `$XDG_CONFIG_HOME` or `~/.config`, `%AppData%`).
+A deck's `theme: acme` (and `--theme acme`) finds an installed package, after the
+built-in themes and `--theme-set`; `--theme acme.slidestheme` and
+`--theme-set acme.slidestheme` use a file directly. The slide kinds of a package
+apply with `--theme file.slidestheme` or `--theme name` (the package must be
+installed); a deck that only names it in its front matter gets its look, not its
+kinds, and can name them with `--kinds`.
+
+A package is untrusted input, and every reader (`pack`, `verify`, `install`,
+`--theme`, a build) checks it the same way, refusing with a coded error
+(`theme.archive`, `theme.limit`, `theme.meta`, `theme.css`, `theme.svg`,
+`theme.font`, `theme.checksum`, `theme.version`):
+
+- **Archive.** No `..`, absolute path, drive letter or backslash in a name; no
+  symbolic link or special file; no duplicate name (compared without case); no
+  encryption and no method but stored and deflate. Sizes are what is read, not
+  what the directory declares.
+- **Bounds.** At most 16 MiB archive, 256 entries, 8 MiB an entry, 24 MiB
+  inflated, a compression ratio of 100 to 1 for an entry of 64 KiB or more,
+  `theme.hcl` at most 64 KiB and 32 brackets deep, 1 MiB of CSS a file, 4 MiB a
+  font or an image.
+- **`theme.hcl`** is HCL's native syntax with literal values only: no function,
+  variable, `file()` or `env()`. A name is lower-case letters, digits and dashes,
+  and not `default`, `gaia` or `uncover`.
+- **CSS.** No `@import`, no `@import-theme` (use `extends`), no `image-set()`,
+  `src()` or other function that loads a resource, no backslash escape outside a
+  string, no `</style`. A `url()` is a `#fragment`, a `data:` image or font, or a
+  declared file of the package, never one that leaves it.
+- **SVG.** No `script`, `foreignObject`, frame, embed, `set`, DOCTYPE or event
+  handler; an `href` is a `#fragment`; no `url()` that leaves the file.
+- **Fonts and images** are parsed; a font must be a font, an image must match its
+  extension.
+- **Checksums.** A declared `sha256` must match.
+
+`testdata/themes/acme` is a small example.
+
 ## HCL
 
 Everywhere `slides` reads YAML, it also reads
@@ -250,6 +338,7 @@ slides expand  [flags] deck.md     print plain Marp Markdown
 slides notes   [flags] deck.md     print the speaker notes
 slides kinds   [flags] deck.md     list the kinds and what they set
 slides themes  [--theme-set ...]   list the themes
+slides theme   pack|verify|install|list|remove   theme packages (*.slidestheme)
 slides version                     print the version (also --version)
 slides completion bash|zsh|fish|powershell
 ```
@@ -295,9 +384,9 @@ input is read only for `-`, not whenever it is a pipe.
 | `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
 | `--image-scale n` | build | device pixels per CSS pixel for images and PDF (default 1) |
 | `--allow-local-files` | build | let images and PDF read local files, from under the deck's directory only |
-| `--theme name\|file.css` | build | override the deck's theme: a theme name, or a CSS file (whatever `@theme` it declares); a directory is refused, use `--theme-set` |
+| `--theme name\|file.css\|file.slidestheme` | build | override the deck's theme: a theme name (built in or an installed package), a CSS file (whatever `@theme` it declares), or a [theme package](#theme-packages); a directory is refused, use `--theme-set` |
 | `--title`, `--description`, `--author`, `--keywords`, `--url`, `--og-image` | build | the page's metadata, over the deck's `title`, `description`, `author`, `keywords`, `url` and `image` directives, as in marp-cli. A deck with no title takes its first top-level heading's text; `--keywords` is comma-separated; an invalid `--url` is ignored with a warning |
-| `--theme-set path` | all | a theme CSS file or a directory of them (repeatable) |
+| `--theme-set path` | all | a theme CSS file, a theme package (`*.slidestheme`) or a directory of them (repeatable) |
 | `--kinds file` | all | a YAML or HCL (`*.hcl`) file of kinds (repeatable) |
 | `--data file`, `--set k=v` | all | template data: YAML, JSON or HCL (`*.hcl`) files (repeatable) |
 | `--no-template`, `--strict-yaml` | all | plain Marpit behaviour |

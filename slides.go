@@ -111,6 +111,9 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	cfg.Override.apply(d)
 	b := &Build{Deck: d, Warnings: d.Warnings}
 	name := d.Global.Theme()
+	if err := set.Ensure(name); err != nil {
+		return nil, err
+	}
 	if name != "" && !set.Has(name) {
 		b.Warnings = append(b.Warnings, diag.ThemeUnknown(name, set.Resolve("").Name, set.Names()))
 	}

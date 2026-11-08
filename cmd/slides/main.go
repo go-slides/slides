@@ -181,7 +181,7 @@ that marp-cli or any Marp tool renders the same slides.`,
 		Run:   func(cmd *cobra.Command, _ []string) { fmt.Fprintln(cmd.OutOrStdout(), "slides "+version()) },
 	}
 
-	root.AddCommand(buildCmd, expandCmd, notesCmd, kindsCmd, themesCmd, versionCmd)
+	root.AddCommand(buildCmd, expandCmd, notesCmd, kindsCmd, themesCmd, themeCmd(), versionCmd)
 	return root
 }
 
@@ -261,7 +261,7 @@ func (o *options) buildFlags(cmd *cobra.Command) {
 	}
 	f.StringVarP(&o.inputDir, "input-dir", "I", "", "convert the Markdown files under this directory, written under --output at the same relative paths (next to the decks without --output)")
 	f.IntVarP(&o.parallel, "parallel", "P", 5, "decks built at once, at most the number of cores (1 builds them one after the other)")
-	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name, or a CSS file (use --theme-set to add themes)")
+	f.StringVar(&o.themeOverride, "theme", "", "override the deck's theme: a theme name (built in or installed), a CSS file, or a theme package (*.slidestheme); --theme-set adds themes")
 	f.StringVar(&o.meta.Title, "title", "", "title of the page, over the deck's title directive")
 	f.StringVar(&o.meta.Description, "description", "", "description of the page, over the deck's description directive")
 	f.StringVar(&o.meta.Author, "author", "", "author of the page, over the deck's author directive")

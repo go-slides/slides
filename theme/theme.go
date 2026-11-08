@@ -193,10 +193,44 @@ func mapSelectors(sel string, fn func(string) string) string {
 
 // Set is a set of themes by name.
 type Set struct {
+	mu     sync.RWMutex
 	themes map[string]*Theme
 	// Default is the theme used when a deck names none or an unknown one;
 	// nil falls back to Marpit's scaffold.
 	Default *Theme
+	// Installed, when set, finds the CSS of a theme that is not in the set
+	// yet, by name: an installed theme package. found is false when it has
+	// none of that name; Ensure adds what it returns.
+	Installed func(name string) (css string, found bool, err error)
+}
+
+// get returns a theme by name under the read lock.
+func (s *Set) get(name string) *Theme {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.themes[name]
+}
+
+// Ensure adds the theme called name from Installed when the set lacks it. It
+// does nothing, and returns nil, when the set has the theme, has no Installed
+// or Installed has no such theme; an error is the installed theme's own, so
+// that a broken package is told, not taken for an unknown name.
+func (s *Set) Ensure(name string) error {
+	if name == "" || s.Installed == nil || s.get(name) != nil {
+		return nil
+	}
+	src, found, err := s.Installed(name)
+	if err != nil || !found {
+		return err
+	}
+	t, err := s.Add(src)
+	if err != nil {
+		return err
+	}
+	if t.Name != name {
+		return fmt.Errorf("installed theme %q declares the name %q", name, t.Name)
+	}
+	return nil
 }
 
 //go:embed marp/*.css
@@ -240,6 +274,8 @@ func (s *Set) Add(src string) (*Theme, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.themes == nil {
 		s.themes = map[string]*Theme{}
 	}
@@ -248,17 +284,21 @@ func (s *Set) Add(src string) (*Theme, error) {
 }
 
 // Get returns a theme by name.
-func (s *Set) Get(name string) *Theme { return s.themes[name] }
+func (s *Set) Get(name string) *Theme { return s.get(name) }
 
 // Has reports whether a theme is known.
-func (s *Set) Has(name string) bool { _, ok := s.themes[name]; return ok }
+func (s *Set) Has(name string) bool { return s.get(name) != nil }
 
 // Names lists the theme names, sorted.
-func (s *Set) Names() []string { return slices.Sorted(maps.Keys(s.themes)) }
+func (s *Set) Names() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return slices.Sorted(maps.Keys(s.themes))
+}
 
 // Resolve returns the theme a deck naming name uses.
 func (s *Set) Resolve(name string) *Theme {
-	if t := s.themes[name]; t != nil {
+	if t := s.get(name); t != nil {
 		return t
 	}
 	if s.Default != nil {
@@ -274,7 +314,7 @@ func (s *Set) chain(t *Theme, seen []string) []*Theme {
 	}
 	out := []*Theme{t}
 	for _, name := range t.Imports {
-		if imp := s.themes[name]; imp != nil {
+		if imp := s.get(name); imp != nil {
 			out = append(out, s.chain(imp, append(seen, t.Name))...)
 		}
 	}

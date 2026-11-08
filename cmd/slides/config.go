@@ -129,12 +129,27 @@ func (o *options) config(deckPath string) (slides.Config, error) {
 		Transition: o.bespokeTransition && !o.noBespokeTransition,
 		Presenter:  true, // marp-cli's bespoke template always has it
 	}
+	withInstalled(cfg.Themes)
 	if o.themeOverride != "" {
+		if isPackage(o.themeOverride) {
+			name, kinds, err := overridePackage(cfg.Themes, o.themeOverride)
+			if err != nil {
+				return cfg, err
+			}
+			cfg.Parse.Kinds = cfg.Parse.Kinds.Merge(kinds)
+			cfg.Override.Theme = name
+			return cfg, nil
+		}
 		name, err := overrideTheme(cfg.Themes, o.themeOverride)
 		if err != nil {
 			return cfg, err
 		}
 		cfg.Override.Theme = name
+		kinds, err := installedKinds(name)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Parse.Kinds = cfg.Parse.Kinds.Merge(kinds)
 	}
 	return cfg, nil
 }

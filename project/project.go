@@ -7,6 +7,7 @@
 package project
 
 import (
+	"bytes"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/internal/hclx"
 	"github.com/go-slides/slides/theme"
+	"github.com/go-slides/slides/themepack"
 	"github.com/go-slides/slides/vfs"
 )
 
@@ -278,7 +280,7 @@ func ThemeSet(fsys vfs.FS, paths ...string) (*theme.Set, error) {
 			}
 			for _, e := range entries {
 				// The command globbed *.css: the same, case-sensitive match.
-				if !e.IsDir() && filepath.Ext(e.Name()) == ".css" {
+				if !e.IsDir() && (filepath.Ext(e.Name()) == ".css" || filepath.Ext(e.Name()) == themepack.Extension) {
 					files = append(files, filepath.Join(p, e.Name()))
 				}
 			}
@@ -287,6 +289,18 @@ func ThemeSet(fsys vfs.FS, paths ...string) (*theme.Set, error) {
 			b, err := f.ReadFile(file)
 			if err != nil {
 				return nil, err
+			}
+			if filepath.Ext(file) == themepack.Extension {
+				// a theme package: checked as every reader checks it, then its sheet
+				pkg, err := themepack.Read(bytes.NewReader(b), int64(len(b)), themepack.Limits{})
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", file, err)
+				}
+				css, err := pkg.CSS()
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", file, err)
+				}
+				b = []byte(css)
 			}
 			if _, err := set.Add(string(b)); err != nil {
 				return nil, fmt.Errorf("%s: %w", file, err)
