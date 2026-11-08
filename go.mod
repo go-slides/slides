@@ -17,7 +17,7 @@ require (
 	github.com/go-richdoc/richdoc v0.7.0
 	github.com/go-rouge/rouge v0.7.1
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.45.10
+	github.com/go-webengine/engine v0.45.11
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
