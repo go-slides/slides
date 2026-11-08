@@ -221,9 +221,9 @@ Installed packages are in `go-slides/themes` under `os.UserConfigDir()`
 A deck's `theme: acme` (and `--theme acme`) finds an installed package, after the
 built-in themes and `--theme-set`; `--theme acme.slidestheme` and
 `--theme-set acme.slidestheme` use a file directly. The slide kinds of a package
-apply with `--theme file.slidestheme` or `--theme name` (the package must be
-installed); a deck that only names it in its front matter gets its look, not its
-kinds, and can name them with `--kinds`.
+apply with `--theme file.slidestheme`, `--theme name` or a front matter
+`theme: name` (the package must be installed); the deck's own kinds win over
+them.
 
 A package is untrusted input, and every reader (`pack`, `verify`, `install`,
 `--theme`, a build) checks it the same way, refusing with a coded error

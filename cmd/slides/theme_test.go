@@ -129,6 +129,11 @@ func TestDeckFindsAnInstalledPackageByName(t *testing.T) {
 	if strings.Contains(stderr, "not known") || !strings.Contains(out, "data:font/ttf;base64,") {
 		t.Fatalf("an installed theme was not found: stderr %q", stderr)
 	}
+	// the kinds come with the theme the front matter names
+	out, _, err = run(t, "-o", "-", writeDeck(t, "theme: acme\nkind: acme-title\n"))
+	if err != nil || !strings.Contains(out, `class="lead"`) {
+		t.Fatalf("an installed package's kind from the front matter: %v", err)
+	}
 	// --theme name resolves the same way
 	out, _, err = run(t, "--theme", "acme", "-o", "-", writeDeck(t, "kind: acme-title\n"))
 	if err != nil || !strings.Contains(out, "data:font/ttf;base64,") || !strings.Contains(out, `class="lead"`) {

@@ -130,6 +130,7 @@ func (o *options) config(deckPath string) (slides.Config, error) {
 		Presenter:  true, // marp-cli's bespoke template always has it
 	}
 	withInstalled(cfg.Themes)
+	cfg.Parse.ThemeKinds = installedKinds
 	if o.themeOverride != "" {
 		if isPackage(o.themeOverride) {
 			name, kinds, err := overridePackage(cfg.Themes, o.themeOverride)
