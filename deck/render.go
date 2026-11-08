@@ -451,7 +451,7 @@ func (r *slideRenderer) slide(s *Slide) string {
 	if f := dirs.Get("footer"); f != "" {
 		content.WriteString("<footer>" + r.inline(f) + "</footer>\n")
 	}
-	if r.opts.GeneratedContent && s.Paginated {
+	if r.opts.GeneratedContent {
 		content.WriteString(r.pseudoAfter(s) + "\n")
 	}
 
@@ -538,7 +538,7 @@ func (r *slideRenderer) advanced(s *Slide, a attrs, style *styleDecls, dirs Dirs
 	// Marpit writes the pseudo layer's style even when it is empty.
 	pseudoAttrs.set("data-marpit-advanced-background", "pseudo")
 	pseudoContent := ""
-	if r.opts.GeneratedContent && s.Paginated {
+	if r.opts.GeneratedContent {
 		pseudoContent = r.pseudoAfter(s)
 		// The content layer must not number the slide a second time.
 		content = strings.Replace(content, pseudoContent+"\n", "", 1)
