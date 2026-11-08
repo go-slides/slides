@@ -187,6 +187,12 @@ func Document(o Options) string {
 			break
 		}
 	}
+	for _, s := range o.Slides {
+		if UsesCast(s) {
+			b.WriteString("<style>" + CastCSS + "</style>\n<script>" + compact(CastJS) + "</script>\n")
+			break
+		}
+	}
 	if !o.Bare {
 		opts, _ := json.Marshal(struct {
 			OSC       bool   `json:"osc"`

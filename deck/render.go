@@ -70,6 +70,19 @@ type RenderOptions struct {
 	// marks the same elements: the frame, not the <section>, whose class
 	// themes select on.
 	SourceLines bool
+	// Cast, when set, writes an image whose destination is a recording
+	// (![cast](demo.cast#t=12.5)): dest is the destination as written, alt the
+	// alternative text with the options taken out. An error is written as a
+	// note in the slide's place. Without it such an image is an <img>, as any.
+	Cast func(dest, alt string) (string, error)
+}
+
+// IsCast reports whether an image destination names an asciinema recording:
+// a path that ends in .cast, before any ?query or #fragment.
+func IsCast(dest string) bool {
+	p, _, _ := strings.Cut(dest, "#")
+	p, _, _ = strings.Cut(p, "?")
+	return len(p) > 5 && strings.EqualFold(p[len(p)-5:], ".cast")
 }
 
 // Rendered is a rendered slide.
@@ -692,6 +705,19 @@ func (r *slideRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 	n := node.(*ast.Image)
 	i := r.info(n)
 	if i.hidden {
+		return ast.WalkSkipChildren, nil
+	}
+	if r.opts.Cast != nil && !(i.image != nil && i.image.background) && IsCast(string(n.Destination)) {
+		alt := string(plainText(n, source))
+		if i.image != nil && i.image.anyConsumed() {
+			alt = i.image.alt()
+		}
+		out, err := r.opts.Cast(string(n.Destination), strings.TrimSpace(alt))
+		if err != nil {
+			out = `<span class="slides-cast-error" role="note" title="` + escapeHTML(err.Error()) + `">` +
+				escapeHTML("[recording not shown: "+err.Error()+"]") + `</span>`
+		}
+		_, _ = w.WriteString(out)
 		return ast.WalkSkipChildren, nil
 	}
 	_, _ = w.WriteString(`<img src="`)

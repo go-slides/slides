@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"version\":2,\"width\":99999999999,\"height\":-1,\"idle_time_limit\":-5,\"theme\":{\"fg\":\"#12\",\"bg\":\"red\",\"palette\":\"::::\"}}\n{\"version\":1}\n")

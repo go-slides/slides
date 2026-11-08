@@ -95,6 +95,10 @@ var Codes = map[string]string{
 	"theme.font":        "A font of the theme package is not a font, or is too large.",
 	"theme.checksum":    "A file of the theme package does not match its declared sha256.",
 	"theme.version":     "The theme package needs a newer go-slides.",
+	"cast.syntax":       "The recording is not a well formed asciicast file.",
+	"cast.limit":        "The recording is larger, longer or busier than go-slides reads (size, events, duration, terminal size, work).",
+	"cast.version":      "The recording is of an asciicast version go-slides does not read (2 and 3 are).",
+	"cast.path":         "A recording must be a file in the deck's folder: not a URL, an absolute path or one that leaves it.",
 }
 
 // ThemeUnknownPrefix starts the build warning for a theme no theme set has:
@@ -111,6 +115,12 @@ func ThemeUnknown(name, fallback string, known []string) string {
 func WarningCode(msg string) string {
 	if strings.HasPrefix(msg, ThemeUnknownPrefix) && strings.Contains(msg, " is not known; using ") {
 		return "theme.unknown"
+	}
+	// a recording's warning is written "<code>: <message>"
+	if code, _, ok := strings.Cut(msg, ": "); ok && (strings.HasPrefix(code, "cast.") || code == "file.missing") {
+		if _, known := Codes[code]; known {
+			return code
+		}
 	}
 	return ""
 }
