@@ -8,15 +8,25 @@ import (
 // pseudoAfter writes the element that stands for the slide's ::after when
 // the layout engine generates no content, with the text the theme's content
 // expression gives this slide.
+//
+// A slide that is not paginated has the element too, with no text: in a
+// browser its ::after exists (the scaffold's content is attr() of an absent
+// attribute, the empty string) and is hidden only by the scaffold's
+// section:not([data-marpit-pagination])::after { display:none }, which a
+// theme rule of the same specificity written later overrides (issue #77).
 func (r *slideRenderer) pseudoAfter(s *Slide) string {
-	attrs := map[string]string{
-		"data-marpit-pagination":       strconv.Itoa(s.Page),
-		"data-marpit-pagination-total": strconv.Itoa(s.Total),
+	attrs := map[string]string{}
+	if s.Paginated {
+		attrs["data-marpit-pagination"] = strconv.Itoa(s.Page)
+		attrs["data-marpit-pagination-total"] = strconv.Itoa(s.Total)
 	}
 	for _, k := range s.Dirs.Keys() {
 		attrs["data-"+kebab(k)] = s.Dirs.Get(k)
 	}
-	text := strconv.Itoa(s.Page)
+	text := ""
+	if s.Paginated {
+		text = strconv.Itoa(s.Page)
+	}
 	if r.opts.AfterContent != "" {
 		text = evalContent(r.opts.AfterContent, attrs)
 	}
