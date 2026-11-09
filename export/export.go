@@ -552,10 +552,10 @@ func (p *PDFWriter) AddLayout(l *engine.PageLayout) error {
 		}
 		if e := c.Element(ln.Node); e != nil {
 			// under its Link element, its text as its description
-			pg.AddTaggedLink(e, rect, ln.Href, cmp.Or(pdfcanvas.TextOf(ln.Node), ln.Href))
+			pg.AddTaggedLink(e, rect, videoTarget(ln.Href), cmp.Or(pdfcanvas.TextOf(ln.Node), videoTarget(ln.Href)))
 			continue
 		}
-		pg.AddLink(rect, ln.Href)
+		pg.AddLink(rect, videoTarget(ln.Href))
 	}
 	return nil
 }

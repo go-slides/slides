@@ -94,6 +94,8 @@ type Build struct {
 	Slides []deck.Rendered
 	// Warnings are problems that did not stop the build.
 	Warnings []string
+	// Media are the video files the slides carry, by the path the deck wrote.
+	Media map[string]doc.Media
 }
 
 // Render parses and renders a deck for a frame.
@@ -151,8 +153,10 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 	}
 	b.Packed = set.Pack(b.Theme, opts)
 	casts := newCastRenderer(popts, frame == deck.FrameSVG, int(b.Packed.Width), int(b.Packed.Height))
+	videos := newVideoRenderer(popts, frame == deck.FrameSVG, int(b.Packed.Width), int(b.Packed.Height))
 	b.Slides = d.RenderCached(deck.RenderOptions{
 		Cast:             casts.render,
+		Video:            videos.render,
 		Frame:            frame,
 		HTML:             cfg.HTML,
 		Lang:             cfg.Lang,
@@ -166,6 +170,10 @@ func Render(src []byte, cfg Config, frame deck.Frame) (*Build, error) {
 		SourceLines:      cfg.SourceLines,
 	}, cfg.RenderCache)
 	b.Warnings = append(b.Warnings, casts.warnings...)
+	b.Warnings = append(b.Warnings, videos.warnings...)
+	if len(videos.media) > 0 {
+		b.Media = videos.media
+	}
 	return b, nil
 }
 
@@ -236,6 +244,7 @@ func (b *Build) Doc() *doc.Doc {
 		Lang: g.Get("lang"), Keywords: deck.KeywordList(g.Get("keywords")),
 		TitleDirective: g.Get("title"), KeywordsDirective: g.Get("keywords"),
 		Slides: make([]doc.Slide, len(b.Slides)),
+		Media:  b.Media,
 	}
 	for i, r := range b.Slides {
 		s := doc.Slide{HTML: r.HTML}

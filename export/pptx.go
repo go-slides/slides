@@ -45,6 +45,9 @@ type PPTXWriter struct {
 	// anims holds, by slide index, the transition and builds go-ooxml has no
 	// field for: written into the slides' XML when the deck is (pptxanim.go).
 	anims map[int]pptxAnim
+	// videos holds, by slide index, the pictures that are the poster of a
+	// video of the deck's Media (video.go).
+	videos pptxVideos
 }
 
 // noteAnim records the transition into slide i and, when it has fragment
@@ -96,6 +99,12 @@ func (w *PPTXWriter) AddSteps(steps []*engine.PageLayout) error {
 		return err
 	}
 	i := len(w.p.Slides)
+	if vs := findVideos(steps[len(steps)-1].Links(), w.b.Media, pptxBoxes(shapes, k)); len(vs) > 0 {
+		if w.videos == nil {
+			w.videos = pptxVideos{}
+		}
+		w.videos[i] = vs
+	}
 	w.noteAnim(i, len(steps) > 1, func() [][]pptxTarget { return pptxClicks(shapes, from, fragmentShapes(pages)) })
 	sl := ooxml.PresentationSlide{Background: bg, Shapes: shapes}
 	if bg == nil && len(shapes) == 0 {
@@ -156,6 +165,11 @@ func (w *PPTXWriter) Write(out io.Writer) error {
 	}
 	if len(w.anims) > 0 {
 		if data, err = addPPTXAnimations(data, w.anims); err != nil {
+			return err
+		}
+	}
+	if len(w.videos) > 0 {
+		if data, err = addPPTXVideos(data, w.videos, w.b.Media); err != nil {
 			return err
 		}
 	}

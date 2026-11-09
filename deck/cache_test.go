@@ -14,7 +14,7 @@ func TestRenderCacheKeyCoversEveryField(t *testing.T) {
 		v    any
 		want int
 	}{
-		{RenderOptions{}, 12},
+		{RenderOptions{}, 13},
 		{Slide{}, 17},
 		{Global{}, 2},
 		{Background{}, 4},

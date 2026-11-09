@@ -120,6 +120,7 @@ func (d *Deck) contextKey(opts RenderOptions) string {
 	k.str(opts.AfterContent)
 	k.flag(opts.SourceLines)
 	k.flag(opts.Cast != nil)
+	k.flag(opts.Video != nil)
 	return k.String()
 }
 
@@ -215,7 +216,10 @@ func (d *Deck) RenderCached(opts RenderOptions, c *RenderCache) []Rendered {
 		sum := h.Sum64()
 		e, ok := c.slides[sum]
 		// a slide with a recording reads a file the key does not hold
-		if ok && e.meta == meta && e.src == src && !(opts.Cast != nil && strings.Contains(strings.ToLower(src), ".cast")) {
+		low := strings.ToLower(src)
+		// a slide with a video reads a file the key does not hold
+		video := opts.Video != nil && (strings.Contains(low, ".mp4") || strings.Contains(low, ".m4v") || strings.Contains(low, ".webm"))
+		if ok && e.meta == meta && e.src == src && !(opts.Cast != nil && strings.Contains(low, ".cast")) && !video {
 			c.Hits++
 		} else {
 			if r == nil {

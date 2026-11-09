@@ -29,6 +29,26 @@ type Doc struct {
 	KeywordsDirective string `json:"keywordsDirective,omitempty"`
 	// Slides are the slides in order.
 	Slides []Slide `json:"slides"`
+	// Media are the video files the slides link to, by the path the deck wrote
+	// (![video](clip.mp4)): the office exports embed them as the video behind
+	// the poster picture, and the PDF only links to them.
+	Media map[string]Media `json:"media,omitempty"`
+}
+
+// VideoLinkPrefix starts the address of the link around the poster picture of
+// a video file of the deck, in the markup the exports are made from: the web
+// engine keeps only http(s) links and resolves them against the page, so the
+// file's path follows it ("https://go-slides.invalid/video/clip.mp4"), and the
+// exports tell their own from other links by it. The PDF writes the link
+// as the path alone, which a PDF reader resolves against the file's place.
+const VideoLinkPrefix = "https://go-slides.invalid/video/"
+
+// Media is a file a deck carries.
+type Media struct {
+	// MIME is its media type (video/mp4, video/webm).
+	MIME string `json:"mime"`
+	// Data is the file.
+	Data []byte `json:"data"`
 }
 
 // Slide is one slide of a Doc.

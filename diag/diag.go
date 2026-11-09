@@ -98,6 +98,10 @@ var Codes = map[string]string{
 	"cast.syntax":       "The recording is not a well formed asciicast file.",
 	"cast.limit":        "The recording is larger, longer or busier than go-slides reads (size, events, duration, terminal size, work).",
 	"cast.version":      "The recording is of an asciicast version go-slides does not read (2 and 3 are).",
+	"video.syntax":      "The video is not a well formed MP4 or WebM file, has no video track, or its #t= is not a time.",
+	"video.limit":       "The video is larger, more deeply nested, or of a bigger picture than go-slides reads, or its poster costs more decoding than allowed.",
+	"video.codec":       "The video's codec is not one a poster can be decoded for (H.264 only); the video is kept and a neutral picture stands in.",
+	"video.path":        "A video must be a file in the deck's folder or an http(s) URL: not an absolute path, one that leaves the folder, or another scheme.",
 	"cast.path":         "A recording must be a file in the deck's folder: not a URL, an absolute path or one that leaves it.",
 }
 
@@ -117,7 +121,7 @@ func WarningCode(msg string) string {
 		return "theme.unknown"
 	}
 	// a recording's warning is written "<code>: <message>"
-	if code, _, ok := strings.Cut(msg, ": "); ok && (strings.HasPrefix(code, "cast.") || code == "file.missing") {
+	if code, _, ok := strings.Cut(msg, ": "); ok && (strings.HasPrefix(code, "cast.") || strings.HasPrefix(code, "video.") || code == "file.missing") {
 		if _, known := Codes[code]; known {
 			return code
 		}
