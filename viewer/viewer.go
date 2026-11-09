@@ -193,6 +193,12 @@ func Document(o Options) string {
 			break
 		}
 	}
+	for _, s := range o.Slides {
+		if UsesVideo(s) {
+			b.WriteString("<script>" + compact(VideoJS) + "</script>\n")
+			break
+		}
+	}
 	if !o.Bare {
 		opts, _ := json.Marshal(struct {
 			OSC       bool   `json:"osc"`

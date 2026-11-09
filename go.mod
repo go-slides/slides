@@ -5,6 +5,8 @@ go 1.27.3
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/go-avkit/avkit v0.15.0
+	github.com/go-avkit/decode v0.2.0
 	github.com/go-compressions/xz v0.3.1
 	github.com/go-gfx/oksvg v0.3.1
 	github.com/go-icons/twemoji v0.1.0
@@ -34,10 +36,14 @@ require (
 )
 
 require (
+	github.com/Eyevinn/mp4ff v0.62.0 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.2.8 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
+	github.com/asticode/go-astikit v0.30.0 // indirect
+	github.com/asticode/go-astits v1.17.0 // indirect
+	github.com/at-wat/ebml-go v0.19.4 // indirect
 	github.com/breml/rootcerts v0.3.7 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9 // indirect
@@ -64,6 +70,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+	github.com/oops1/go.264 v1.12.0 // indirect
 	github.com/refraction-networking/utls v1.8.2 // indirect
 	github.com/tannevaled/gobig2 v0.2.0 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
@@ -72,4 +79,5 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

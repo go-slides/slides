@@ -40,6 +40,9 @@ type ODPWriter struct {
 	// anims holds, by slide index, the transition and builds go-odf has no
 	// field for: written into content.xml with the deck (odpanim.go).
 	anims map[int]odpAnim
+	// videos holds, by slide index, the pictures that are the poster of a
+	// video of the deck's Media (video.go).
+	videos odpVideos
 }
 
 // noteAnim records the transition into slide i and, when it has fragment
@@ -109,6 +112,12 @@ func (w *ODPWriter) AddSteps(steps []*engine.PageLayout) error {
 		return err
 	}
 	i := len(w.p.Slides)
+	if vs := findVideos(steps[len(steps)-1].Links(), w.b.Media, odpBoxes(shapes, px)); len(vs) > 0 {
+		if w.videos == nil {
+			w.videos = odpVideos{}
+		}
+		w.videos[i] = vs
+	}
 	w.noteAnim(i, len(steps) > 1, func() [][]int { return odpClicks(from, fragmentShapes(pages)) })
 	sl := odf.PresentationSlide{Background: bg, Shapes: shapes}
 	if bg == nil && len(shapes) == 0 {
@@ -169,6 +178,11 @@ func (w *ODPWriter) Write(out io.Writer) error {
 	}
 	if len(w.anims) > 0 {
 		if data, err = addODPAnimations(data, w.anims); err != nil {
+			return err
+		}
+	}
+	if len(w.videos) > 0 {
+		if data, err = addODPVideos(data, w.videos, w.b.Media); err != nil {
 			return err
 		}
 	}

@@ -832,6 +832,47 @@ place, and the problem is a warning with that code. The parser and the emulator
 are fuzzed (`go test -fuzz FuzzParse ./internal/cast`, `-fuzz FuzzWrite
 ./internal/vt`) with their corpus in `testdata/fuzz`.
 
+## Video
+
+An image whose file ends in `.mp4`, `.m4v` or `.webm` is a video:
+
+```markdown
+![video](clip.mp4)
+![The demo loop muted](clip.mp4#t=12.5)
+![video](https://example.com/talk.webm)
+```
+
+`#t=12.5` (or `#t=1:23`) picks the **poster**: the picture shown before playback
+and in the static outputs, the first one by default. `autoplay`, `loop` and
+`muted` in the alternative text are go-slides' own keywords, written like Marp's
+image keywords (Marp has none for video that were checked); `autoplay` is
+honoured only with `muted`, otherwise it is ignored with a warning. The other
+words are the accessible label.
+
+| Output | What the video becomes |
+| --- | --- |
+| HTML (CLI, playground) | `<video controls playsinline preload="metadata">` with the poster as a data URI. Never starts with sound; under `prefers-reduced-motion` autoplay and loop are taken off and the video is paused; an autoplaying (muted) video plays only while half visible. |
+| PDF | the poster picture with a link to the file (the path as written, or the URL). No RichMedia: that plays only in Acrobat, so playback is by following the link. |
+| PPTX | the file as a media part (`a:videoFile` and `p14:media`) behind the poster picture; plays in PowerPoint. |
+| ODP | the file under `Video/` as a `draw:plugin` (ODF 1.3 Part 3, 10.4.8) before the poster `draw:image`. |
+
+A URL is streamed by the HTML page and linked by the others; nothing is fetched
+at build time, so nothing is embedded in PPTX or ODP, and the poster is a card.
+
+| Container | Codec | Poster | HTML | PPTX / ODP |
+| --- | --- | --- | --- | --- |
+| MP4, WebM / Matroska | H.264 (`avc1`, `avc3`) | decoded, in pure Go (go-avkit/decode, no ffmpeg) | plays | embedded |
+| MP4, WebM / Matroska | H.265, VP8, VP9, AV1, others | neutral card, warning `video.codec` | plays where the browser decodes it | embedded |
+
+The file is untrusted and bounded (`internal/video.DefaultLimits`): 64 MiB, 262,144
+boxes or elements nested at most 16 deep, a frame of at most 4096x4096, and a
+poster decoded from at most 600 samples after the keyframe before it (8 MiB a
+sample). A refusal is a coded error, `video.limit`, `video.syntax`, `video.codec`
+or `video.path` (a path that is absolute, leaves the deck's folder or is not
+http(s)): the slide shows `[video not shown: ...]` and the build warns. The
+reader is fuzzed (`go test -fuzz FuzzOpen ./internal/video`). In the playground a
+video added to a project stays in the browser.
+
 ## Examples
 
 [`examples/`](examples) holds twelve small decks, each showing one thing well:

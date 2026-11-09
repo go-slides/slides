@@ -75,6 +75,20 @@ type RenderOptions struct {
 	// alternative text with the options taken out. An error is written as a
 	// note in the slide's place. Without it such an image is an <img>, as any.
 	Cast func(dest, alt string) (string, error)
+	// Video, when set, writes an image whose destination is a video
+	// (![video loop muted](clip.mp4#t=12.5)), as Cast does a recording: alt is
+	// the alternative text with Marpit's options taken out, the words autoplay,
+	// loop and muted still in it.
+	Video func(dest, alt string) (string, error)
+}
+
+// IsVideo reports whether an image destination names a video: a path that
+// ends in .mp4, .m4v or .webm, before any ?query or #fragment.
+func IsVideo(dest string) bool {
+	p, _, _ := strings.Cut(dest, "#")
+	p, _, _ = strings.Cut(p, "?")
+	p = strings.ToLower(p)
+	return strings.HasSuffix(p, ".mp4") || strings.HasSuffix(p, ".m4v") || strings.HasSuffix(p, ".webm")
 }
 
 // IsCast reports whether an image destination names an asciinema recording:
@@ -716,6 +730,19 @@ func (r *slideRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 		if err != nil {
 			out = `<span class="slides-cast-error" role="note" title="` + escapeHTML(err.Error()) + `">` +
 				escapeHTML("[recording not shown: "+err.Error()+"]") + `</span>`
+		}
+		_, _ = w.WriteString(out)
+		return ast.WalkSkipChildren, nil
+	}
+	if r.opts.Video != nil && !(i.image != nil && i.image.background) && IsVideo(string(n.Destination)) {
+		alt := string(plainText(n, source))
+		if i.image != nil && i.image.anyConsumed() {
+			alt = i.image.alt()
+		}
+		out, err := r.opts.Video(string(n.Destination), strings.TrimSpace(alt))
+		if err != nil {
+			out = `<span class="slides-video-error" role="note" title="` + escapeHTML(err.Error()) + `">` +
+				escapeHTML("[video not shown: "+err.Error()+"]") + `</span>`
 		}
 		_, _ = w.WriteString(out)
 		return ast.WalkSkipChildren, nil
