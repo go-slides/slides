@@ -538,7 +538,7 @@ security a local server needs:
   slides.example.org` (repeatable) adds the proxy's public name to the
   accepted Hosts, and so to the accepted Origins. The checks stay on, and the
   server stays on the loopback. The
-  [self-hosting guide](https://go-slides.github.io/docs/0.17/self-hosting/)
+  [self-hosting guide](https://go-slides.github.io/docs/0.18/self-hosting/)
   puts it, and the playground, behind Caddy with HTTPS and an OpenID Connect
   sign-in. Cross-site subresource requests (`<script src>`,
   `fetch`) are refused by their `Sec-Fetch-*` headers. A path is cleaned,
