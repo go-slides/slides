@@ -153,9 +153,19 @@ func (o *options) exportOptions(path, format string) (export.Options, error) {
 // exportBytes renders the deck as one document: "pdf", "pptx", "odp" or
 // "image:png" / "image:jpeg", the first slide. It is what the server answers
 // with, and what a build writes.
-func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.Options, path, format string) ([]byte, error) {
+func exportBytes(e env, o *options, b *slides.Build, opts export.Options, path, format string) ([]byte, error) {
+	ctx := e.ctx
 	kind, imgFormat, _ := strings.Cut(format, ":")
-	d := b.Doc()
+	// The images the deck names are read once: the local files the options do
+	// not allow are said, and an animated SVG is carried (or, where the format
+	// cannot move, drawn at its initial state, and said so).
+	d, anims, err := export.PrepareSVG(ctx, b.Doc(), opts)
+	if err != nil {
+		return nil, err
+	}
+	e.warn(anims.Warnings)
+	var notes []string
+	defer func() { e.warn(anims.Describe(kind, notes...)) }()
 	var buf bytes.Buffer
 	if o.pdfFragments && o.pdfRaster {
 		return nil, fmt.Errorf("--pdf-fragments needs the vector PDF: --pdf-raster draws each page as one image of the slide")
@@ -196,6 +206,7 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 				return nil
 			})
 		} else {
+			pptx.SVG = anims
 			err = export.EachSteps(ctx, d, opts, func(_ int, steps []*engine.PageLayout) error {
 				return pptx.AddSteps(steps)
 			})
@@ -203,6 +214,7 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 		if err != nil {
 			return nil, err
 		}
+		notes = pptx.Warnings
 		if err := pptx.Write(&buf); err != nil {
 			return nil, err
 		}
@@ -215,6 +227,7 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 				return nil
 			})
 		} else {
+			odp.SVG = anims
 			err = export.EachSteps(ctx, d, opts, func(_ int, steps []*engine.PageLayout) error {
 				return odp.AddSteps(steps)
 			})
@@ -222,6 +235,7 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 		if err != nil {
 			return nil, err
 		}
+		notes = odp.Warnings
 		if err := odp.Write(&buf); err != nil {
 			return nil, err
 		}
@@ -232,6 +246,7 @@ func exportBytes(ctx context.Context, o *options, b *slides.Build, opts export.O
 		// Only the first slide is written, so only it is rendered.
 		first := *d
 		first.Slides = d.Slides[:1]
+		kind = "image"
 		if err := export.Each(ctx, &first, opts, func(_ int, img *image.RGBA) error {
 			return encode(&buf, img, imgFormat, opts)
 		}); err != nil {
@@ -259,7 +274,7 @@ func exportDeck(e env, o *options, src []byte, path string, cfg slides.Config, f
 	// one warning for the transitions the format has no exact equivalent for
 	e.warn(export.Substitutions(b.Doc(), kind))
 	if kind != "images" {
-		data, err := exportBytes(e.ctx, o, b, opts, path, format)
+		data, err := exportBytes(e, o, b, opts, path, format)
 		if err != nil {
 			return err
 		}
@@ -279,8 +294,14 @@ func exportDeck(e env, o *options, src []byte, path string, cfg slides.Config, f
 	if err := os.MkdirAll(filepath.Dir(prefix), 0o755); err != nil {
 		return err
 	}
+	d, anims, err := export.PrepareSVG(e.ctx, b.Doc(), opts)
+	if err != nil {
+		return err
+	}
+	e.warn(anims.Warnings)
+	e.warn(anims.Describe("image"))
 	// Each image is encoded by the worker that rendered it.
-	if err := export.EachEncoded(e.ctx, b.Doc(), opts, imgFormat, func(i int, data []byte) error {
+	if err := export.EachEncoded(e.ctx, d, opts, imgFormat, func(i int, data []byte) error {
 		name := fmt.Sprintf("%s.%03d.%s", prefix, i+1, ext(imgFormat))
 		return os.WriteFile(name, data, 0o644)
 	}); err != nil {

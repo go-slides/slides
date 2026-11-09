@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/go-ooxml/ooxml"
@@ -48,19 +49,48 @@ type PPTXWriter struct {
 	// videos holds, by slide index, the pictures that are the poster of a
 	// video of the deck's Media (video.go).
 	videos pptxVideos
+	// SVG are the deck's animated SVG images (PrepareSVG): each is carried
+	// as animated shapes or an animated GIF (svgemit.go). Set it before the
+	// first AddLayout or AddSteps.
+	SVG *SVGAnimations
+	// Warnings are what the writer had to say while making the slides, one
+	// line each: how each animated image was carried.
+	Warnings []string
+}
+
+// noteSVG keeps what the slide's animated drawings need written (effects, with
+// the ids their shapes will have) and the notes about them.
+func (w *PPTXWriter) noteSVG(i int, sink *svgSink, shapes []ooxml.Shape, pageW, pageH float64) {
+	for _, n := range sink.sortedNotes() {
+		if !slices.Contains(w.Warnings, n) {
+			w.Warnings = append(w.Warnings, n)
+		}
+	}
+	if len(sink.effects) == 0 {
+		return
+	}
+	if w.anims == nil {
+		w.anims = map[int]pptxAnim{}
+	}
+	a := w.anims[i]
+	if a.transition == nil && i < len(w.b.Slides) {
+		a.transition = w.b.Slides[i].Transition
+	}
+	a.fx, a.ids, a.pageW, a.pageH = sink.effects, pptxIDs(shapes), pageW, pageH
+	w.anims[i] = a
 }
 
 // noteAnim records the transition into slide i and, when it has fragment
 // steps, its builds (clicks makes them: it is called only then).
 func (w *PPTXWriter) noteAnim(i int, steps bool, clicks func() [][]pptxTarget) {
-	var a pptxAnim
+	a := w.anims[i] // the effects of animated drawings may be there already
 	if i < len(w.b.Slides) {
 		a.transition = w.b.Slides[i].Transition
 	}
 	if steps && clicks != nil {
 		a.clicks = clicks()
 	}
-	if a.transition == nil && len(a.clicks) == 0 {
+	if a.transition == nil && len(a.clicks) == 0 && len(a.fx) == 0 {
 		return
 	}
 	if w.anims == nil {
@@ -94,11 +124,14 @@ func (w *PPTXWriter) AddSteps(steps []*engine.PageLayout) error {
 	}
 	pg := pages[len(pages)-1]
 	k := float64(w.p.Width) / float64(dev.Dx()) // EMU per device pixel
+	sink := &svgSink{}
+	w.pics.svg, w.pics.sink = w.SVG, sink
 	bg, shapes, from, err := pptxShapes(pg, k, k/12700, &w.pics)
 	if err != nil {
 		return err
 	}
 	i := len(w.p.Slides)
+	w.noteSVG(i, sink, shapes, float64(dev.Dx()), float64(dev.Dy()))
 	if vs := findVideos(steps[len(steps)-1].Links(), w.b.Media, pptxBoxes(shapes, k)); len(vs) > 0 {
 		if w.videos == nil {
 			w.videos = pptxVideos{}
@@ -152,8 +185,8 @@ func (w *PPTXWriter) Add(png []byte) {
 // Write writes the deck.
 func (w *PPTXWriter) Write(out io.Writer) error {
 	w.p.Images = w.p.Images[:0]
-	for _, d := range w.pics.data {
-		w.p.Images = append(w.p.Images, ooxml.Image{Data: d, Type: "png"})
+	for i, d := range w.pics.data {
+		w.p.Images = append(w.p.Images, ooxml.Image{Data: d, Type: w.pics.imageType(i)})
 	}
 	w.p.Fonts = w.p.Fonts[:0]
 	for _, f := range embeddedFaces(w.faces) {

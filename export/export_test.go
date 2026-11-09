@@ -26,7 +26,7 @@ import (
 )
 
 // build renders a deck in the box frame, as the exports take it.
-func build(t *testing.T, src string) *doc.Doc {
+func build(t testing.TB, src string) *doc.Doc {
 	t.Helper()
 	b, err := slides.Render([]byte(src), slides.Config{}, deck.FrameBox)
 	if err != nil {

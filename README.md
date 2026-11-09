@@ -873,6 +873,59 @@ http(s)): the slide shows `[video not shown: ...]` and the build warns. The
 reader is fuzzed (`go test -fuzz FuzzOpen ./internal/video`). In the playground a
 video added to a project stays in the browser.
 
+## Animated SVG
+
+An SVG image that animates itself (`![](spinner.svg)`) plays in the HTML page,
+where the browser runs its SMIL and CSS animations. The exports carry it too
+(`export/svganim.go`, the model of [go-gfx/oksvg](https://github.com/go-gfx/oksvg)'s
+`svganim` package):
+
+- **PPTX and ODP**: each animated element is a shape of its own, and its
+  animations start with the slide, as PowerPoint's `p:animMotion`, `p:animRot`,
+  `p:animScale`, `p:anim` (a time-value list) and `p:animClr`, and as
+  OpenDocument's `anim:animateMotion`, `anim:animateTransform`, `anim:animate`
+  and `anim:animateColor`. The element's net movement is sampled at the
+  animation's own times and split into the movement of its centre, a rotation
+  and a scale about it, so easing, several keyframes and a rotation about
+  another point are exact, not approximated by the end values.
+- **Frames**, when native cannot say it: the whole image is rendered at the
+  animation's own times (12 frames a second, at most 240 frames, 16 million
+  pixels in all) and embedded as an animated GIF, which PowerPoint and Impress
+  play. Which path an image took is one warning line: `svg-animation: spin.svg
+  (slide 1): animated natively in PPTX: 4 elements (rotate, opacity, ...)`, or
+  `animated as frames ... because ...`. A picture is never left still without
+  saying so.
+- **PDF, PNG and JPEG** cannot animate: the drawing is the state at t=0, and one
+  warning per export names the animated images. No JavaScript or RichMedia is
+  embedded.
+
+| Feature (SMIL `animate*`, `set`, or CSS `@keyframes`) | HTML | PPTX | ODP | PDF, images |
+|---|---|---|---|---|
+| translate, `animateMotion` (path, `mpath`, `rotate="auto"`) | plays | native | native | initial state |
+| rotate, scale, about any point | plays | native | native | initial state |
+| `r` of a circle, `width` and `height` of a rectangle (no stroke, no `rx`) | plays | native (scale) | native (scale) | initial state |
+| `opacity` of a one-shape element | plays | native | native | initial state |
+| `fill` or `stroke` from one colour to another, on a one-shape element | plays | native | native | initial state |
+| `repeatCount` (`indefinite` too), `begin`, `dur`, `fill="freeze"`, CSS `animation-delay`, `animation-iteration-count`, `alternate` | plays | native | native | initial state |
+| `calcMode` linear, spline, `keyTimes`, `keySplines`, CSS timing functions | plays | native (sampled) | native (sampled) | initial state |
+| `calcMode="discrete"`, CSS `steps()` on a transform | plays | frames | frames | initial state |
+| path morphing (`d`), `stroke-dashoffset`, `x`, `y`, `cx`, gradients | plays | frames | frames | initial state |
+| skew, reflection, several clocks on one element, nested animated elements | plays | frames | frames | initial state |
+| `begin="click"` and other events | plays | not carried (warning) | not carried (warning) | initial state |
+| animated `<img>` of a drawing with a clip or radial gradient | plays | frames | frames | initial state |
+
+A local image is read only with `--allow-local-files` (the deck's own
+directory), as in marp-cli; without it the export no longer drops it silently:
+`local-file-blocked: "spinner.svg" (slide 2) is a local file, blocked by security
+reason ... Use the --allow-local-files option`, or `local-file-missing`.
+
+Every read is bounded (`svganim.Limits`: 8 MiB of SVG, 50,000 elements, 2,000
+animations, 256 keyframes, 60 s, 240 frames); the parser is fuzzed
+(`go test -fuzz FuzzParse ./svganim` in oksvg). Checked: LibreOffice Impress
+(macOS) re-saves the ODP and the PPTX keeping every animation node, and
+re-exports the ODP as PPTX; Keynote (macOS) imports the shapes and the GIF
+(its animations were not inspected); PowerPoint: not yet verified.
+
 ## Examples
 
 [`examples/`](examples) holds twelve small decks, each showing one thing well:

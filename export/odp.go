@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/go-odf/odf"
@@ -43,19 +44,48 @@ type ODPWriter struct {
 	// videos holds, by slide index, the pictures that are the poster of a
 	// video of the deck's Media (video.go).
 	videos odpVideos
+	// SVG are the deck's animated SVG images (PrepareSVG): each is carried
+	// as animated shapes or an animated GIF (svgemit.go). Set it before the
+	// first AddLayout or AddSteps.
+	SVG *SVGAnimations
+	// Warnings are what the writer had to say while making the slides, one
+	// line each: how each animated image was carried.
+	Warnings []string
+}
+
+// noteSVG keeps what the slide's animated drawings need written and the notes
+// about them.
+func (w *ODPWriter) noteSVG(i int, sink *svgSink, pageW, pageH float64) {
+	for _, n := range sink.sortedNotes() {
+		if !slices.Contains(w.Warnings, n) {
+			w.Warnings = append(w.Warnings, n)
+		}
+	}
+	if len(sink.effects) == 0 {
+		return
+	}
+	if w.anims == nil {
+		w.anims = map[int]odpAnim{}
+	}
+	a := w.anims[i]
+	if a.transition == nil && i < len(w.b.Slides) {
+		a.transition = w.b.Slides[i].Transition
+	}
+	a.fx, a.pageW, a.pageH = sink.effects, pageW, pageH
+	w.anims[i] = a
 }
 
 // noteAnim records the transition into slide i and, when it has fragment
 // steps, its builds (clicks makes them: it is called only then).
 func (w *ODPWriter) noteAnim(i int, steps bool, clicks func() [][]int) {
-	var a odpAnim
+	a := w.anims[i] // the effects of animated drawings may be there already
 	if i < len(w.b.Slides) {
 		a.transition = w.b.Slides[i].Transition
 	}
 	if steps && clicks != nil {
 		a.clicks = clicks()
 	}
-	if a.transition == nil && len(a.clicks) == 0 {
+	if a.transition == nil && len(a.clicks) == 0 && len(a.fx) == 0 {
 		return
 	}
 	if w.anims == nil {
@@ -68,17 +98,17 @@ func (w *ODPWriter) noteAnim(i int, steps bool, clicks func() [][]int) {
 // click targets: the indexes of the emitted shapes, shapes[j] having been
 // made from the page's shape from[j].
 func odpClicks(from []int, fragments [][]int) [][]int {
-	pos := make(map[int]int, len(from))
+	// a page shape that became several (an animated drawing's layers) is
+	// revealed with all of them
+	pos := make(map[int][]int, len(from))
 	for j, f := range from {
-		pos[f] = j
+		pos[f] = append(pos[f], j)
 	}
 	var clicks [][]int
 	for _, frag := range fragments {
 		var c []int
 		for _, f := range frag {
-			if j, ok := pos[f]; ok {
-				c = append(c, j)
-			}
+			c = append(c, pos[f]...)
 		}
 		if len(c) > 0 {
 			clicks = append(clicks, c)
@@ -107,11 +137,14 @@ func (w *ODPWriter) AddSteps(steps []*engine.PageLayout) error {
 	}
 	pg := pages[len(pages)-1]
 	px := float64(w.p.Width) / float64(dev.Dx()) // CSS px per device pixel
+	sink := &svgSink{}
+	w.pics.svg, w.pics.sink = w.SVG, sink
 	bg, shapes, from, err := odpShapes(pg, px, px*0.75, &w.pics)
 	if err != nil {
 		return err
 	}
 	i := len(w.p.Slides)
+	w.noteSVG(i, sink, float64(dev.Dx()), float64(dev.Dy()))
 	if vs := findVideos(steps[len(steps)-1].Links(), w.b.Media, odpBoxes(shapes, px)); len(vs) > 0 {
 		if w.videos == nil {
 			w.videos = odpVideos{}
@@ -165,8 +198,8 @@ func (w *ODPWriter) Add(png []byte) {
 // Write writes the deck.
 func (w *ODPWriter) Write(out io.Writer) error {
 	w.p.Images = w.p.Images[:0]
-	for _, d := range w.pics.data {
-		w.p.Images = append(w.p.Images, odf.Image{Data: d, Type: "png"})
+	for i, d := range w.pics.data {
+		w.p.Images = append(w.p.Images, odf.Image{Data: d, Type: w.pics.imageType(i)})
 	}
 	w.p.Fonts = w.p.Fonts[:0]
 	for _, f := range embeddedFaces(w.faces) {

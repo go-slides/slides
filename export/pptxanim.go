@@ -25,6 +25,12 @@ import (
 type pptxAnim struct {
 	transition *doc.Transition
 	clicks     [][]pptxTarget
+	// fx are the animated SVG shapes' effects, which start with the slide; ids
+	// the shape ids by place in the slide's shape list, and the page the size
+	// of the slide in device pixels (svgemit.go, pptxsvg.go).
+	fx           []svgFx
+	ids          []int
+	pageW, pageH float64
 }
 
 // pptxTarget is a shape an effect acts on: its id (p:cNvPr id) and whether it
@@ -44,25 +50,34 @@ func pptxShapeCount(s ooxml.Shape) int {
 	return n
 }
 
-// pptxClicks turns the fragments' shapes (indexes of the recorded page) into
-// click targets: shapes[j] was made from the page's shape from[j], and
-// go-ooxml numbers a slide's shapes from 2, a group's members after it.
-func pptxClicks(shapes []ooxml.Shape, from []int, fragments [][]int) [][]pptxTarget {
-	pos := make(map[int]int, len(from))
-	for j, f := range from {
-		pos[f] = j
-	}
+// pptxIDs are the ids go-ooxml gives a slide's top-level shapes: it numbers
+// them from 2, a group's members after it.
+func pptxIDs(shapes []ooxml.Shape) []int {
 	ids := make([]int, len(shapes))
 	next := 2
 	for j, s := range shapes {
 		ids[j] = next
 		next += pptxShapeCount(s)
 	}
+	return ids
+}
+
+// pptxClicks turns the fragments' shapes (indexes of the recorded page) into
+// click targets: shapes[j] was made from the page's shape from[j], and
+// go-ooxml numbers a slide's shapes from 2, a group's members after it.
+func pptxClicks(shapes []ooxml.Shape, from []int, fragments [][]int) [][]pptxTarget {
+	// a page shape that became several (an animated drawing's layers) is
+	// revealed with all of them
+	pos := make(map[int][]int, len(from))
+	for j, f := range from {
+		pos[f] = append(pos[f], j)
+	}
+	ids := pptxIDs(shapes)
 	var clicks [][]pptxTarget
 	for _, frag := range fragments {
 		var c []pptxTarget
 		for _, f := range frag {
-			if j, ok := pos[f]; ok {
+			for _, j := range pos[f] {
 				c = append(c, pptxTarget{id: ids[j], text: len(shapes[j].Text) > 0})
 			}
 		}
@@ -94,12 +109,16 @@ func pptxTransitionXML(t doc.Transition) string {
 // click for each fragment, whose shapes fade in together, the first as the
 // click's effect and the others with it, as PowerPoint writes an entrance
 // effect (preset 10, Fade).
-func pptxTimingXML(clicks [][]pptxTarget) string {
+func pptxTimingXML(clicks [][]pptxTarget, auto func(nid func() string) string) string {
 	var b strings.Builder
 	id := 2
 	nid := func() string { id++; return strconv.Itoa(id) }
 	b.WriteString(`<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>`)
 	b.WriteString(`<p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>`)
+	if auto != nil {
+		// what starts with the slide comes first in the sequence
+		b.WriteString(auto(nid))
+	}
 	var texts []int
 	for _, click := range clicks {
 		b.WriteString(`<p:par><p:cTn id="` + nid() + `" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst>`)
@@ -179,8 +198,14 @@ func addPPTXAnimations(deck []byte, anims map[int]pptxAnim) ([]byte, error) {
 		if a.transition != nil {
 			tail.WriteString(pptxTransitionXML(*a.transition))
 		}
-		if len(a.clicks) > 0 {
-			tail.WriteString(pptxTimingXML(a.clicks))
+		if len(a.clicks) > 0 || len(a.fx) > 0 {
+			var auto func(func() string) string
+			if len(a.fx) > 0 {
+				auto = func(nid func() string) string {
+					return pptxFxXML(a.fx, func(i int) int { return a.ids[i] }, a.pageW, a.pageH, nid)
+				}
+			}
+			tail.WriteString(pptxTimingXML(a.clicks, auto))
 		}
 		tail.WriteString(`</p:sld>`)
 		done[n] = true
