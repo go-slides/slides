@@ -21,7 +21,7 @@ func userDirs(t *testing.T) {
 
 func packAcme(t *testing.T) string {
 	t.Helper()
-	file := filepath.Join(t.TempDir(), "acme.slidestheme")
+	file := filepath.Join(t.TempDir(), "acme.gsta.xz")
 	out, _, err := run(t, "theme", "pack", acme, "-o", file)
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestThemePackVerifyInstallListRemove(t *testing.T) {
 
 func TestThemeVerifyRefusesAHostilePackage(t *testing.T) {
 	userDirs(t)
-	bad := filepath.Join(t.TempDir(), "bad.slidestheme")
+	bad := filepath.Join(t.TempDir(), "bad.gsta.xz")
 	if err := os.WriteFile(bad, []byte("PK\x05\x06 not an archive"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestBrokenInstalledPackageIsTold(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "acme.slidestheme"), []byte("garbage"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "acme.gsta.xz"), []byte("garbage"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, _, err := run(t, "-o", "-", writeDeck(t, "theme: acme\n"))

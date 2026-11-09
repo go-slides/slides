@@ -20,7 +20,7 @@ func Dir() (string, error) {
 	return filepath.Join(base, "go-slides", "themes"), nil
 }
 
-// Store is a directory of installed packages, each <name>.slidestheme.
+// Store is a directory of installed packages, each <name>.gsta.xz.
 type Store struct {
 	Dir    string
 	Limits Limits

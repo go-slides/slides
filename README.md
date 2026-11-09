@@ -167,8 +167,9 @@ directives resolved through `extends`.
 
 ## Theme packages
 
-A theme package is one file, `<name>.slidestheme`: a ZIP archive (deflate) with
-`theme.hcl` at its root and the files it declares. It carries a theme's CSS, its
+A theme package is one file, `<name>.gsta.xz` (Go-Slides Theme Archive): a tar
+archive (ustar or pax) compressed with xz, with `theme.hcl` at its root and the
+files it declares. It carries a theme's CSS, its
 fonts, its logos and backgrounds, and slide kinds, with a name, a version and a
 licence, so that a theme can be passed around and installed.
 
@@ -209,7 +210,7 @@ becomes a `data:` URL, so the page is self-contained. A font block becomes an
 any other file that `theme.hcl` does not declare is refused.
 
 ```
-slides theme pack dir               write dir/theme.hcl and its files as <name>.slidestheme
+slides theme pack dir               write dir/theme.hcl and its files as <name>.gsta.xz
 slides theme verify file            run every check on a package
 slides theme install file           check it, then install it for the current user
 slides theme list                   the installed packages
@@ -219,9 +220,9 @@ slides theme remove name
 Installed packages are in `go-slides/themes` under `os.UserConfigDir()`
 (`~/Library/Application Support`, `$XDG_CONFIG_HOME` or `~/.config`, `%AppData%`).
 A deck's `theme: acme` (and `--theme acme`) finds an installed package, after the
-built-in themes and `--theme-set`; `--theme acme.slidestheme` and
-`--theme-set acme.slidestheme` use a file directly. The slide kinds of a package
-apply with `--theme file.slidestheme`, `--theme name` or a front matter
+built-in themes and `--theme-set`; `--theme acme.gsta.xz` and
+`--theme-set acme.gsta.xz` use a file directly. The slide kinds of a package
+apply with `--theme file.gsta.xz`, `--theme name` or a front matter
 `theme: name` (the package must be installed); the deck's own kinds win over
 them.
 
@@ -230,14 +231,17 @@ A package is untrusted input, and every reader (`pack`, `verify`, `install`,
 (`theme.archive`, `theme.limit`, `theme.meta`, `theme.css`, `theme.svg`,
 `theme.font`, `theme.checksum`, `theme.version`):
 
-- **Archive.** No `..`, absolute path, drive letter or backslash in a name; no
-  symbolic link or special file; no duplicate name (compared without case); no
-  encryption and no method but stored and deflate. Sizes are what is read, not
-  what the directory declares.
+- **Archive.** One xz stream, read by go-compressions/xz, whose window grows
+  with the data and is never over the dictionary bound. In the tar: no `..`,
+  absolute path, drive letter or backslash in a name; only regular files and
+  directories (no symbolic or hard link, device or FIFO); no duplicate name
+  (compared without case); only ustar and pax headers (no GNU extension, no
+  sparse file), a pax header of at most 8 KiB. Sizes are what is read, not what
+  a header declares.
 - **Bounds.** At most 16 MiB archive, 256 entries, 8 MiB an entry, 24 MiB
-  inflated, a compression ratio of 100 to 1 for an entry of 64 KiB or more,
-  `theme.hcl` at most 64 KiB and 32 brackets deep, 1 MiB of CSS a file, 4 MiB a
-  font or an image.
+  inflated, an xz dictionary of 16 MiB, an inflated stream of at most 100 times
+  the archive's size (64 KiB or more), `theme.hcl` at most 64 KiB and 32
+  brackets deep, 1 MiB of CSS a file, 4 MiB a font or an image.
 - **`theme.hcl`** is HCL's native syntax with literal values only: no function,
   variable, `file()` or `env()`. A name is lower-case letters, digits and dashes,
   and not `default`, `gaia` or `uncover`.
@@ -338,7 +342,7 @@ slides expand  [flags] deck.md     print plain Marp Markdown
 slides notes   [flags] deck.md     print the speaker notes
 slides kinds   [flags] deck.md     list the kinds and what they set
 slides themes  [--theme-set ...]   list the themes
-slides theme   pack|verify|install|list|remove   theme packages (*.slidestheme)
+slides theme   pack|verify|install|list|remove   theme packages (*.gsta.xz)
 slides version                     print the version (also --version)
 slides completion bash|zsh|fish|powershell
 ```
@@ -385,9 +389,9 @@ input is read only for `-`, not whenever it is a pipe.
 | `--jpeg-quality n` | build | JPEG quality, 1 to 100 (default 85) |
 | `--image-scale n` | build | device pixels per CSS pixel for images and PDF (default 1) |
 | `--allow-local-files` | build | let images and PDF read local files, from under the deck's directory only |
-| `--theme name\|file.css\|file.slidestheme` | build | override the deck's theme: a theme name (built in or an installed package), a CSS file (whatever `@theme` it declares), or a [theme package](#theme-packages); a directory is refused, use `--theme-set` |
+| `--theme name\|file.css\|file.gsta.xz` | build | override the deck's theme: a theme name (built in or an installed package), a CSS file (whatever `@theme` it declares), or a [theme package](#theme-packages); a directory is refused, use `--theme-set` |
 | `--title`, `--description`, `--author`, `--keywords`, `--url`, `--og-image` | build | the page's metadata, over the deck's `title`, `description`, `author`, `keywords`, `url` and `image` directives, as in marp-cli. A deck with no title takes its first top-level heading's text; `--keywords` is comma-separated; an invalid `--url` is ignored with a warning |
-| `--theme-set path` | all | a theme CSS file, a theme package (`*.slidestheme`) or a directory of them (repeatable) |
+| `--theme-set path` | all | a theme CSS file, a theme package (`*.gsta.xz`) or a directory of them (repeatable) |
 | `--kinds file` | all | a YAML or HCL (`*.hcl`) file of kinds (repeatable) |
 | `--data file`, `--set k=v` | all | template data: YAML, JSON or HCL (`*.hcl`) files (repeatable) |
 | `--no-template`, `--strict-yaml` | all | plain Marpit behaviour |

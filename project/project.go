@@ -280,7 +280,7 @@ func ThemeSet(fsys vfs.FS, paths ...string) (*theme.Set, error) {
 			}
 			for _, e := range entries {
 				// The command globbed *.css: the same, case-sensitive match.
-				if !e.IsDir() && (filepath.Ext(e.Name()) == ".css" || filepath.Ext(e.Name()) == themepack.Extension) {
+				if !e.IsDir() && (filepath.Ext(e.Name()) == ".css" || themepack.IsPackage(e.Name())) {
 					files = append(files, filepath.Join(p, e.Name()))
 				}
 			}
@@ -290,7 +290,7 @@ func ThemeSet(fsys vfs.FS, paths ...string) (*theme.Set, error) {
 			if err != nil {
 				return nil, err
 			}
-			if filepath.Ext(file) == themepack.Extension {
+			if themepack.IsPackage(file) {
 				// a theme package: checked as every reader checks it, then its sheet
 				pkg, err := themepack.Read(bytes.NewReader(b), int64(len(b)), themepack.Limits{})
 				if err != nil {
