@@ -8,7 +8,7 @@ theme {
   license     = "MIT"
   homepage    = "https://go-slides.github.io"
   extends     = "default"
-  min_slides  = "0.17.0"
+  min_slides  = "0.18.0"
 }
 
 css "theme.css" {}
