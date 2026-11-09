@@ -28,8 +28,13 @@ import (
 //     p:nvPr: CT_ApplicationNonVisualDrawingProps) points at, and by a media
 //     relationship, which the p14:media extension of Microsoft's [MS-PPTX]
 //     names. The picture is the p:blipFill's, so it is the poster. ECMA-376's
-//     schema was opened (dml-main.xsd, pml.xsd); the p14:media element and the
-//     two relationship type URIs are from [MS-PPTX], which was not.
+//     schema was opened (dml-main.xsd, pml.xsd), and [MS-PPTX] v20240820 (2.1.1
+//     Media Part: source relationship
+//     http://schemas.microsoft.com/office/2007/relationships/media; 2.2.4: ext
+//     uri {DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230} in p:nvPr/p:extLst; 2.3.3.14
+//     CT_Media: r:embed; 3.2: the example this writes). The video relationship
+//     is the transitional ECMA-376 one (Part 1 gives the strict one, in the
+//     purl.oclc.org namespace).
 //   - ODP: a draw:plugin (ODF 1.3 Part 3, 10.4.8) in the picture's draw:frame,
 //     before the draw:image that is the poster, with the file under Video/ and
 //     in the manifest.
@@ -166,7 +171,7 @@ func rewriteZipExtra(data []byte, want func(string) bool, edit func(string, []by
 		}
 	}
 	for _, name := range order {
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
 		if err != nil {
 			return nil, err
 		}

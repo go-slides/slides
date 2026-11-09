@@ -133,3 +133,46 @@ func TestVideoInPDF(t *testing.T) {
 		t.Error("the PDF has no link to bframes.mp4")
 	}
 }
+
+// An entry that is stored holds its sizes in its header: a stored entry that
+// defers them to a data descriptor cannot be read by a reader that does not
+// scan for the descriptor, and LibreOffice is one ("source file could not be
+// loaded"). The media parts are added after the writer's own entries, and are
+// the ones this guards.
+func TestVideoPackagesHaveNoStoredEntryWithADescriptor(t *testing.T) {
+	d, _ := videoDoc(t, "# Clip\n\n![video](bframes.mp4)\n", "bframes.mp4")
+	for name, write := range map[string]func() ([]byte, error){
+		"pptx": func() ([]byte, error) {
+			w := NewPPTX(d)
+			if err := EachLayout(context.Background(), d, Options{BaseURL: "file:///deck/"}, func(_ int, l *engine.PageLayout) error { return w.AddLayout(l) }); err != nil {
+				return nil, err
+			}
+			var b bytes.Buffer
+			err := w.Write(&b)
+			return b.Bytes(), err
+		},
+		"odp": func() ([]byte, error) {
+			w := NewODP(d)
+			if err := EachLayout(context.Background(), d, Options{BaseURL: "file:///deck/"}, func(_ int, l *engine.PageLayout) error { return w.AddLayout(l) }); err != nil {
+				return nil, err
+			}
+			var b bytes.Buffer
+			err := w.Write(&b)
+			return b.Bytes(), err
+		},
+	} {
+		data, err := write()
+		if err != nil {
+			t.Fatal(err)
+		}
+		zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range zr.File {
+			if f.Method == zip.Store && f.Flags&0x8 != 0 {
+				t.Errorf("%s: %s is stored with a data descriptor", name, f.Name)
+			}
+		}
+	}
+}
