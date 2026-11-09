@@ -853,7 +853,7 @@ words are the accessible label.
 | --- | --- |
 | HTML (CLI, playground) | `<video controls playsinline preload="metadata">` with the poster as a data URI. Never starts with sound; under `prefers-reduced-motion` autoplay and loop are taken off and the video is paused; an autoplaying (muted) video plays only while half visible. |
 | PDF | the poster picture with a link to the file (the path as written, or the URL). No RichMedia: that plays only in Acrobat, so playback is by following the link. |
-| PPTX | the file as a media part (`a:videoFile` and `p14:media`) behind the poster picture. Keynote: imports as a movie and plays (verified). PowerPoint: not yet verified. |
+| PPTX | the file as a media part (`a:videoFile` and `p14:media`) behind the poster picture. Keynote: imports as a movie and plays (verified). LibreOffice Impress: imports PPTX and ODP as a video and decodes it (verified). PowerPoint: not yet verified. |
 | ODP | the file under `Video/` as a `draw:plugin` (ODF 1.3 Part 3, 10.4.8) before the poster `draw:image`. |
 
 A URL is streamed by the HTML page and linked by the others; nothing is fetched
