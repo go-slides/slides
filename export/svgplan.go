@@ -259,6 +259,11 @@ func timingOf(tr *svganim.Track) (svgTiming, bool, string) {
 	if !math.IsInf(t.count, 1) && math.Abs(t.count-math.Round(t.count)) > 1e-9 {
 		return t, rev, "it repeats a fractional number of times"
 	}
+	for _, e := range tr.Easing {
+		if e.Steps > 0 {
+			return t, rev, "it moves in steps (steps()), which a smooth behaviour cannot follow"
+		}
+	}
 	t.discrete = tr.Calc == svganim.Discrete
 	return t, rev, ""
 }
