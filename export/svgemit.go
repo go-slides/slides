@@ -9,7 +9,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/go-gfx/oksvg/svganim"
 	"github.com/go-webengine/engine/officecanvas"
@@ -127,14 +126,7 @@ type svgFrames struct {
 	note   string
 }
 
-var gifMu sync.Mutex
-
-type gifKey struct {
-	a    *animSVG
-	w, h int
-}
-
-var gifCache = map[gifKey]*svgFrames{}
+type gifKey struct{ w, h int }
 
 // frames renders the drawing at the size (dst, in device pixels) as an
 // animated GIF, bounded: a width of at most maxGIFWidth, and all the frames
@@ -154,13 +146,13 @@ func (a *animSVG) frames(dstW, dstH float64) *svgFrames {
 	if w < 8 || h < 8 {
 		return &svgFrames{err: fmt.Errorf("the drawing would be %dx%d pixels over %d frames: too small to be seen", w, h, len(ts))}
 	}
-	key := gifKey{a, w, h}
-	gifMu.Lock()
-	if f, ok := gifCache[key]; ok {
-		gifMu.Unlock()
+	key := gifKey{w, h}
+	a.gifMu.Lock()
+	if f, ok := a.gifs[key]; ok {
+		a.gifMu.Unlock()
 		return f
 	}
-	gifMu.Unlock()
+	a.gifMu.Unlock()
 	f := &svgFrames{w: w, h: h, frames: len(ts), fps: 1 / step, loops: span.Loops}
 	switch {
 	case span.Approx:
@@ -186,9 +178,12 @@ func (a *animSVG) frames(dstW, dstH float64) *svgFrames {
 	if f.err == nil {
 		f.data, f.err = svganim.GIF(imgs, int(step*1000), span.Loops)
 	}
-	gifMu.Lock()
-	gifCache[key] = f
-	gifMu.Unlock()
+	a.gifMu.Lock()
+	if a.gifs == nil {
+		a.gifs = map[gifKey]*svgFrames{}
+	}
+	a.gifs[key] = f
+	a.gifMu.Unlock()
 	return f
 }
 

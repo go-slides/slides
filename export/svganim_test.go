@@ -31,7 +31,7 @@ const morphSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
 
 // animFixture writes the images in a directory and returns the deck made of
 // markdown, with the options that read them.
-func animFixture(t *testing.T, files map[string]string, md string, allow bool) (*doc.Doc, Options) {
+func animFixture(t testing.TB, files map[string]string, md string, allow bool) (*doc.Doc, Options) {
 	t.Helper()
 	dir := t.TempDir()
 	for name, body := range files {
@@ -306,7 +306,9 @@ func TestRotationAboutAnotherPointIsMotionAndRotation(t *testing.T) {
 func TestWhatNativeCannotSayBecomesFrames(t *testing.T) {
 	for name, tc := range map[string]struct{ svg, why string }{
 		"skew":                      {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="20" height="20"><animateTransform attributeName="transform" type="skewX" from="0" to="30" dur="1s"/></rect></svg>`, "skewed"},
-		"size":                      {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle r="5" cx="50" cy="50"><animate attributeName="r" from="5" to="30" dur="1s"/></circle></svg>`, "animates r"},
+		"size":                      {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle r="5" cx="50" cy="50" stroke="#000" stroke-width="2"><animate attributeName="r" from="5" to="30" dur="1s"/></circle></svg>`, "has a stroke"},
+		"rounded corners":           {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="20" height="20" rx="4"><animate attributeName="width" from="20" to="60" dur="1s"/></rect></svg>`, "rounded corners"},
+		"x of a rect":               {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="20" height="20"><animate attributeName="x" from="0" to="60" dur="1s"/></rect></svg>`, "animates x"},
 		"dash":                      {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M10 10H90" stroke="#000" stroke-dasharray="80" stroke-width="4"><animate attributeName="stroke-dashoffset" from="80" to="0" dur="1s"/></path></svg>`, "animates stroke-dashoffset"},
 		"nested":                    {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g><animateTransform attributeName="transform" type="rotate" from="0" to="90" dur="1s"/><rect width="9" height="9"><animate attributeName="opacity" from="1" to="0" dur="1s"/></rect></g></svg>`, "holds another animated element"},
 		"two clocks":                {`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="9" height="9"><animateTransform attributeName="transform" type="rotate" from="0" to="90" dur="1s"/><animateTransform attributeName="transform" type="translate" from="0" to="9" dur="2s" additive="sum"/></rect></svg>`, "different clocks"},
@@ -496,5 +498,55 @@ func TestPlanSamplesAreTheTrueCourse(t *testing.T) {
 	}
 	if !mv.straight() || !sc.straight() {
 		t.Error("a linear growth is two samples")
+	}
+}
+
+// The radius of a circle and the size of a rectangle are a scale of the shape
+// about its centre, with the centre's movement for a corner that stays put.
+func TestSizeAnimationsAreScales(t *testing.T) {
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+<circle id="c" cx="100" cy="100" r="20"><animate attributeName="r" from="20" to="60" dur="2s" repeatCount="indefinite"/></circle>
+<rect id="r" x="200" y="100" width="40" height="20"><animate attributeName="width" values="40;80;40" dur="2s" repeatCount="indefinite"/><animate attributeName="height" values="20;60;20" dur="2s" repeatCount="indefinite"/></rect></svg>`
+	d, opts := animFixture(t, map[string]string{"x.svg": svg}, "![w:400](x.svg)\n", true)
+	data, _, anims := pptxOfDeck(t, d, opts)
+	p := anims.order[0].getPlan()
+	if !p.native {
+		t.Fatal(p.why)
+	}
+	byID := map[string]*svgTarget{}
+	for _, tg := range p.targets {
+		byID[tg.id] = tg
+	}
+	var cs svgBeh
+	for _, b := range byID["c"].beh {
+		if b.kind == behScale {
+			cs = b
+		}
+		if b.kind == behMotion {
+			t.Error("a circle grows about its centre: no movement")
+		}
+	}
+	if got := cs.at(1); math.Abs(got[0]-3) > 1e-6 || math.Abs(got[1]-3) > 1e-6 || !cs.straight() {
+		t.Errorf("circle scale %v straight %v, want 3", got, cs.straight())
+	}
+	var rm, rs svgBeh
+	for _, b := range byID["r"].beh {
+		switch b.kind {
+		case behMotion:
+			rm = b
+		case behScale:
+			rs = b
+		}
+	}
+	// at the middle the rectangle is 80x60: scale (2,3), its centre moved by (20,20)
+	if got := rs.at(0.5); math.Abs(got[0]-2) > 0.01 || math.Abs(got[1]-3) > 0.01 {
+		t.Errorf("rect scale %v, want (2,3)", got)
+	}
+	if got := rm.at(0.5); math.Abs(got[0]-20) > 0.5 || math.Abs(got[1]-20) > 0.5 {
+		t.Errorf("rect centre moved by %v, want (20,20)", got)
+	}
+	slide := zipPart(t, data, "ppt/slides/slide1.xml")
+	if !strings.Contains(slide, "<p:animScale>") || !strings.Contains(slide, "ppt_w") {
+		t.Errorf("no scale in the slide")
 	}
 }

@@ -79,6 +79,9 @@ type animSVG struct {
 
 	planOnce sync.Once
 	plan     *svgPlan
+
+	gifMu sync.Mutex // the animated GIFs made, by size
+	gifs  map[gifKey]*svgFrames
 }
 
 // Animated reports whether the deck has any animated SVG image.

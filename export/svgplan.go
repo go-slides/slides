@@ -168,7 +168,7 @@ func (s *animSVG) buildPlan() *svgPlan {
 				t.members++
 			}
 		}
-		var tf, others []*svganim.Track
+		var tf, geo, others []*svganim.Track
 		for i := range an.Tracks {
 			tr := &an.Tracks[i]
 			if tr.Element != key {
@@ -176,12 +176,22 @@ func (s *animSVG) buildPlan() *svgPlan {
 			}
 			if tr.Name == "transform" || tr.Name == "motion" {
 				tf = append(tf, tr)
+			} else if isGeometry(an, key, tr.Name) {
+				geo = append(geo, tr)
 			} else {
 				others = append(others, tr)
 			}
 		}
 		if len(tf) > 0 {
 			if why := s.transformBehaviours(t, tf, bbox); why != "" {
+				return fail("%s: %s", describeElement(an, key), why)
+			}
+		}
+		if len(geo) > 0 {
+			if len(tf) > 0 {
+				return fail("%s: its size and its movement are animated together", describeElement(an, key))
+			}
+			if why := s.geometryBehaviours(t, geo, bbox); why != "" {
 				return fail("%s: %s", describeElement(an, key), why)
 			}
 		}
@@ -580,3 +590,122 @@ func linearEasing(tr *svganim.Track) bool {
 	}
 	return true
 }
+
+// isGeometry reports an animation of a size a slide shape can follow by
+// scaling: the radius of a circle, the width and height of a rectangle.
+func isGeometry(an *svganim.Animations, key int, name string) bool {
+	switch an.Elements[key].Name {
+	case "circle":
+		return name == "r"
+	case "rect":
+		return name == "width" || name == "height"
+	}
+	return false
+}
+
+// geometryBehaviours reads the animation of a circle's radius or a
+// rectangle's size as the scale of the shape about its centre, and, for a
+// rectangle, the movement of the centre that its fixed corner makes (a
+// rectangle that grows to the right and down has its centre go there too). It
+// is exact for a shape with no stroke (a stroke would scale with it) and no
+// rounded corners.
+func (s *animSVG) geometryBehaviours(t *svgTarget, geo []*svganim.Track, bbox svganim.BBoxFunc) string {
+	an := s.anim
+	tm, rev, why := timingOf(geo[0])
+	if why != "" {
+		return why
+	}
+	for _, tr := range geo[1:] {
+		o, orev, why := timingOf(tr)
+		if why != "" {
+			return why
+		}
+		if o != tm || orev != rev {
+			return "its sizes run on different clocks"
+		}
+	}
+	if tm.discrete {
+		return "its size changes in jumps (calcMode discrete)"
+	}
+	e := an.Elements[t.key]
+	if !paintIsNone(an, t.key, "stroke", false) {
+		return "it has a stroke, which a scaled shape would scale too"
+	}
+	if e.Attrs["rx"] != "" || e.Attrs["ry"] != "" || e.Attrs["transform"] != "" {
+		return "it has rounded corners or a transform of its own"
+	}
+	num := func(st map[int]*svganim.State, name string) (float64, bool) {
+		if s := st[t.key]; s != nil {
+			if v, ok := s.Attrs[name]; ok {
+				if len(v.Nums) != 1 || (v.Skel[1] != "" && v.Skel[1] != "px") {
+					return 0, false
+				}
+				return v.Nums[0], true
+			}
+		}
+		v := svganim.ParseValue(e.Attrs[name])
+		if len(v.Nums) != 1 || (v.Skel[1] != "" && v.Skel[1] != "px") {
+			return 0, false
+		}
+		return v.Nums[0], true
+	}
+	names := []string{"r"}
+	if e.Name == "rect" {
+		names = []string{"width", "height"}
+	}
+	st0 := an.Eval(0, bbox)
+	ref := make([]float64, len(names))
+	for i, n := range names {
+		v, ok := num(st0, n)
+		if !ok || v <= 0 {
+			return "its " + n + " is not a plain length"
+		}
+		ref[i] = v
+	}
+	g := grid(geo)
+	ts := make([]float64, len(g))
+	scale := make([][3]float64, len(g))
+	move := make([][3]float64, len(g))
+	var moves, scales bool
+	for i, p := range g {
+		st := an.Eval(tAt(tm, rev, p), bbox)
+		cur := make([]float64, len(names))
+		for k, n := range names {
+			v, ok := num(st, n)
+			if !ok || v < 0 {
+				return "its " + n + " is not a plain length"
+			}
+			cur[k] = v
+		}
+		ts[i] = p
+		if e.Name == "circle" {
+			scale[i] = [3]float64{cur[0] / ref[0], cur[0] / ref[0]}
+		} else {
+			scale[i] = [3]float64{cur[0] / ref[0], cur[1] / ref[1]}
+			move[i] = [3]float64{(cur[0] - ref[0]) / 2, (cur[1] - ref[1]) / 2}
+		}
+		if math.Abs(scale[i][0]-1) > tolScale/4 || math.Abs(scale[i][1]-1) > tolScale/4 {
+			scales = true
+		}
+		if math.Hypot(move[i][0], move[i][1]) > 1e-4 {
+			moves = true
+		}
+		if scale[i][0] < 1e-3 || scale[i][1] < 1e-3 {
+			return "it shrinks to nothing"
+		}
+	}
+	if scale[0] != [3]float64{1, 1} && math.Abs(scale[0][0]-1)+math.Abs(scale[0][1]-1) > 1e-6 {
+		return "it begins away from where it is drawn (the first value is not the drawn state)"
+	}
+	if moves {
+		mts, mvs := simplify(slicesClone(ts), slicesClone(move), func(a, b [3]float64) float64 { return math.Hypot(a[0]-b[0], a[1]-b[1]) }, 1e-3*math.Max(s.viewSpan(), 1))
+		t.beh = append(t.beh, svgBeh{kind: behMotion, t: tm, ts: mts, v: mvs})
+	}
+	if scales {
+		sts, svs := simplify(slicesClone(ts), slicesClone(scale), func(a, b [3]float64) float64 { return math.Hypot(a[0]-b[0], a[1]-b[1]) }, tolScale)
+		t.beh = append(t.beh, svgBeh{kind: behScale, t: tm, ts: sts, v: svs})
+	}
+	return ""
+}
+
+func slicesClone[T any](s []T) []T { return append([]T(nil), s...) }
