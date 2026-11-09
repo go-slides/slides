@@ -64,7 +64,7 @@ func TestParseMetaAccepts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Name != "acme" || m.Version != "1.0.0" || m.Extends != "default" || m.MinSlides != "0.17.0" ||
+	if m.Name != "acme" || m.Version != "1.0.0" || m.Extends != "default" || m.MinSlides != "0.18.0" ||
 		len(m.Fonts) != 1 || m.Fonts[0].Weight != "400" || len(m.Assets) != 2 || len(m.Kinds) != 1 {
 		t.Fatalf("unexpected meta: %+v", m)
 	}

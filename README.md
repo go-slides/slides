@@ -182,7 +182,7 @@ theme {
   license     = "MIT"                   # SPDX expression
   homepage    = "https://go-slides.github.io"
   extends     = "default"               # the base theme, built in or installed
-  min_slides  = "0.17.0"                # oldest go-slides it works with
+  min_slides  = "0.18.0"                # oldest go-slides it works with
 }
 
 css "theme.css" {}                      # in order; sha256 = "…" is optional
