@@ -165,15 +165,15 @@ func (s *Store) Remove(name string) (bool, error) {
 	return true, nil
 }
 
-// maxExtendsDepth bounds a chain of packages that extend one another.
-const maxExtendsDepth = 8
+// MaxExtendsDepth bounds a chain of packages that extend one another.
+const MaxExtendsDepth = 8
 
 // Resolver returns the function theme.Set.Installed wants: the CSS of the
 // installed package called name. A package that extends another installed
 // one has it added first, through add (the set's Ensure). current is the
 // go-slides version min_slides is compared to.
 func (s *Store) Resolver(current string, ensure func(name string) error) func(string) (string, bool, error) {
-	depth := 0
+	var active []string // the packages being resolved, outermost first
 	return func(name string) (string, bool, error) {
 		p, ok, err := s.Open(name)
 		if err != nil || !ok {
@@ -183,10 +183,13 @@ func (s *Store) Resolver(current string, ensure func(name string) error) func(st
 			return "", true, err
 		}
 		if p.Meta.Extends != "" && ensure != nil {
-			depth++
-			defer func() { depth-- }()
-			if depth > maxExtendsDepth {
-				return "", true, diag.Errorf("theme.meta", "theme %q: the chain of extends is longer than %d", name, maxExtendsDepth)
+			active = append(active, name)
+			defer func() { active = active[:len(active)-1] }()
+			if slices.Contains(active[:len(active)-1], name) {
+				return "", true, diag.Errorf("theme.meta", "the chain of extends is a cycle: %s -> %s", strings.Join(active, " -> "), name)
+			}
+			if len(active) > MaxExtendsDepth {
+				return "", true, diag.Errorf("theme.meta", "theme %q: the chain of extends is longer than %d: %s", name, MaxExtendsDepth, strings.Join(active, " -> "))
 			}
 			if err := ensure(p.Meta.Extends); err != nil {
 				return "", true, err

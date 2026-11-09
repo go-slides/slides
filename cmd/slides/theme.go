@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -189,30 +192,67 @@ func isPackage(arg string) bool {
 	return themepack.IsPackage(arg)
 }
 
-// overridePackage adds the package file to the set under its own name and
-// returns the kinds it brings.
-func overridePackage(set *theme.Set, file string) (string, deck.Kinds, error) {
+// addPackageFile opens the package file and adds it to the set under its own
+// name. Its base theme (extends) is looked for in three places, in this order:
+// built in or already in the set (--theme-set), installed, and a sibling
+// <base>.gsta.xz in the file's own directory, which is added first, and so on
+// down the chain. chain holds the names being added: a package that extends
+// itself, directly or through others, is refused, and so is a chain longer than
+// themepack.MaxExtendsDepth.
+func addPackageFile(set *theme.Set, file string, chain []string) (*themepack.Package, error) {
 	p, err := themepack.Open(file, themepack.Limits{})
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	if err := p.CheckVersion(version()); err != nil {
-		return "", nil, fmt.Errorf("%s: %w", file, err)
+		return nil, fmt.Errorf("%s: %w", file, err)
 	}
+	name := p.Meta.Name
+	chain = append(slices.Clone(chain), name)
 	if b := p.Meta.Extends; b != "" && !set.Has(b) {
+		if slices.Contains(chain, b) {
+			return nil, diag.Errorf("theme.meta", "%s: the chain of extends is a cycle: %s -> %s", file, strings.Join(chain, " -> "), b)
+		}
+		if len(chain) > themepack.MaxExtendsDepth {
+			return nil, diag.Errorf("theme.meta", "%s: the chain of extends is longer than %d: %s", file, themepack.MaxExtendsDepth, strings.Join(chain, " -> "))
+		}
 		if err := set.Ensure(b); err != nil {
-			return "", nil, err
+			return nil, err
 		}
 		if !set.Has(b) {
-			return "", nil, diag.Errorf("theme.unknown", "%s extends %q, which is neither built in nor installed", file, b)
+			sibling := filepath.Join(filepath.Dir(file), b+themepack.Extension)
+			if _, serr := os.Stat(sibling); serr != nil {
+				where := "no installed theme packages"
+				if st, uerr := themepack.UserStore(); uerr == nil {
+					where = "the installed packages in " + st.Dir
+				}
+				return nil, diag.Errorf("theme.unknown", "%s extends %q, which is not built in, not installed (%s) and not a sibling file (%s); install it with `slides theme install`, pass it with --theme-set, or put it next to the package", file, b, where, sibling)
+			}
+			base, err := addPackageFile(set, sibling, chain)
+			if err != nil {
+				return nil, err
+			}
+			if base.Meta.Name != b {
+				return nil, diag.Errorf("theme.meta", "%s declares the name %q, but %s extends %q", sibling, base.Meta.Name, file, b)
+			}
 		}
 	}
 	css, err := p.CSS()
 	if err != nil {
-		return "", nil, fmt.Errorf("%s: %w", file, err)
+		return nil, fmt.Errorf("%s: %w", file, err)
 	}
 	if _, err := set.Add(css); err != nil {
-		return "", nil, fmt.Errorf("%s: %w", file, err)
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	return p, nil
+}
+
+// overridePackage adds the package file to the set under its own name and
+// returns the kinds it brings.
+func overridePackage(set *theme.Set, file string) (string, deck.Kinds, error) {
+	p, err := addPackageFile(set, file, nil)
+	if err != nil {
+		return "", nil, err
 	}
 	kinds, err := p.Kinds()
 	if err != nil {

@@ -182,7 +182,7 @@ theme {
   authors     = ["go-slides contributors"]
   license     = "MIT"                   # SPDX expression
   homepage    = "https://go-slides.github.io"
-  extends     = "default"               # the base theme, built in or installed
+  extends     = "default"               # the base theme: built in, installed, or a sibling file
   min_slides  = "0.18.0"                # oldest go-slides it works with
 }
 
@@ -225,6 +225,13 @@ built-in themes and `--theme-set`; `--theme acme.gsta.xz` and
 apply with `--theme file.gsta.xz`, `--theme name` or a front matter
 `theme: name` (the package must be installed); the deck's own kinds win over
 them.
+
+A package's `extends` names its base theme, looked for in this order: built in
+(or given with `--theme-set`), then installed, then a sibling `<base>.gsta.xz` in
+the same directory as the package file, so that a family of themes (one base,
+several small children) can be tried straight from its files. The error names
+the three places searched. A chain of packages is at most 8 long, and a cycle is
+refused (`theme.meta`).
 
 A package is untrusted input, and every reader (`pack`, `verify`, `install`,
 `--theme`, a build) checks it the same way, refusing with a coded error
