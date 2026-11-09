@@ -38,11 +38,54 @@ func record(l *engine.PageLayout, faces map[*opentype.Font]*officecanvas.Face) (
 type pictures struct {
 	index map[[32]byte]int
 	data  [][]byte
+	types []string // "png" or "gif", by picture
+	// svg are the deck's animated SVG images, and sink what the slide being
+	// recorded needs of them (svgemit.go); nested is the depth of groups being
+	// converted, within which a drawing is not looked for.
+	svg    *SVGAnimations
+	sink   *svgSink
+	nested int
+}
+
+// imageType is the type of the n-th picture (1-based).
+func (p *pictures) imageType(i int) string {
+	if i < len(p.types) && p.types[i] != "" {
+		return p.types[i]
+	}
+	return "png"
+}
+
+// gifPicture is the first frame of an animated GIF, which a shape shows as the
+// GIF: add stores the GIF itself.
+type gifPicture struct {
+	image.Image
+	data []byte
+}
+
+// addRaw stores a picture as it is, of the type given ("gif").
+func (p *pictures) addRaw(data []byte, typ string) int {
+	if p.index == nil {
+		p.index = map[[32]byte]int{}
+	}
+	key := sha256.Sum256(append([]byte(typ+":"), data...))
+	if i, ok := p.index[key]; ok {
+		return i
+	}
+	p.data = append(p.data, data)
+	for len(p.types) < len(p.data)-1 {
+		p.types = append(p.types, "png")
+	}
+	p.types = append(p.types, typ)
+	p.index[key] = len(p.data)
+	return len(p.data)
 }
 
 // add returns the picture's 1-based number, encoding it as PNG the first
 // time its pixels are seen.
 func (p *pictures) add(img image.Image) (int, error) {
+	if g, ok := img.(*gifPicture); ok {
+		return p.addRaw(g.data, "gif"), nil
+	}
 	if p.index == nil {
 		p.index = map[[32]byte]int{}
 	}
@@ -162,11 +205,14 @@ func pptxShapes(pg officecanvas.Page, k, pt float64, pics *pictures) (*ooxml.Fil
 // the shape out[j] was made from: some are left out.
 func pptxShapeList(shapes []officecanvas.Shape, k, pt float64, pics *pictures) (out []ooxml.Shape, from []int, err error) {
 	emu := func(v float64) int64 { return int64(math.Round(v * k)) }
+	shapes, origin, fxs := pics.expandSVG(shapes)
 	for si, s := range shapes {
 		sh := ooxml.Shape{X: emu(s.Bounds.X), Y: emu(s.Bounds.Y), W: max(emu(s.Bounds.W), 1), H: max(emu(s.Bounds.H), 1)}
 		switch s.Kind {
 		case officecanvas.KindGroup:
+			pics.nested++
 			members, _, err := pptxShapeList(s.Group, k, pt, pics)
+			pics.nested--
 			if err != nil {
 				return nil, nil, err
 			}
@@ -221,7 +267,11 @@ func pptxShapeList(shapes []officecanvas.Shape, k, pt float64, pics *pictures) (
 			}
 		}
 		out = append(out, sh)
-		from = append(from, si)
+		from = append(from, originOf(origin, si))
+		if fx := fxs[si]; fx != nil {
+			fx.index = len(out) - 1
+			pics.sink.effects = append(pics.sink.effects, *fx)
+		}
 	}
 	return out, from, nil
 }
@@ -271,11 +321,14 @@ func odpShapes(pg officecanvas.Page, px, pt float64, pics *pictures) (*odf.RGBA,
 // odpShapeList converts shapes in order, a group (an SVG drawn as vector
 // shapes) into a draw:g of its members.
 func odpShapeList(shapes []officecanvas.Shape, px, pt float64, pics *pictures) (out []odf.Shape, from []int, err error) {
+	shapes, origin, fxs := pics.expandSVG(shapes)
 	for si, s := range shapes {
 		sh := odf.Shape{X: s.Bounds.X * px, Y: s.Bounds.Y * px, W: s.Bounds.W * px, H: s.Bounds.H * px}
 		switch s.Kind {
 		case officecanvas.KindGroup:
+			pics.nested++
 			members, _, err := odpShapeList(s.Group, px, pt, pics)
+			pics.nested--
 			if err != nil {
 				return nil, nil, err
 			}
@@ -323,7 +376,11 @@ func odpShapeList(shapes []officecanvas.Shape, px, pt float64, pics *pictures) (
 			}
 		}
 		out = append(out, sh)
-		from = append(from, si)
+		from = append(from, originOf(origin, si))
+		if fx := fxs[si]; fx != nil {
+			fx.index = len(out) - 1
+			pics.sink.effects = append(pics.sink.effects, *fx)
+		}
 	}
 	return out, from, nil
 }

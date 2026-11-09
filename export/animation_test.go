@@ -215,7 +215,7 @@ func TestAnimationXMLIsWellFormed(t *testing.T) {
 	for n := range transitionEffects {
 		wf("pptx "+n, pptxTransitionXML(doc.Transition{Name: n, Duration: 0.7}))
 	}
-	wf("timing", pptxTimingXML([][]pptxTarget{{{3, false}, {4, true}}, {{5, true}}}))
+	wf("timing", pptxTimingXML([][]pptxTarget{{{3, false}, {4, true}}, {{5, true}}}, nil))
 	wf("odp", odpAnimationXML(2, odpAnim{transition: &doc.Transition{Name: "fade-out"}, clicks: [][]int{{0, 1}, {2}}}))
 	if !strings.Contains(odpTransitionAttrs(doc.Transition{Name: "fade-out"}), `smil:fadeColor="#000000"`) {
 		t.Error("fade-out has no colour to fade to")

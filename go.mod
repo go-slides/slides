@@ -8,10 +8,10 @@ require (
 	github.com/go-avkit/avkit v0.15.0
 	github.com/go-avkit/decode v0.2.0
 	github.com/go-compressions/xz v0.3.1
-	github.com/go-gfx/oksvg v0.3.1
+	github.com/go-gfx/oksvg v0.4.0
 	github.com/go-icons/twemoji v0.1.0
-	github.com/go-odf/odf v0.10.0
-	github.com/go-ooxml/ooxml v0.7.0
+	github.com/go-odf/odf v0.11.0
+	github.com/go-ooxml/ooxml v0.8.0
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-opentype/opentype v0.21.1
@@ -20,7 +20,7 @@ require (
 	github.com/go-richdoc/richdoc v0.7.0
 	github.com/go-rouge/rouge v0.7.1
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.45.13
+	github.com/go-webengine/engine v0.46.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10

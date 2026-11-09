@@ -26,6 +26,10 @@ import (
 type odpAnim struct {
 	transition *doc.Transition
 	clicks     [][]int // indexes of the page's top-level shapes, a click each
+	// fx are the animated SVG shapes' effects, which start with the page; the
+	// page is pageW by pageH device pixels (svgemit.go, odpsvg.go).
+	fx           []svgFx
+	pageW, pageH float64
 }
 
 // odpTransitionAttrs are the attributes a page style gets for its transition.
@@ -69,11 +73,15 @@ func odpAnimationXML(n int, a odpAnim) string {
 		}
 		b.WriteString(`/></anim:par>`)
 	}
-	if len(a.clicks) == 0 {
+	if len(a.clicks) == 0 && len(a.fx) == 0 {
 		b.WriteString(`</anim:par>`)
 		return b.String()
 	}
 	b.WriteString(`<anim:seq smil:dur="indefinite" presentation:node-type="main-sequence">`)
+	if len(a.fx) > 0 {
+		// what starts with the page comes first in the sequence
+		b.WriteString(odpFxXML(a.fx, func(i int) string { return shapeID(n, i) }, a.pageW, a.pageH))
+	}
 	clicks := a.clicks
 	for _, click := range clicks {
 		b.WriteString(`<anim:par smil:begin="next" smil:fill="hold"><anim:par smil:begin="0s" smil:fill="hold">`)
@@ -147,7 +155,7 @@ func editODPContent(s string, anims map[int]odpAnim) ([]byte, error) {
 			at := len("<draw:page")
 			open = open[:at] + ` xml:id="` + pageID(n) + `" draw:id="` + pageID(n) + `"` + open[at:]
 		}
-		if len(a.clicks) > 0 {
+		if len(a.clicks) > 0 || len(a.fx) > 0 {
 			// the top-level shapes get ids, from the last to keep the offsets
 			tops, err := topLevel(body)
 			if err != nil {
@@ -155,7 +163,9 @@ func editODPContent(s string, anims map[int]odpAnim) ([]byte, error) {
 			}
 			for j := len(tops) - 1; j >= 0; j-- {
 				at := tops[j] + 1 + len(tagName(body[tops[j]:])) // after the element's name
-				body = body[:at] + ` draw:id="` + shapeID(n, j) + `"` + body[at:]
+				// LibreOffice resolves smil:targetElement by xml:id: with only a
+				// draw:id the effect is read and its shape is lost
+				body = body[:at] + ` xml:id="` + shapeID(n, j) + `" draw:id="` + shapeID(n, j) + `"` + body[at:]
 			}
 			for _, c := range a.clicks {
 				for _, sh := range c {
@@ -164,9 +174,21 @@ func editODPContent(s string, anims map[int]odpAnim) ([]byte, error) {
 					}
 				}
 			}
+			for _, fx := range a.fx {
+				if fx.index >= len(tops) {
+					return nil, fmt.Errorf("export: page %d has no shape %d to animate", n, fx.index)
+				}
+			}
 		}
-		if a.transition != nil || len(a.clicks) > 0 {
-			body = odpAnimationXML(n, a) + body
+		if a.transition != nil || len(a.clicks) > 0 || len(a.fx) > 0 {
+			// After the shapes, before the notes, where LibreOffice writes it: it
+			// resolves smil:targetElement while reading, so the shapes the
+			// effects name must have been read
+			at := strings.Index(body, "<presentation:notes")
+			if at < 0 {
+				at = len(body) - len("</draw:page>")
+			}
+			body = body[:at] + odpAnimationXML(n, a) + body[at:]
 		}
 		b.WriteString(open + body)
 	}

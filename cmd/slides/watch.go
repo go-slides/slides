@@ -143,7 +143,7 @@ func (c *converter) convert(ctx context.Context, path string, kind serve.Kind, w
 	if err != nil {
 		return serve.Result{}, err
 	}
-	data, err := exportBytes(ctx, &o, b, opts, path, format)
+	data, err := exportBytes(e, &o, b, opts, path, format)
 	if err != nil {
 		return serve.Result{}, err
 	}
