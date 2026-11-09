@@ -1,7 +1,7 @@
 package themepack
 
 import (
-	"archive/zip"
+	"archive/tar"
 	"bytes"
 	"flag"
 	"fmt"
@@ -22,16 +22,22 @@ var updateCorpus = flag.Bool("update-corpus", false, "write the fuzz seed corpus
 // under testdata/fuzz (regenerate with: go test ./themepack -run TestWriteCorpus -update-corpus).
 func archiveSeeds(t testing.TB) map[string][]byte {
 	return map[string][]byte{
-		"empty-zip":   zipOf(t),
-		"slip":        zipOf(t, entry{name: "../evil.css", data: "x"}),
-		"absolute":    zipOf(t, entry{name: "/etc/passwd", data: "x"}),
-		"symlink":     zipOf(t, entry{name: "l", data: "/etc/passwd", mode: 0o120777}),
-		"duplicate":   zipOf(t, entry{name: "a", data: "1"}, entry{name: "A", data: "2"}),
-		"zeros":       zipOf(t, entry{name: "z", data: strings.Repeat("\x00", 1<<18)}),
-		"method99":    rawZip(t, "a", 99, 0, 3, []byte("abc")),
-		"encrypted":   rawZip(t, "a", zip.Store, 1, 3, []byte("abc")),
-		"lie":         rawZip(t, "a", zip.Deflate, 0, 3, deflated(t, []byte(strings.Repeat("a", 5000)))),
-		"minimal-hcl": zipOf(t, entry{name: MetaFile, data: "theme {\n name = \"x\"\n version = \"1.0.0\"\n license = \"MIT\"\n}\ncss \"a.css\" {}\n"}, entry{name: "a.css", data: "a{}"}),
+		"empty":       archiveOf(t),
+		"slip":        archiveOf(t, entry{name: "../evil.css", data: "x"}),
+		"absolute":    archiveOf(t, entry{name: "/etc/passwd", data: "x"}),
+		"symlink":     archiveOf(t, entry{name: "l", typ: tar.TypeSymlink, link: "/etc/passwd"}),
+		"hardlink":    archiveOf(t, entry{name: "a", data: "1"}, entry{name: "l", typ: tar.TypeLink, link: "a"}),
+		"fifo":        archiveOf(t, entry{name: "p", typ: tar.TypeFifo}),
+		"duplicate":   archiveOf(t, entry{name: "a", data: "1"}, entry{name: "A", data: "2"}),
+		"gnu":         archiveOf(t, entry{name: strings.Repeat("d", 120), data: "1", fmt: tar.FormatGNU}),
+		"pax-sparse":  xzOf(t, paxRaw(map[string]string{"GNU.sparse.major": "1", "GNU.sparse.minor": "0", "GNU.sparse.name": "a", "GNU.sparse.realsize": "99999999999"}, "a", "1"), 1<<20),
+		"pax-path":    xzOf(t, paxRaw(map[string]string{"path": "../../evil"}, "a", "1"), 1<<20),
+		"pax-big":     archiveOf(t, entry{name: "a", data: "1", fmt: tar.FormatPAX, pax: map[string]string{"comment": strings.Repeat("x", 20<<10)}}),
+		"zeros":       archiveOf(t, entry{name: "z", data: strings.Repeat("\x00", 1<<18)}),
+		"trailing":    xzOf(t, append(tarOf(t, entry{name: "a", data: "1"}), "junk"...), 1<<20),
+		"not-a-tar":   xzOf(t, bytes.Repeat([]byte("garbage!"), 200), 1<<20),
+		"big-dict":    xzOf(t, tarOf(t, entry{name: "a", data: "1"}), 64<<20),
+		"minimal-hcl": archiveOf(t, entry{name: MetaFile, data: "theme {\n name = \"x\"\n version = \"1.0.0\"\n license = \"MIT\"\n}\ncss \"a.css\" {}\n"}, entry{name: "a.css", data: "a{}"}),
 	}
 }
 

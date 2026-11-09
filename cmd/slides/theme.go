@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,19 +12,20 @@ import (
 	"github.com/go-slides/slides/themepack"
 )
 
-// themeCmd is "slides theme": theme packages (*.slidestheme).
+// themeCmd is "slides theme": theme packages (*.gsta.xz).
 func themeCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "theme",
-		Short: "Pack, verify, install, list and remove theme packages (*.slidestheme)",
-		Long: `A theme package is one ZIP archive, <name>.slidestheme, with theme.hcl at its
+		Short: "Pack, verify, install, list and remove theme packages (*.gsta.xz)",
+		Long: `A theme package is one tar archive compressed with xz, <name>.gsta.xz
+(Go-Slides Theme Archive), with theme.hcl at its
 root (name, version, licence, extends, css, fonts, assets, kinds) and the files
 it declares. It is untrusted input: pack and verify apply the same checks every
 reader does (safe paths, size and ratio bounds, no link out of the package in
 CSS or SVG, fonts that parse).
 
 Installed packages live in the user's configuration directory (go-slides/themes)
-and a deck's "theme: name" finds them. --theme x.slidestheme uses a package
+and a deck's "theme: name" finds them. --theme x.gsta.xz uses a package
 file directly.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
@@ -35,7 +34,7 @@ file directly.`,
 	var output string
 	pack := &cobra.Command{
 		Use:   "pack dir",
-		Short: "Pack a theme directory (with a theme.hcl) into <name>.slidestheme",
+		Short: "Pack a theme directory (with a theme.hcl) into <name>.gsta.xz",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			meta, b, err := themepack.Pack(args[0], themepack.Limits{})
@@ -52,10 +51,10 @@ file directly.`,
 			return nil
 		},
 	}
-	pack.Flags().StringVarP(&output, "output", "o", "", "output file (default: <name>.slidestheme)")
+	pack.Flags().StringVarP(&output, "output", "o", "", "output file (default: <name>.gsta.xz)")
 
 	verify := &cobra.Command{
-		Use:   "verify file.slidestheme",
+		Use:   "verify file.gsta.xz",
 		Short: "Check a theme package: the archive, theme.hcl, every file, and go-slides' version",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,7 +73,7 @@ file directly.`,
 	}
 
 	install := &cobra.Command{
-		Use:   "install file.slidestheme",
+		Use:   "install file.gsta.xz",
 		Short: "Check a theme package and install it for the current user",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -187,7 +186,7 @@ func installedKinds(name string) (deck.Kinds, error) {
 
 // isPackage reports whether arg names a theme package file.
 func isPackage(arg string) bool {
-	return strings.EqualFold(filepath.Ext(arg), themepack.Extension)
+	return themepack.IsPackage(arg)
 }
 
 // overridePackage adds the package file to the set under its own name and

@@ -87,7 +87,7 @@ var Codes = map[string]string{
 	"template.limit":    "The template would write, repeat or step through more than go-slides allows.",
 	"deck.limit":        "The deck nests blocks (quotes, lists) deeper than go-slides allows.",
 	"kind.cycle":        "A kind extends itself, directly or through other kinds, or its chain is too long.",
-	"theme.archive":     "The theme package is not a safe ZIP archive (unsafe path, link, duplicate name, unsupported method or damaged).",
+	"theme.archive":     "The theme package is not a safe tar.xz archive (unsafe path, link or special file, duplicate name, GNU or sparse extension, or a damaged xz stream).",
 	"theme.limit":       "The theme package is larger, has more files or compresses better than go-slides allows.",
 	"theme.meta":        "The theme package's theme.hcl is missing, not well formed or invalid.",
 	"theme.css":         "A CSS file of the theme package imports or loads something from outside the package.",

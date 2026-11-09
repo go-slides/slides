@@ -43,6 +43,7 @@ require (
 	github.com/ebitengine/purego v0.11.3 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
+	github.com/go-compressions/xz v0.3.1 // indirect
 	github.com/go-gfx/gfx v0.37.0 // indirect
 	github.com/go-gfx/wgsl v0.4.0 // indirect
 	github.com/go-images/gif v0.2.0 // indirect
@@ -65,6 +66,7 @@ require (
 	github.com/refraction-networking/utls v1.8.2 // indirect
 	github.com/tannevaled/gobig2 v0.2.0 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
+	github.com/ulikunitz/xz v0.5.17 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect

@@ -14,7 +14,7 @@ import (
 //	go test ./themepack -run '^$' -bench Load -benchmem
 //
 // Loose is what --theme-set does with a .css file: read it, parse it.
-// PackedCSSOnly is a package of that one sheet (the ZIP, theme.hcl and the
+// PackedCSSOnly is a package of that one sheet (the xz and tar layers, theme.hcl and the
 // checks, none of the fonts). Packed is the whole example package: the sheet,
 // a 180 KB font that is parsed and embedded, an SVG and a PNG that are
 // checked and embedded.
@@ -47,7 +47,7 @@ func BenchmarkLoadPackedCSSOnly(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	file := filepath.Join(b.TempDir(), "acme.slidestheme")
+	file := filepath.Join(b.TempDir(), "acme.gsta.xz")
 	if err := os.WriteFile(file, zipped, 0o644); err != nil {
 		b.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func BenchmarkLoadPacked(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	file := filepath.Join(b.TempDir(), "acme.slidestheme")
+	file := filepath.Join(b.TempDir(), "acme.gsta.xz")
 	if err := os.WriteFile(file, zipped, 0o644); err != nil {
 		b.Fatal(err)
 	}
