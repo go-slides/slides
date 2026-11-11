@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-slides/slides/internal/vt"
+	"github.com/go-widgets/vt"
 )
 
 // Style bits of a Style.

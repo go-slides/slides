@@ -25,7 +25,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/go-slides/slides/internal/vt"
+	"github.com/go-widgets/vt"
 )
 
 // Codes of an *Error.

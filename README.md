@@ -818,7 +818,7 @@ read from the deck's folder (a URL, an absolute path or a `..` is refused).
   the engine's own fallback monospace face, which the default and `uncover`
   themes end on, has only a regular one.
 
-The emulator (`internal/vt`) reads the control sequences of ECMA-48 clause 5.4
+The emulator (`github.com/go-widgets/vt`) reads the control sequences of ECMA-48 clause 5.4
 and the xterm subset a screen needs; it answers nothing and the title, clipboard
 and similar strings are dropped. A recording is untrusted input and is
 bounded (`internal/cast.DefaultLimits`): the file 16 MiB, a line 1 MiB, 500,000
@@ -829,8 +829,8 @@ are made coarser, then the recording is refused). A recording over a bound or
 not well formed is refused with a coded error (`cast.limit`, `cast.syntax`,
 `cast.version`, `cast.path`): the build goes on, the slide shows a note in its
 place, and the problem is a warning with that code. The parser and the emulator
-are fuzzed (`go test -fuzz FuzzParse ./internal/cast`, `-fuzz FuzzWrite
-./internal/vt`) with their corpus in `testdata/fuzz`.
+are fuzzed (`go test -fuzz FuzzParse ./internal/cast`, `-fuzz FuzzWrite`
+in the go-widgets/vt repository) with their corpus in `testdata/fuzz`.
 
 ## Video
 
