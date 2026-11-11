@@ -6,7 +6,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-avkit/avkit v0.15.0
-	github.com/go-avkit/decode v0.5.3
+	github.com/go-avkit/decode v0.5.4
 	github.com/go-compressions/xz v0.3.1
 	github.com/go-gfx/oksvg v0.4.0
 	github.com/go-icons/twemoji v0.1.0
@@ -51,7 +51,8 @@ require (
 	github.com/ebitengine/purego v0.11.3 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/gen2brain/h265 v0.2.4 // indirect
-	github.com/go-avkit/h264 v0.8.0 // indirect
+	github.com/go-avkit/bitstream v0.3.1 // indirect
+	github.com/go-avkit/h264 v0.9.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.37.0 // indirect
 	github.com/go-gfx/wgsl v0.4.0 // indirect
