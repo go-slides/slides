@@ -21,6 +21,7 @@ require (
 	github.com/go-rouge/rouge v0.7.1
 	github.com/go-tex/math v0.50.0
 	github.com/go-webengine/engine v0.46.0
+	github.com/go-widgets/vt v0.1.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
