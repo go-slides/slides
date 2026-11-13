@@ -3,7 +3,8 @@ package deck
 import (
 	"slices"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/text"
 )
 
 // SourceLine returns the 0-based line of the deck's source file that a
@@ -49,6 +50,34 @@ func (d *Deck) sourceLineOf(body int) int {
 	return d.fmLines + body
 }
 
+// setAttr sets a node attribute to a literal string (goldmark v2 keeps
+// attribute values as text values, not as bytes).
+func setAttr(n ast.Node, name, value string) {
+	n.SetAttribute(name, text.NewMultiLineValueFromString(value, text.IdentityDecoder))
+}
+
+// fencedBlock returns n as a fenced code block: goldmark v2 has one
+// CodeBlock node for the indented and the fenced kinds.
+func fencedBlock(n ast.Node) (*ast.CodeBlock, bool) {
+	c, ok := n.(*ast.CodeBlock)
+	return c, ok && c.CodeBlockKind == ast.CodeBlockKindFenced
+}
+
+// blockSegments returns the source segments a block node holds: the lines
+// goldmark v1 called Lines(). A paragraph or heading keeps them in Source();
+// a code or HTML block keeps its content in Value.
+func blockSegments(n ast.Node) []text.Segment {
+	switch x := n.(type) {
+	case *ast.CodeBlock:
+		return x.Value.Segments()
+	case *ast.HTMLBlock:
+		return x.Value.Segments()
+	case ast.BlockNode:
+		return x.Source()
+	}
+	return nil
+}
+
 // nodeLine returns the source line of a block node, -1 when it has no
 // position (a node the parser synthesised).
 func (d *Deck) nodeLine(n ast.Node) int {
@@ -56,13 +85,11 @@ func (d *Deck) nodeLine(n ast.Node) int {
 		if p := c.Pos(); p >= 0 {
 			return d.SourceLine(p)
 		}
-		if c.Type() == ast.TypeBlock && c.Lines().Len() > 0 {
-			return d.SourceLine(c.Lines().At(0).Start)
+		if segs := blockSegments(c); len(segs) > 0 {
+			return d.SourceLine(segs[0].Start)
 		}
-		if c.Type() == ast.TypeInline {
-			if t, ok := c.(*ast.Text); ok {
-				return d.SourceLine(t.Segment.Start)
-			}
+		if t, ok := c.(*ast.Text); ok && !t.Value.IsOwned() {
+			return d.SourceLine(t.Value.Index().Start)
 		}
 	}
 	return -1

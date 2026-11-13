@@ -27,7 +27,7 @@ require (
 	github.com/spf13/pflag v1.1.0
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/ulikunitz/xz v0.5.17
-	github.com/yuin/goldmark v1.8.7
+	github.com/yuin/goldmark/v2 v2.1.16
 	github.com/zclconf/go-cty v1.20.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/mod v0.43.0

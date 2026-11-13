@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // Line numbers on fenced code blocks. Marp Core has none (marp-core 4.4.0:
@@ -121,8 +121,8 @@ func (d *Deck) UsesLineNumbers() bool {
 		for _, top := range s.nodes {
 			found := false
 			_ = ast.Walk(top, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-				if f, ok := n.(*ast.FencedCodeBlock); ok && entering && f.Info != nil {
-					if o := parseFenceOptions(string(f.Info.Segment.Value(d.source))); o.numbers != nil && *o.numbers {
+				if f, ok := fencedBlock(n); ok && entering && !f.Info.IsEmpty() {
+					if o := parseFenceOptions(string(f.Info.Bytes(d.source))); o.numbers != nil && *o.numbers {
 						found = true
 						return ast.WalkStop, nil
 					}

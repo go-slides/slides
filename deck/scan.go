@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 )
 
 // nodeInfo is what scanning learned about a node, for the renderer.
@@ -57,7 +57,7 @@ func (d *Deck) scan() {
 					info(n).image = im
 					if im.background {
 						info(n).hidden = true
-						if u := string(x.Destination); strings.TrimSpace(u) != "" {
+						if u := x.Destination.Str(d.source); strings.TrimSpace(u) != "" {
 							s.Backgrounds = append(s.Backgrounds, Background{
 								URL: u, Alt: im.alt(), Size: im.backgroundSizeValue(), Filter: im.filter(),
 							})
@@ -70,8 +70,8 @@ func (d *Deck) scan() {
 							s.BackgroundSplitSize = im.backgroundSplitSize
 						}
 					}
-				case *ast.FencedCodeBlock:
-					if d.scanCallouts(x, info, "co"+strconv.Itoa(s.Index+1)+"-"+strconv.Itoa(coBlocks+1)+"-") {
+				case *ast.CodeBlock:
+					if x.CodeBlockKind == ast.CodeBlockKindFenced && d.scanCallouts(x, info, "co"+strconv.Itoa(s.Index+1)+"-"+strconv.Itoa(coBlocks+1)+"-") {
 						coBlocks++
 					}
 				case *ast.ListItem:
@@ -126,9 +126,8 @@ func (d *Deck) scan() {
 				}
 				info(n).id = id
 				var raw strings.Builder
-				for i := 0; i < h.Lines().Len(); i++ {
-					seg := h.Lines().At(i)
-					raw.Write(seg.Value(d.source))
+				for _, seg := range h.Source() {
+					raw.Write(seg.Bytes(d.source))
 				}
 				s.Headings = append(s.Headings, Heading{Level: h.Level, Text: plain, ID: id, Raw: strings.TrimSpace(raw.String())})
 				return ast.WalkSkipChildren, nil
@@ -169,30 +168,25 @@ func (d *Deck) headingText(h *ast.Heading) (slug string, plain string) {
 		}
 		switch x := n.(type) {
 		case *ast.Text:
-			run.Write(x.Segment.Value(d.source))
+			// The source as written: goldmark v2 decodes a value's escapes and
+			// entities on Value, where this reads the raw text.
+			run.Write(x.Value.Bytes(d.source))
 			if x.SoftLineBreak() || x.HardLineBreak() {
 				flush()
 				pb.WriteString(" ")
 			}
-		case *ast.String:
-			sb.Write(x.Value)
-			pb.Write(x.Value)
 		case *ast.CodeSpan:
-			for c := x.FirstChild(); c != nil; c = c.NextSibling() {
-				if t, ok := c.(*ast.Text); ok {
-					v := string(t.Segment.Value(d.source))
-					sb.WriteString(v)
-					pb.WriteString(v)
-				}
-			}
+			v := x.Value.Str(d.source)
+			sb.WriteString(v)
+			pb.WriteString(v)
 			return ast.WalkSkipChildren, nil
 		case *ast.Image:
 			sb.WriteString(rawLabel(x, d.source))
 			return ast.WalkSkipChildren, nil
 		case *ast.RawHTML:
-			sb.Write(x.Segments.Value(d.source))
+			sb.Write(x.Value.Bytes(d.source))
 		case *ast.AutoLink:
-			v := string(x.Label(d.source))
+			v := x.Label.Value(d.source)
 			sb.WriteString(v)
 			pb.WriteString(v)
 		}
@@ -274,10 +268,12 @@ func rawLabel(img *ast.Image, source []byte) string {
 		var segs []int
 		switch x := n.(type) {
 		case *ast.Text:
-			segs = []int{x.Segment.Start, x.Segment.Stop}
+			if !x.Value.IsOwned() {
+				segs = []int{x.Value.Index().Start, x.Value.Index().Stop}
+			}
 		case *ast.RawHTML:
-			if x.Segments.Len() > 0 {
-				segs = []int{x.Segments.At(0).Start, x.Segments.At(x.Segments.Len() - 1).Stop}
+			if ix := x.Value.Indices(); len(ix) > 0 {
+				segs = []int{ix[0].Start, ix[len(ix)-1].Stop}
 			}
 		}
 		if segs != nil {

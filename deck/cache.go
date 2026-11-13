@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/v2/parser"
 )
 
 // RenderCache keeps the HTML of a deck's slides between renders, so that an
@@ -45,7 +45,7 @@ type cachedSlide struct {
 }
 
 // referencesKey serialises link reference definitions, sorted by label.
-func referencesKey(refs []parser.Reference) string {
+func referencesKey(refs []parser.LinkDefinition) string {
 	if len(refs) == 0 {
 		return ""
 	}

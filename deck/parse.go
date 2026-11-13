@@ -9,10 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
 	"go.yaml.in/yaml/v4"
 
 	"github.com/go-slides/slides/diag"
@@ -192,9 +190,9 @@ func Parse(src []byte, opts Options) (*Deck, error) {
 	d.fmLines = fmLines
 
 	pc := parser.NewContext()
-	doc := markdown().Parser().Parse(text.NewReader(d.source), parser.WithContext(pc))
+	doc := markdown().Parse(d.source, parser.WithContext(pc))
 	d.doc = doc
-	d.refs = referencesKey(pc.References())
+	d.refs = referencesKey(pc.LinkDefinitions())
 	comments := collectComments(doc, d.source, loose)
 
 	if err := d.applyGlobals(fmDirs, comments); err != nil {
@@ -227,16 +225,16 @@ func (d *Deck) errorf(line int, format string, args ...any) error {
 
 // markdown returns a parser configured like Marp Core's markdown-it:
 // CommonMark plus GFM tables, strikethrough and schema-only linkify.
-func markdown() goldmark.Markdown {
-	return goldmark.New(
-		goldmark.WithExtensions(
-			extension.Table,
+func markdown() parser.Parser {
+	return parser.New(
+		parser.WithExtensions(
+			extension.NewTableParser(),
 			strikethrough{},
 			mathExtension{},
-			extension.NewLinkify(
+			extension.NewLinkifyParser(
 				// linkify-it with fuzzyLink off links only URLs that
 				// carry a scheme (and e-mail addresses).
-				extension.WithLinkifyWWWRegexp(regexp.MustCompile(`\A\b\B`)),
+				extension.WithWWWRegexp(regexp.MustCompile(`\A\b\B`)),
 			),
 		),
 	)

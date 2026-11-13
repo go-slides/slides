@@ -3,14 +3,16 @@ package deck
 import (
 	"bufio"
 	"encoding/base64"
+	"io"
 	"strings"
 	"sync"
 	"unicode/utf8"
 
 	"github.com/go-icons/twemoji"
-	"github.com/yuin/goldmark/ast"
-	ghtml "github.com/yuin/goldmark/renderer/html"
-	"github.com/yuin/goldmark/util"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/renderer"
+	ghtml "github.com/yuin/goldmark/v2/renderer/html"
+	"github.com/yuin/goldmark/v2/util"
 )
 
 // Emoji is Marp Core's emoji support: shortcodes (:smile:, markdown-it-emoji's
@@ -163,10 +165,11 @@ func expandShortcodes(s string) string {
 }
 
 // renderText is goldmark's text rendering, with emoji.
-func (r *slideRenderer) renderText(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+func (r *slideRenderer) renderText(writer io.Writer, source []byte, node ast.Node, entering bool, rc renderer.Context) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
 	}
+	w := writer.(util.BufWriter)
 	n := node.(*ast.Text)
 	if r.merged[n] {
 		delete(r.merged, n)
@@ -178,7 +181,7 @@ func (r *slideRenderer) renderText(w util.BufWriter, source []byte, node ast.Nod
 	last := n
 	for !last.SoftLineBreak() && !last.HardLineBreak() {
 		next, ok := last.NextSibling().(*ast.Text)
-		if !ok || next.Segment.Start != last.Segment.Stop || next.IsRaw() != n.IsRaw() {
+		if !ok || last.Value.IsOwned() || next.Value.IsOwned() || next.Value.Index().Start != last.Value.Index().Stop {
 			break
 		}
 		if r.merged == nil {
@@ -187,32 +190,22 @@ func (r *slideRenderer) renderText(w util.BufWriter, source []byte, node ast.Nod
 		r.merged[next] = true
 		last = next
 	}
-	value := n.Segment.Value(source)
+	// The run as one value: the source text from the first text to the last,
+	// bound to the first's decoder, which resolves its escapes and entities.
+	value := n.Value
 	if last != n {
-		value = source[n.Segment.Start:last.Segment.Stop]
+		value = value.WithStop(last.Value.Index().Stop)
 	}
 	n = last
-	switch {
-	case n.IsRaw():
-		ghtml.DefaultWriter.RawWrite(w, value)
-	case !mayHoldEmoji(value):
-		ghtml.DefaultWriter.Write(w, value)
+	if !mayHoldEmoji(value.Bytes(source)) {
+		_, _ = value.WriteTo(ghtml.ContextTextWriter(rc), source)
 		writeBreak(w, n)
-	default:
-		// Entities may spell an emoji (&#x1F604;): look at the text as it is
-		// written.
-		// One buffer and writer per render, reused for every text: a
-		// text renderer runs no other renderer inside it.
-		if r.textBW == nil {
-			r.textBW = bufio.NewWriter(&r.textBuf)
-		}
-		r.textBuf.Reset()
-		r.textBW.Reset(&r.textBuf)
-		ghtml.DefaultWriter.Write(r.textBW, value)
-		_ = r.textBW.Flush()
-		_, _ = w.WriteString(emojify(r.textBuf.String(), true))
-		writeBreak(w, n)
+		return ast.WalkContinue, nil
 	}
+	// Entities may spell an emoji (&#x1F604;): look at the text as it is
+	// written: decoded and escaped.
+	_, _ = w.WriteString(emojify(string(util.EscapeHTML([]byte(value.Value(source)))), true))
+	writeBreak(w, n)
 	return ast.WalkContinue, nil
 }
 
@@ -246,7 +239,7 @@ func (r *slideRenderer) renderViaPlain(w util.BufWriter, source []byte, n ast.No
 	}
 	r.plainBuf.Reset()
 	r.plainBW.Reset(&r.plainBuf)
-	if err := r.plain.Renderer().Render(r.plainBW, source, n); err != nil {
+	if err := r.plain.Render(r.plainBW, source, n); err != nil {
 		return ast.WalkStop, err
 	}
 	_, _ = w.WriteString(f(r.plainBuf.String()))
@@ -254,13 +247,6 @@ func (r *slideRenderer) renderViaPlain(w util.BufWriter, source []byte, n ast.No
 }
 
 func (r *slideRenderer) renderCodeSpan(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
-	if !entering {
-		return ast.WalkContinue, nil
-	}
-	return r.renderViaPlain(w, source, n, emojifyHTML)
-}
-
-func (r *slideRenderer) renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
 	}

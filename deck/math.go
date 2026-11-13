@@ -3,11 +3,10 @@ package deck
 import (
 	"bytes"
 
-	"github.com/yuin/goldmark"
-	gast "github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
+	gast "github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/parser"
+	"github.com/yuin/goldmark/v2/text"
+	"github.com/yuin/goldmark/v2/util"
 )
 
 // Math is Marp Core's math syntax (its marp_math_inline and marp_math_block
@@ -32,8 +31,20 @@ var KindMathInline = gast.NewNodeKind("MathInline")
 func (n *MathInline) Kind() gast.NodeKind { return KindMathInline }
 
 // Dump implements ast.Node.
-func (n *MathInline) Dump(source []byte, level int) {
-	gast.DumpHelper(n, source, level, map[string]string{"Tex": n.Tex}, nil)
+func (n *MathInline) Dump(_ []byte) *gast.NodeDump {
+	return gast.NewNodeDump(n, map[string]any{"Tex": n.Tex})
+}
+
+func newMathInline(tex string) *MathInline {
+	n := &MathInline{Tex: tex}
+	n.Init(n)
+	return n
+}
+
+func newMathBlock() *MathBlock {
+	n := &MathBlock{}
+	n.Init(n)
+	return n
 }
 
 // MathBlock is a display formula; Tex is its source.
@@ -48,21 +59,18 @@ var KindMathBlock = gast.NewNodeKind("MathBlock")
 // Kind implements ast.Node.
 func (n *MathBlock) Kind() gast.NodeKind { return KindMathBlock }
 
-// IsRaw implements ast.Node.
-func (n *MathBlock) IsRaw() bool { return true }
-
 // Dump implements ast.Node.
-func (n *MathBlock) Dump(source []byte, level int) {
-	gast.DumpHelper(n, source, level, map[string]string{"Tex": n.Tex}, nil)
+func (n *MathBlock) Dump(_ []byte) *gast.NodeDump {
+	return gast.NewNodeDump(n, map[string]any{"Tex": n.Tex})
 }
 
 type mathExtension struct{}
 
-func (mathExtension) Extend(m goldmark.Markdown) {
-	m.Parser().AddOptions(
-		parser.WithInlineParsers(util.Prioritized(mathInlineParser{}, 150)),
-		parser.WithBlockParsers(util.Prioritized(mathBlockParser{}, 150)),
-	)
+func (mathExtension) ParserOptions(*parser.Config) []parser.Option {
+	return []parser.Option{
+		parser.WithInlineParsers(util.Prioritized[parser.InlineParser](mathInlineParser{}, 150)),
+		parser.WithBlockParsers(util.Prioritized[parser.BlockParser](mathBlockParser{}, 150)),
+	}
 }
 
 type mathInlineParser struct{}
@@ -105,7 +113,7 @@ func (mathInlineParser) Parse(parent gast.Node, block text.Reader, pc parser.Con
 	if end+1 < len(line) && line[end+1] >= '0' && line[end+1] <= '9' {
 		return nil
 	}
-	n := &MathInline{Tex: string(line[1:end])}
+	n := newMathInline(string(line[1:end]))
 	n.SetPos(seg.Start)
 	block.Advance(end + 1)
 	return n
@@ -122,7 +130,7 @@ func (mathBlockParser) Open(parent gast.Node, reader text.Reader, pc parser.Cont
 		return nil, parser.NoChildren
 	}
 	rest := line[pos+2:]
-	n := &MathBlock{}
+	n := newMathBlock()
 	n.SetPos(seg.Start + pos)
 	trimmed := bytes.TrimSpace(rest)
 	if bytes.HasSuffix(trimmed, []byte("$$")) {
