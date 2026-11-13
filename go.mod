@@ -29,7 +29,7 @@ require (
 	github.com/ulikunitz/xz v0.5.17
 	github.com/yuin/goldmark v1.8.7
 	github.com/zclconf/go-cty v1.19.0
-	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/mod v0.41.0
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
