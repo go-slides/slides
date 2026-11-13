@@ -11,7 +11,7 @@ import (
 
 	"github.com/yuin/goldmark/v2/extension"
 	"github.com/yuin/goldmark/v2/parser"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/interp"

@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/go-slides/slides"
 	"github.com/go-slides/slides/deck"
