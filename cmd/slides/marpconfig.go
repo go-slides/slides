@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // marp-cli reads its options from a configuration file (cosmiconfig, module
