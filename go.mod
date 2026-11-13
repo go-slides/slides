@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/go-avkit/avkit v0.15.0
+	github.com/go-avkit/avkit v0.16.0
 	github.com/go-avkit/decode v0.5.4
 	github.com/go-compressions/xz v0.3.1
 	github.com/go-gfx/oksvg v0.4.0
@@ -16,11 +16,11 @@ require (
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-opentype/opentype v0.21.1
 	github.com/go-pdfkit/pdfkit v0.24.0
-	github.com/go-pdfkit/reader v0.10.0
+	github.com/go-pdfkit/reader v0.11.0
 	github.com/go-richdoc/richdoc v0.10.0
 	github.com/go-rouge/rouge v0.9.0
 	github.com/go-tex/math v0.50.0
-	github.com/go-webengine/engine v0.47.0
+	github.com/go-webengine/engine v0.47.2
 	github.com/go-widgets/vt v0.1.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/spf13/cobra v1.10.2
@@ -37,7 +37,7 @@ require (
 )
 
 require (
-	github.com/Eyevinn/mp4ff v0.62.0 // indirect
+	github.com/Eyevinn/mp4ff v0.62.1 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.2.8 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
