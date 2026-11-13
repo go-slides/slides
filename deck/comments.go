@@ -60,45 +60,40 @@ func collectComments(doc ast.Node, source []byte, loose bool) []*comment {
 func commentText(n ast.Node, source []byte) (string, int, bool) {
 	switch x := n.(type) {
 	case *ast.HTMLBlock:
-		if x.HTMLBlockType != ast.HTMLBlockType2 {
+		if x.HTMLBlockKind != ast.HTMLBlockKind2 {
 			return "", 0, false
 		}
 		raw := blockText(x, source)
-		if x.Lines().Len() == 0 {
+		segs := x.Value.Segments()
+		if len(segs) == 0 {
 			return "", 0, false
 		}
-		return raw, x.Lines().At(0).Start, true
+		return raw, segs[0].Start, true
 	case *ast.RawHTML:
-		if x.Segments.Len() == 0 {
+		ix := x.Value.Indices()
+		if len(ix) == 0 {
 			return "", 0, false
 		}
-		raw := string(x.Segments.Value(source))
+		raw := x.Value.Str(source)
 		if !strings.HasPrefix(raw, "<!--") {
 			return "", 0, false
 		}
-		return raw, x.Segments.At(0).Start, true
+		return raw, ix[0].Start, true
 	}
 	return "", 0, false
 }
 
 // blockText returns an HTML block's whole text, closing line included.
 func blockText(b *ast.HTMLBlock, source []byte) string {
-	var sb strings.Builder
-	for i := 0; i < b.Lines().Len(); i++ {
-		seg := b.Lines().At(i)
-		sb.Write(seg.Value(source))
-	}
-	if b.HasClosure() {
-		sb.Write(b.ClosureLine.Value(source))
-	}
-	return sb.String()
+	// v2 folds the closing line into Value.
+	return b.Value.Str(source)
 }
 
 // isStyleBlock reports whether n is a <style> element Marpit takes over, and
 // returns its content and whether it is scoped.
 func isStyleBlock(n ast.Node, source []byte) (css string, scoped bool, ok bool) {
 	b, isBlock := n.(*ast.HTMLBlock)
-	if !isBlock || b.HTMLBlockType != ast.HTMLBlockType1 {
+	if !isBlock || b.HTMLBlockKind != ast.HTMLBlockKind1 {
 		return "", false, false
 	}
 	raw := blockText(b, source)

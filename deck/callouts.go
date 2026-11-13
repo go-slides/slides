@@ -199,7 +199,7 @@ func calloutNumber(s string) (int, bool) {
 
 // calloutList returns the list that holds a code block's notes: the ordered
 // list right after it, starting at 1, with an item for every number used.
-func calloutList(f *ast.FencedCodeBlock, c codeCallouts) (*ast.List, bool) {
+func calloutList(f *ast.CodeBlock, c codeCallouts) (*ast.List, bool) {
 	l, ok := f.NextSibling().(*ast.List)
 	if !ok || !l.IsOrdered() || l.Start != 1 || l.ChildCount() < c.max {
 		return nil, false
@@ -211,13 +211,8 @@ func calloutList(f *ast.FencedCodeBlock, c codeCallouts) (*ast.List, bool) {
 // the block's info keeps the parse, the list takes the class it is styled
 // by and its items their numbers and ids. id is the block's id prefix (see
 // codeCallouts.id); it reports whether the block has callouts.
-func (d *Deck) scanCallouts(f *ast.FencedCodeBlock, info func(ast.Node) *nodeInfo, id string) bool {
-	var code strings.Builder
-	for i := 0; i < f.Lines().Len(); i++ {
-		seg := f.Lines().At(i)
-		code.Write(seg.Value(d.source))
-	}
-	c, ok := parseCallouts(code.String())
+func (d *Deck) scanCallouts(f *ast.CodeBlock, info func(ast.Node) *nodeInfo, id string) bool {
+	c, ok := parseCallouts(f.Value.Str(d.source))
 	if !ok {
 		return false
 	}
@@ -227,7 +222,7 @@ func (d *Deck) scanCallouts(f *ast.FencedCodeBlock, info func(ast.Node) *nodeInf
 	}
 	c.id = id
 	info(f).callouts = &c
-	l.SetAttributeString("class", []byte("co-list"))
+	setAttr(l, "class", "co-list")
 	i := 0
 	for it := l.FirstChild(); it != nil; it = it.NextSibling() {
 		i++

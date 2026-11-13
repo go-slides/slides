@@ -45,7 +45,7 @@ type cachedSlide struct {
 }
 
 // referencesKey serialises link reference definitions, sorted by label.
-func referencesKey(refs []parser.Reference) string {
+func referencesKey(refs []parser.LinkDefinition) string {
 	if len(refs) == 0 {
 		return ""
 	}

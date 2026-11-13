@@ -1,23 +1,25 @@
 package deck
 
 import (
-	"github.com/yuin/goldmark/v2"
+	"io"
+
 	gast "github.com/yuin/goldmark/v2/ast"
 	east "github.com/yuin/goldmark/v2/extension/ast"
 	"github.com/yuin/goldmark/v2/parser"
 	"github.com/yuin/goldmark/v2/renderer"
+	ghtml "github.com/yuin/goldmark/v2/renderer/html"
 	"github.com/yuin/goldmark/v2/text"
 	"github.com/yuin/goldmark/v2/util"
 )
 
 // strikethrough is markdown-it's strikethrough, which Marp Core enables:
 // exactly two tildes (goldmark's GFM extension also takes one), rendered
-// as <s> rather than <del>.
+// as <s> rather than <del>. It is a parser extension; the renderer is
+// strikeRenderer, registered by the slide renderer.
 type strikethrough struct{}
 
-func (strikethrough) Extend(m goldmark.Markdown) {
-	m.Parser().AddOptions(parser.WithInlineParsers(util.Prioritized(strikeParser{}, 500)))
-	m.Renderer().AddOptions(renderer.WithNodeRenderers(util.Prioritized(strikeRenderer{}, 500)))
+func (strikethrough) ParserOptions(*parser.Config) []parser.Option {
+	return []parser.Option{parser.WithInlineParsers(util.Prioritized[parser.InlineParser](strikeParser{}, 500))}
 }
 
 type strikeDelimiter struct{}
@@ -33,29 +35,30 @@ type strikeParser struct{}
 func (strikeParser) Trigger() []byte { return []byte{'~'} }
 
 func (strikeParser) Parse(parent gast.Node, block text.Reader, pc parser.Context) gast.Node {
-	before := block.PrecendingCharacter()
-	line, segment := block.PeekLine()
-	node := parser.ScanDelimiter(line, before, 1, strikeDelimiter{})
-	if node == nil || node.OriginalLength != 2 || before == '~' {
+	if block.PrecedingCharacter() == '~' {
 		return nil
 	}
-	node.Segment = segment.WithStop(segment.Start + node.OriginalLength)
-	block.Advance(node.OriginalLength)
-	pc.PushDelimiter(node)
-	return node
+	line, _ := block.PeekLine()
+	n := 0
+	for n < len(line) && line[n] == '~' {
+		n++
+	}
+	if n != 2 {
+		return nil
+	}
+	return parser.ParseDelimiter(block, 1, strikeDelimiter{}, pc)
 }
 
 func (strikeParser) CloseBlock(gast.Node, parser.Context) {}
 
-type strikeRenderer struct{}
-
-func (strikeRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
-	reg.Register(east.KindStrikethrough, func(w util.BufWriter, _ []byte, _ gast.Node, entering bool) (gast.WalkStatus, error) {
-		if entering {
-			_, _ = w.WriteString("<s>")
-		} else {
-			_, _ = w.WriteString("</s>")
-		}
-		return gast.WalkContinue, nil
-	})
+// strikeRenderer writes <s>.
+func strikeRenderer(w io.Writer, _ []byte, _ gast.Node, entering bool, _ renderer.Context) (gast.WalkStatus, error) {
+	if entering {
+		_, _ = w.(util.BufWriter).WriteString("<s>")
+	} else {
+		_, _ = w.(util.BufWriter).WriteString("</s>")
+	}
+	return gast.WalkContinue, nil
 }
+
+var strikeNodeRenderer = ghtml.NodeRendererFunc(strikeRenderer)

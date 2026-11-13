@@ -5,18 +5,17 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"io"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/yuin/goldmark/v2"
 	"github.com/yuin/goldmark/v2/ast"
 	"github.com/yuin/goldmark/v2/extension"
 	extast "github.com/yuin/goldmark/v2/extension/ast"
 	"github.com/yuin/goldmark/v2/renderer"
 	ghtml "github.com/yuin/goldmark/v2/renderer/html"
-	"github.com/yuin/goldmark/v2/text"
 	"github.com/yuin/goldmark/v2/util"
 
 	"github.com/go-slides/slides/interp"
@@ -121,15 +120,13 @@ func (d *Deck) Render(opts RenderOptions) []Rendered {
 
 func (d *Deck) newSlideRenderer(opts RenderOptions) *slideRenderer {
 	r := &slideRenderer{deck: d, opts: opts}
-	r.plain = goldmark.New(goldmark.WithRendererOptions(ghtml.WithHardWraps(), ghtml.WithXHTML(), ghtml.WithUnsafe()))
-	r.md = goldmark.New(
-		goldmark.WithExtensions(extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignStyle))),
-		goldmark.WithRendererOptions(
-			ghtml.WithHardWraps(),
-			ghtml.WithXHTML(),
-			ghtml.WithUnsafe(),
-			renderer.WithNodeRenderers(util.Prioritized(r, 100), util.Prioritized(strikeRenderer{}, 100)),
-		),
+	r.plain = ghtml.New(ghtml.WithHardWraps(), ghtml.WithXHTML(), ghtml.WithUnsafe())
+	r.md = ghtml.New(
+		ghtml.WithExtensions(extension.NewTableHTMLRenderer(extension.WithTableCellAlignMethod(extension.TableCellAlignStyle))),
+		ghtml.WithHardWraps(),
+		ghtml.WithXHTML(),
+		ghtml.WithUnsafe(),
+		ghtml.WithNodeRenderers(r.nodeRenderers()),
 	)
 	return r
 }
@@ -137,10 +134,10 @@ func (d *Deck) newSlideRenderer(opts RenderOptions) *slideRenderer {
 type slideRenderer struct {
 	deck *Deck
 	opts RenderOptions
-	md   goldmark.Markdown
+	md   ghtml.Renderer
 	// plain is goldmark's own HTML rendering, for the nodes whose output
 	// is rewritten after the fact (code spans and blocks).
-	plain goldmark.Markdown
+	plain ghtml.Renderer
 	// merged holds the texts of a run already written with the first.
 	merged map[*ast.Text]bool
 	// slideLine is the source line of the slide being written, for its
@@ -151,9 +148,8 @@ type slideRenderer struct {
 	// nodeBuf and nodeBW receive each top-level node of a slide (see slide).
 	nodeBuf bytes.Buffer
 	nodeBW  *bufio.Writer
-	// textBuf and textBW escape a text that may hold an emoji (renderText).
-	textBuf bytes.Buffer
-	textBW  *bufio.Writer
+	nodeEW  util.ErrorBufWriter
+	nodeRC  renderer.RenderOption
 	// plainBuf and plainBW receive goldmark's own rendering (renderViaPlain).
 	plainBuf bytes.Buffer
 	plainBW  *bufio.Writer
@@ -186,7 +182,7 @@ func (r *slideRenderer) markDefaultBlocks(n ast.Node) func() {
 	}
 	var undo []saved
 	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering || c.Type() != ast.TypeBlock {
+		if _, isBlock := c.(ast.BlockNode); !entering || !isBlock {
 			return ast.WalkContinue, nil
 		}
 		switch c.Kind() {
@@ -199,15 +195,13 @@ func (r *slideRenderer) markDefaultBlocks(n ast.Node) func() {
 			return ast.WalkContinue, nil
 		}
 		undo = append(undo, saved{c, slices.Clone(c.Attributes())})
-		class := []byte("code-line")
-		if v, ok := c.AttributeString("class"); ok {
+		class := "code-line"
+		if v, ok := c.Attribute("class"); ok {
 			// a callouts list (callouts.go) keeps its own class
-			if b, isBytes := v.([]byte); isBytes {
-				class = append(append(slices.Clone(b), ' '), class...)
-			}
+			class = v.Str(r.deck.source) + " " + class
 		}
-		c.SetAttributeString("class", class)
-		c.SetAttributeString("data-line", []byte(strconv.Itoa(l)))
+		setAttr(c, "class", class)
+		setAttr(c, "data-line", strconv.Itoa(l))
 		return ast.WalkContinue, nil
 	})
 	return func() {
@@ -465,12 +459,16 @@ func (r *slideRenderer) slide(s *Slide) string {
 	// each call. (Nested renders, from inside a node renderer, keep their own.)
 	if r.nodeBW == nil {
 		r.nodeBW = bufio.NewWriter(&r.nodeBuf)
+		// goldmark v2 wraps a writer that is not an ErrorBufWriter, and makes
+		// a rendering context, on every call: both serve every node.
+		r.nodeEW = util.NewErrorBufWriter(r.nodeBW)
+		r.nodeRC = renderer.WithContext(renderer.NewContext())
 	}
 	for _, n := range s.nodes {
 		r.nodeBuf.Reset()
 		r.nodeBW.Reset(&r.nodeBuf)
 		unmark := r.markDefaultBlocks(n)
-		if err := r.md.Renderer().Render(r.nodeBW, r.deck.source, n); err == nil {
+		if err := r.md.Render(r.nodeEW, r.deck.source, n, r.nodeRC); err == nil {
 			content.Write(r.nodeBuf.Bytes())
 		}
 		unmark()
@@ -643,32 +641,58 @@ func (r *slideRenderer) frame(section string, bg, pseudo *layer, content ...laye
 // inline renders a header or footer: Markdown inline syntax only.
 func (r *slideRenderer) inline(src string) string {
 	source := []byte(src)
-	doc := markdown().Parser().Parse(text.NewReader(source))
+	doc := markdown().Parse(source)
 	var b bytes.Buffer
 	for p := doc.FirstChild(); p != nil; p = p.NextSibling() {
 		for c := p.FirstChild(); c != nil; c = c.NextSibling() {
-			_ = r.md.Renderer().Render(&b, source, c)
+			_ = r.md.Render(&b, source, c)
 		}
 	}
 	return strings.TrimSpace(b.String())
 }
 
-// RegisterFuncs overrides goldmark's HTML for what Marp changes.
-func (r *slideRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
-	reg.Register(ast.KindImage, r.renderImage)
-	reg.Register(ast.KindHeading, r.renderHeading)
-	reg.Register(ast.KindListItem, r.renderListItem)
-	reg.Register(ast.KindParagraph, r.renderParagraph)
-	reg.Register(ast.KindHTMLBlock, r.renderHTMLBlock)
-	reg.Register(ast.KindRawHTML, r.renderRawHTML)
-	reg.Register(ast.KindFencedCodeBlock, r.renderFencedCode)
-	reg.Register(KindMathInline, r.renderMath)
-	reg.Register(KindMathBlock, r.renderMath)
-	if !r.deck.opts.NoEmoji {
-		reg.Register(ast.KindText, r.renderText)
-		reg.Register(ast.KindCodeSpan, r.renderCodeSpan)
-		reg.Register(ast.KindCodeBlock, r.renderCodeBlock)
+// bufRenderer adapts a node renderer that writes to a util.BufWriter, which
+// is what goldmark v2 hands every node renderer behind an io.Writer.
+func bufRenderer(f func(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error)) ghtml.NodeRenderer {
+	return ghtml.NodeRendererFunc(func(w io.Writer, source []byte, n ast.Node, entering bool, _ renderer.Context) (ast.WalkStatus, error) {
+		return f(w.(util.BufWriter), source, n, entering)
+	})
+}
+
+// nodeRenderers overrides goldmark's HTML for what Marp changes.
+func (r *slideRenderer) nodeRenderers() map[ast.NodeKind]ghtml.NodeRenderer {
+	m := map[ast.NodeKind]ghtml.NodeRenderer{
+		ast.KindImage:            bufRenderer(r.renderImage),
+		ast.KindHeading:          bufRenderer(r.renderHeading),
+		ast.KindListItem:         bufRenderer(r.renderListItem),
+		ast.KindParagraph:        bufRenderer(r.renderParagraph),
+		ast.KindHTMLBlock:        bufRenderer(r.renderHTMLBlock),
+		ast.KindRawHTML:          bufRenderer(r.renderRawHTML),
+		ast.KindCodeBlock:        bufRenderer(r.renderCode),
+		KindMathInline:           bufRenderer(r.renderMath),
+		KindMathBlock:            bufRenderer(r.renderMath),
+		extast.KindStrikethrough: strikeNodeRenderer,
 	}
+	if !r.deck.opts.NoEmoji {
+		m[ast.KindText] = ghtml.NodeRendererFunc(r.renderText)
+		m[ast.KindCodeSpan] = bufRenderer(r.renderCodeSpan)
+	}
+	return m
+}
+
+// renderCode renders a code block, indented or fenced (goldmark v2 has one
+// node kind for both).
+func (r *slideRenderer) renderCode(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if _, ok := fencedBlock(node); ok {
+		return r.renderFencedCode(w, source, node, entering)
+	}
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	if r.deck.opts.NoEmoji {
+		return r.renderViaPlain(w, source, node, func(s string) string { return s })
+	}
+	return r.renderViaPlain(w, source, node, emojifyHTML)
 }
 
 // renderMath writes a formula through RenderOptions.Math. Without it, or
@@ -721,12 +745,15 @@ func (r *slideRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 	if i.hidden {
 		return ast.WalkSkipChildren, nil
 	}
-	if r.opts.Cast != nil && !(i.image != nil && i.image.background) && IsCast(string(n.Destination)) {
+	// The destination as written: the markup escapes it where it is an
+	// attribute, and the Cast and Video hooks read it whole.
+	dest := n.Destination.Str(source)
+	if r.opts.Cast != nil && !(i.image != nil && i.image.background) && IsCast(dest) {
 		alt := string(plainText(n, source))
 		if i.image != nil && i.image.anyConsumed() {
 			alt = i.image.alt()
 		}
-		out, err := r.opts.Cast(string(n.Destination), strings.TrimSpace(alt))
+		out, err := r.opts.Cast(dest, strings.TrimSpace(alt))
 		if err != nil {
 			out = `<span class="slides-cast-error" role="note" title="` + escapeHTML(err.Error()) + `">` +
 				escapeHTML("[recording not shown: "+err.Error()+"]") + `</span>`
@@ -734,12 +761,12 @@ func (r *slideRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 		_, _ = w.WriteString(out)
 		return ast.WalkSkipChildren, nil
 	}
-	if r.opts.Video != nil && !(i.image != nil && i.image.background) && IsVideo(string(n.Destination)) {
+	if r.opts.Video != nil && !(i.image != nil && i.image.background) && IsVideo(dest) {
 		alt := string(plainText(n, source))
 		if i.image != nil && i.image.anyConsumed() {
 			alt = i.image.alt()
 		}
-		out, err := r.opts.Video(string(n.Destination), strings.TrimSpace(alt))
+		out, err := r.opts.Video(dest, strings.TrimSpace(alt))
 		if err != nil {
 			out = `<span class="slides-video-error" role="note" title="` + escapeHTML(err.Error()) + `">` +
 				escapeHTML("[video not shown: "+err.Error()+"]") + `</span>`
@@ -748,7 +775,9 @@ func (r *slideRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 		return ast.WalkSkipChildren, nil
 	}
 	_, _ = w.WriteString(`<img src="`)
-	_, _ = w.Write(util.EscapeHTML(util.URLEscape(n.Destination, true)))
+	// v2's URLEscape writes "&" as "&amp;" itself (v1's left it to the
+	// caller's EscapeHTML): escaping the result again would double it.
+	_, _ = w.Write(util.URLEscape([]byte(n.Destination.Value(source))))
 	_, _ = w.WriteString(`" alt="`)
 	if i.image != nil && i.image.anyConsumed() {
 		_, _ = w.WriteString(escapeHTML(i.image.alt()))
@@ -756,9 +785,9 @@ func (r *slideRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 		_, _ = w.Write(util.EscapeHTML(plainText(n, source)))
 	}
 	_ = w.WriteByte('"')
-	if n.Title != nil {
+	if !n.Title.IsEmpty() {
 		_, _ = w.WriteString(` title="`)
-		_, _ = w.Write(util.EscapeHTML(n.Title))
+		_, _ = w.Write(util.EscapeHTML(n.Title.Bytes(source)))
 		_ = w.WriteByte('"')
 	}
 	if i.image != nil {
@@ -779,12 +808,10 @@ func plainText(n ast.Node, source []byte) []byte {
 		}
 		switch x := c.(type) {
 		case *ast.Text:
-			b.Write(x.Segment.Value(source))
+			b.Write(x.Value.Bytes(source))
 			if x.SoftLineBreak() {
 				b.WriteByte('\n')
 			}
-		case *ast.String:
-			b.Write(x.Value)
 		}
 		return ast.WalkContinue, nil
 	})
@@ -851,7 +878,7 @@ func (r *slideRenderer) renderListItem(w util.BufWriter, _ []byte, n ast.Node, e
 		_ = w.WriteByte('>')
 		fc := n.FirstChild()
 		if fc != nil {
-			if _, ok := fc.(*ast.TextBlock); !ok {
+			if p, ok := fc.(*ast.Paragraph); !ok || !ghtml.IsInTightBlock(p) {
 				_ = w.WriteByte('\n')
 			}
 		}
@@ -864,6 +891,13 @@ func (r *slideRenderer) renderListItem(w util.BufWriter, _ []byte, n ast.Node, e
 // renderParagraph hides a paragraph left with nothing visible once its
 // comments and background images are taken out (Marpit's sweep).
 func (r *slideRenderer) renderParagraph(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if ghtml.IsInTightBlock(n) {
+		// A tight list's paragraph is bare text (goldmark v1's TextBlock).
+		if !entering && n.NextSibling() != nil && n.FirstChild() != nil {
+			_ = w.WriteByte('\n')
+		}
+		return ast.WalkContinue, nil
+	}
 	if r.sweepable(n, source) {
 		return ast.WalkSkipChildren, nil
 	}
@@ -881,7 +915,7 @@ func (r *slideRenderer) sweepable(n ast.Node, source []byte) bool {
 			continue
 		}
 		t, ok := c.(*ast.Text)
-		if !ok || strings.TrimSpace(string(t.Segment.Value(source))) != "" {
+		if !ok || strings.TrimSpace(string(t.Value.Bytes(source))) != "" {
 			return false
 		}
 	}
@@ -905,7 +939,7 @@ func (r *slideRenderer) renderRawHTML(w util.BufWriter, source []byte, node ast.
 		return ast.WalkSkipChildren, nil
 	}
 	n := node.(*ast.RawHTML)
-	_, _ = w.WriteString(sanitizeHTML(string(n.Segments.Value(source)), r.opts.HTML))
+	_, _ = w.WriteString(sanitizeHTML(n.Value.Str(source), r.opts.HTML))
 	return ast.WalkSkipChildren, nil
 }
 
@@ -913,16 +947,13 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 	if !entering {
 		return ast.WalkSkipChildren, nil
 	}
-	n := node.(*ast.FencedCodeBlock)
+	n := node.(*ast.CodeBlock)
 	var code bytes.Buffer
-	for i := 0; i < n.Lines().Len(); i++ {
-		seg := n.Lines().At(i)
-		code.Write(seg.Value(source))
-	}
+	code.Write(n.Value.Bytes(source))
 	lang := ""
 	numbers, start := r.lineNumbers, 0
-	if n.Info != nil {
-		info := string(n.Info.Segment.Value(source))
+	if !n.Info.IsEmpty() {
+		info := n.Info.Str(source)
 		lang, _, _ = strings.Cut(strings.TrimSpace(info), " ")
 		lang = html.UnescapeString(lang)
 		o := parseFenceOptions(info)
