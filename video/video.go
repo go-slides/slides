@@ -146,11 +146,19 @@ type File struct {
 	Info
 	data   []byte
 	probed Probed
+	prov   Provider
 }
 
-// Open checks a file against the limits and reads its description. Nothing is
-// decoded.
+// Open checks a file against the limits and reads its description with the
+// registered Provider. Nothing is decoded.
 func Open(data []byte, lim Limits) (*File, error) {
+	return OpenWith(provider(), data, lim)
+}
+
+// OpenWith is Open with a Provider of the caller's (nil: none), whatever is
+// registered: a worker that serves another host's requests reads with its own,
+// never with the one that asks it.
+func OpenWith(p Provider, data []byte, lim Limits) (*File, error) {
 	if len(data) > lim.MaxBytes {
 		return nil, fail(CodeLimit, "the file is %d bytes; at most %d are read", len(data), lim.MaxBytes)
 	}
@@ -169,7 +177,6 @@ func Open(data []byte, lim Limits) (*File, error) {
 	default:
 		return nil, fail(CodeSyntax, "not an MP4 or WebM file")
 	}
-	p := provider()
 	if p == nil {
 		return nil, fail(CodeUnavailable, "this build reads no video: no container reader is registered")
 	}
@@ -181,7 +188,7 @@ func Open(data []byte, lim Limits) (*File, error) {
 	if info.Width <= 0 || info.Height <= 0 || info.Width > lim.MaxWidth || info.Height > lim.MaxHeight {
 		return nil, fail(CodeLimit, "the frame is %dx%d; at most %dx%d are read", info.Width, info.Height, lim.MaxWidth, lim.MaxHeight)
 	}
-	return &File{Info: info, data: data, probed: pr}, nil
+	return &File{Info: info, data: data, probed: pr, prov: p}, nil
 }
 
 // asError makes a provider's error one that carries a code.
@@ -198,11 +205,7 @@ func (i *File) Poster(t float64, lim Limits) (jpg []byte, w, h int, err error) {
 	if !i.Decodable {
 		return nil, 0, 0, fail(CodeCodec, "the poster of a %s video cannot be decoded (H.264 only): a neutral picture stands in", i.Codec)
 	}
-	p := provider()
-	if p == nil {
-		return nil, 0, 0, fail(CodeUnavailable, "this build decodes no video: no decoder is registered")
-	}
-	jpg, w, h, err = p.Poster(i.probed, i.data, t, lim)
+	jpg, w, h, err = i.prov.Poster(i.probed, i.data, t, lim)
 	if err != nil {
 		return nil, 0, 0, asError(err)
 	}
