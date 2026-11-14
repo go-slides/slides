@@ -1,4 +1,4 @@
-// Command posterbench times a poster frame: internal/video (Open and Poster,
+// Command posterbench times a poster frame: video (Open and Poster,
 // GOMAXPROCS 1) against `ffmpeg -ss t -i file -frames:v 1` (one thread), in
 // interleaved rounds, and prints the medians and the allocations of ours.
 //
@@ -15,7 +15,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-slides/slides/internal/video"
+	"github.com/go-slides/slides/video"
+	_ "github.com/go-slides/slides/video/avkit"
 )
 
 func main() {

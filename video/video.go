@@ -2,25 +2,31 @@
 // codec and size, and one picture of it (the poster). The file is untrusted:
 // its size, the number and nesting of its boxes or elements, the size of its
 // frames and the work of decoding the poster are bounded, and a refusal carries
-// a Code. It imports nothing of go-slides.
+// a Code. It imports nothing of go-slides, and no decoder.
+//
+// What needs a decoder is behind a Provider: the container's tracks and the
+// poster's decoding. Package video/avkit is the one go-slides ships (go-avkit's
+// container reader and H.264 decoder); the slides command links it. A host
+// that must not link it (the playground's WebAssembly module, which runs the
+// provider in a worker of its own) builds slides with the tag slides_novideo
+// and registers a Provider of its own with Register. The checks that bound a
+// file (its size, its boxes, its frame) stay here, so that they hold for every
+// provider and run before one is asked anything.
 //
 // Containers read: MP4 (ISO/IEC 14496-12) and WebM / Matroska. The poster is
 // decoded for H.264 (avc1, avc3) only, because that is the one video decoder
 // of go-avkit; any other codec is Info-readable and plays where it is embedded,
-// but has no picture (ErrNoPoster).
+// but has no picture (CodeCodec).
 package video
 
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
-
-	"github.com/go-avkit/avkit/container"
-	"github.com/go-avkit/decode"
+	"sync"
 )
 
 // The codes of a refusal.
@@ -28,6 +34,9 @@ const (
 	CodeLimit  = "video.limit"
 	CodeSyntax = "video.syntax"
 	CodeCodec  = "video.codec"
+	// CodeUnavailable: no Provider is registered (a build with slides_novideo
+	// and a host that registered none), or the host's could not be reached.
+	CodeUnavailable = "video.unavailable"
 )
 
 // Error is a refusal with the code that names it.
@@ -38,13 +47,12 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Msg }
 
+// Fail is an *Error with a formatted message: what a Provider returns.
+func Fail(code, format string, a ...any) error { return fail(code, format, a...) }
+
 func fail(code, format string, a ...any) error {
 	return &Error{Code: code, Msg: fmt.Sprintf(format, a...)}
 }
-
-// ErrNoPoster is returned (wrapped in an *Error with CodeCodec) when the video's
-// codec is not one the poster can be decoded for.
-var ErrNoPoster = errors.New("video: no poster for this codec")
 
 // Limits bound what a file may cost.
 type Limits struct {
@@ -84,13 +92,65 @@ type Info struct {
 	Duration      float64
 	// Decodable says the poster can be decoded for Codec.
 	Decodable bool
-	reader    *container.Reader
-	track     uint32
+}
+
+// Probed is what a Provider says of a file: the video track's description,
+// and State, anything the provider wants handed back to its Poster (a parsed
+// container, so that the file is read once).
+type Probed struct {
+	Codec         string
+	Width, Height int
+	Duration      float64
+	Decodable     bool
+	State         any
+}
+
+// A Provider reads the container and decodes the poster. data is a file that
+// passed the checks of Open: its size, its boxes or elements and their nesting
+// are bounded, and it is an MP4 or a WebM by its first bytes. A refusal is an
+// *Error (Fail); any other error is taken as video.syntax. A Provider is called
+// from several goroutines.
+type Provider interface {
+	// Probe describes the file's video track. A file with none, or whose
+	// container cannot be read, is video.syntax; a frame over the limits is
+	// video.limit (Open checks the frame again).
+	Probe(data []byte, format string, lim Limits) (Probed, error)
+	// Poster is the picture shown at t seconds (the one before it, if none is
+	// exactly at t; the last one when t is past the end), scaled down to
+	// lim.PosterWidth, encoded as JPEG, with its size. p is what Probe returned
+	// for this data.
+	Poster(p Probed, data []byte, t float64, lim Limits) (jpg []byte, w, h int, err error)
+}
+
+var (
+	regMu    sync.RWMutex
+	registry Provider
+)
+
+// Register sets the Provider that Open and File.Poster use (nil: none). The
+// avkit package registers itself when imported.
+func Register(p Provider) {
+	regMu.Lock()
+	registry = p
+	regMu.Unlock()
+}
+
+func provider() Provider {
+	regMu.RLock()
+	defer regMu.RUnlock()
+	return registry
+}
+
+// File is a video file checked against the limits, and described.
+type File struct {
+	Info
+	data   []byte
+	probed Probed
 }
 
 // Open checks a file against the limits and reads its description. Nothing is
 // decoded.
-func Open(data []byte, lim Limits) (*Info, error) {
+func Open(data []byte, lim Limits) (*File, error) {
 	if len(data) > lim.MaxBytes {
 		return nil, fail(CodeLimit, "the file is %d bytes; at most %d are read", len(data), lim.MaxBytes)
 	}
@@ -109,68 +169,50 @@ func Open(data []byte, lim Limits) (*Info, error) {
 	default:
 		return nil, fail(CodeSyntax, "not an MP4 or WebM file")
 	}
-	r, err := container.NewReader(data)
+	p := provider()
+	if p == nil {
+		return nil, fail(CodeUnavailable, "this build reads no video: no container reader is registered")
+	}
+	pr, err := p.Probe(data, info.Format, lim)
 	if err != nil {
-		return nil, fail(CodeSyntax, "the %s container cannot be read: %v", info.Format, err)
+		return nil, asError(err)
 	}
-	f := r.File()
-	for _, t := range f.Tracks {
-		if t.Kind == container.Video {
-			info.Codec, info.Width, info.Height = t.Codec, t.Width, t.Height
-			info.track = t.ID
-			break
-		}
-	}
-	if info.track == 0 {
-		return nil, fail(CodeSyntax, "the file has no video track")
-	}
+	info.Codec, info.Width, info.Height, info.Duration, info.Decodable = pr.Codec, pr.Width, pr.Height, pr.Duration, pr.Decodable
 	if info.Width <= 0 || info.Height <= 0 || info.Width > lim.MaxWidth || info.Height > lim.MaxHeight {
 		return nil, fail(CodeLimit, "the frame is %dx%d; at most %dx%d are read", info.Width, info.Height, lim.MaxWidth, lim.MaxHeight)
 	}
-	if f.Timescale > 0 {
-		info.Duration = float64(f.Duration) / float64(f.Timescale)
-	}
-	info.Decodable = info.Codec == "avc1" || info.Codec == "avc3"
-	info.reader = r
-	return &info, nil
+	return &File{Info: info, data: data, probed: pr}, nil
 }
 
-// Poster decodes the picture shown at t seconds (the one before it, if none is
-// exactly at t; the last one when t is past the end), scaled down to the
-// limit's PosterWidth, and encodes it as JPEG.
-func (i *Info) Poster(t float64, lim Limits) (jpg []byte, w, h int, err error) {
+// asError makes a provider's error one that carries a code.
+func asError(err error) error {
+	if e, ok := err.(*Error); ok {
+		return e
+	}
+	return fail(CodeSyntax, "%v", err)
+}
+
+// Poster decodes the picture shown at t seconds, scaled down to the limit's
+// PosterWidth, and encodes it as JPEG.
+func (i *File) Poster(t float64, lim Limits) (jpg []byte, w, h int, err error) {
 	if !i.Decodable {
 		return nil, 0, 0, fail(CodeCodec, "the poster of a %s video cannot be decoded (H.264 only): a neutral picture stands in", i.Codec)
 	}
-	cfg := decode.PosterConfig{
-		Config:          decode.Config{MaxFrameMBs: (lim.MaxWidth/16 + 1) * (lim.MaxHeight/16 + 1), MaxSampleBytes: lim.MaxSampleBytes},
-		MaxSamples:      lim.MaxSamples,
-		MaxTrackSamples: lim.MaxTrackSamples,
+	p := provider()
+	if p == nil {
+		return nil, 0, 0, fail(CodeUnavailable, "this build decodes no video: no decoder is registered")
 	}
-	f, err := decode.PosterFrame(i.reader, i.track, t, cfg)
+	jpg, w, h, err = p.Poster(i.probed, i.data, t, lim)
 	if err != nil {
-		switch {
-		case errors.Is(err, decode.ErrPosterLimit), errors.Is(err, decode.ErrOverLimit):
-			return nil, 0, 0, fail(CodeLimit, "the poster at %gs costs more than the %d samples read: %v", t, lim.MaxSamples, err)
-		case errors.Is(err, decode.ErrUnsupported):
-			return nil, 0, 0, fail(CodeCodec, "the H.264 stream uses a tool that is not decoded (%v): a neutral picture stands in", err)
-		case errors.Is(err, decode.ErrTime):
-			return nil, 0, 0, fail(CodeSyntax, "#t=%g is not a time in the video", t)
-		}
-		return nil, 0, 0, fail(CodeSyntax, "the poster cannot be decoded: %v", err)
+		return nil, 0, 0, asError(err)
 	}
-	img := toRGBA(f, lim.PosterWidth)
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85}); err != nil {
-		return nil, 0, 0, fail(CodeSyntax, "the poster cannot be encoded: %v", err)
-	}
-	return buf.Bytes(), img.Bounds().Dx(), img.Bounds().Dy(), nil
+	return jpg, w, h, nil
 }
 
 // Placeholder is the picture that stands in for a poster that cannot be
 // decoded: a dark card with a play triangle, at the size of the video (scaled
 // to the poster width).
-func (i *Info) Placeholder(lim Limits) (jpg []byte, w, h int) {
+func (i *File) Placeholder(lim Limits) (jpg []byte, w, h int) {
 	return PlaceholderSize(i.Width, i.Height, lim)
 }
 
@@ -206,64 +248,6 @@ func abs(a int) int {
 		return -a
 	}
 	return a
-}
-
-// toRGBA converts a 4:2:0 or 4:0:0 8-bit picture (BT.601 below 720 lines,
-// BT.709 above; limited range) and scales it down by averaging boxes to at
-// most width pixels across.
-func toRGBA(f decode.Frame, width int) *image.RGBA {
-	w, h := f.Width, f.Height
-	step := 1
-	if width > 0 && w > width {
-		step = (w + width - 1) / width
-	}
-	ow, oh := max(w/step, 1), max(h/step, 1)
-	out := image.NewRGBA(image.Rect(0, 0, ow, oh))
-	kr, kb := 0.299, 0.114
-	if h >= 720 {
-		kr, kb = 0.2126, 0.0722
-	}
-	kg := 1 - kr - kb
-	cl := func(v float64) uint8 {
-		if v < 0 {
-			return 0
-		}
-		if v > 255 {
-			return 255
-		}
-		return uint8(v + 0.5)
-	}
-	for y := 0; y < oh; y++ {
-		for x := 0; x < ow; x++ {
-			var sr, sg, sb, n float64
-			for dy := 0; dy < step; dy++ {
-				for dx := 0; dx < step; dx++ {
-					px, py := x*step+dx, y*step+dy
-					if px >= w || py >= h {
-						continue
-					}
-					Y := (float64(f.Y[py*f.YStride+px]) - 16) * 255 / 219
-					cb, cr := 0.0, 0.0
-					if f.Chroma != decode.Chroma400 && len(f.Cb) > 0 {
-						ci := (py/2)*f.CStride + px/2
-						if ci < len(f.Cb) && ci < len(f.Cr) {
-							cb = (float64(f.Cb[ci]) - 128) * 255 / 224
-							cr = (float64(f.Cr[ci]) - 128) * 255 / 224
-						}
-					}
-					r := Y + 2*(1-kr)*cr
-					b := Y + 2*(1-kb)*cb
-					g := (Y - kr*r - kb*b) / kg
-					sr, sg, sb, n = sr+r, sg+g, sb+b, n+1
-				}
-			}
-			if n == 0 {
-				continue
-			}
-			out.SetRGBA(x, y, color.RGBA{cl(sr / n), cl(sg / n), cl(sb / n), 255})
-		}
-	}
-	return out
 }
 
 // mp4Containers are the boxes whose children are boxes (ISO/IEC 14496-12:

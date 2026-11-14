@@ -1,3 +1,5 @@
+//go:build !slides_novideo
+
 package slides
 
 import (

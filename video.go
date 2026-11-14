@@ -14,8 +14,8 @@ import (
 	"github.com/go-slides/slides/deck"
 	"github.com/go-slides/slides/diag"
 	"github.com/go-slides/slides/doc"
-	"github.com/go-slides/slides/internal/video"
 	"github.com/go-slides/slides/vfs"
+	"github.com/go-slides/slides/video"
 )
 
 // videoRenderer writes the images that name a video (![video](clip.mp4)).
@@ -41,7 +41,7 @@ type videoRenderer struct {
 }
 
 type videoFile struct {
-	info *video.Info
+	info *video.File
 	data []byte
 }
 
