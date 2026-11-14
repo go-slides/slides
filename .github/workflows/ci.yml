@@ -41,6 +41,10 @@ jobs:
         run: |
           go vet -tags slides_fontsext ./export
           go test -tags slides_fontsext ./export
+      - name: Test the build a WebAssembly host links without video (slides_novideo)
+        run: |
+          go vet -tags slides_novideo . ./video
+          go test -tags slides_novideo . ./video
       - name: Smoke test the command
         run: |
           go build -o slides ./cmd/slides

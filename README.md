@@ -864,14 +864,22 @@ at build time, so nothing is embedded in PPTX or ODP, and the poster is a card.
 | MP4, WebM / Matroska | H.264 (`avc1`, `avc3`) | decoded, in pure Go (go-avkit/decode, no ffmpeg) | plays | embedded |
 | MP4, WebM / Matroska | H.265, VP8, VP9, AV1, others | neutral card, warning `video.codec` | plays where the browser decodes it | embedded |
 
-The file is untrusted and bounded (`internal/video.DefaultLimits`): 64 MiB, 262,144
+The file is untrusted and bounded (`video.DefaultLimits`): 64 MiB, 262,144
 boxes or elements nested at most 16 deep, a frame of at most 4096x4096, and a
 poster decoded from at most 600 samples after the keyframe before it (8 MiB a
 sample). A refusal is a coded error, `video.limit`, `video.syntax`, `video.codec`
 or `video.path` (a path that is absolute, leaves the deck's folder or is not
 http(s)): the slide shows `[video not shown: ...]` and the build warns. The
-reader is fuzzed (`go test -fuzz FuzzOpen ./internal/video`). In the playground a
+reader is fuzzed (`go test -fuzz FuzzOpen ./video/avkit`). In the playground a
 video added to a project stays in the browser.
+
+The container reader and the poster decoder sit behind a `video.Provider`
+(package `video`); `video/avkit`, go-avkit's, is the one the module ships and
+the `slides` command links. A host that must not link go-avkit (the
+playground's WebAssembly module runs it in a worker, on demand) builds with the
+tag `slides_novideo` and registers a provider of its own with `video.Register`;
+the limits above are checked by `video.Open` before any provider is asked, and
+a build with no provider refuses a video with `video.unavailable`.
 
 ## Animated SVG
 

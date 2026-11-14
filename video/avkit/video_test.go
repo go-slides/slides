@@ -1,4 +1,4 @@
-package video
+package avkit_test
 
 import (
 	"bytes"
@@ -8,6 +8,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	. "github.com/go-slides/slides/video"
+	_ "github.com/go-slides/slides/video/avkit"
 )
 
 func read(t testing.TB, name string) []byte {
