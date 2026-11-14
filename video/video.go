@@ -308,14 +308,24 @@ func scanBoxes(data []byte, lim Limits) error {
 	return walk(data, 1)
 }
 
-// ebmlMasters are the Matroska elements whose children are elements: Segment,
-// SeekHead, Info, Tracks, TrackEntry, Video, Cluster, BlockGroup, Cues,
-// CuePoint, CueTrackPositions, Tags, Tag, Chapters, EditionEntry, ChapterAtom,
-// Cluster's BlockAdditions, Attachments.
+// ebmlMasters are the elements whose children are elements: every element of
+// type master in the EBML and Matroska element tables. A hand-made list missed
+// some (BlockAdditionMapping, Slices, BlockMore...), and a laced block nested in
+// one escaped the frame count; the set is checked against ebml-go's own table
+// (masters_test.go), which is where it comes from.
 var ebmlMasters = map[uint32]bool{
-	0x18538067: true, 0x114D9B74: true, 0x1549A966: true, 0x1654AE6B: true, 0xAE: true, 0xE0: true,
-	0x1F43B675: true, 0xA0: true, 0x1C53BB6B: true, 0xBB: true, 0xB7: true, 0x1254C367: true, 0x7373: true,
-	0x1043A770: true, 0x45B9: true, 0xB6: true, 0x75A1: true, 0x1941A469: true, 0x61A7: true, 0x4DBB: true,
+	// EBML header and Segment level
+	0x1A45DFA3: true, 0x18538067: true, 0x114D9B74: true, 0x4DBB: true, 0x1549A966: true, 0x6924: true,
+	// Cluster
+	0x1F43B675: true, 0x5854: true, 0xA0: true, 0x75A1: true, 0xA6: true, 0x8E: true,
+	// Tracks
+	0x1654AE6B: true, 0xAE: true, 0x41E4: true, 0xE0: true, 0x55B0: true, 0x55D0: true, 0x7670: true,
+	0xE1: true, 0xE2: true, 0xE3: true, 0xE4: true, 0xE8: true, 0xE9: true,
+	0x6624: true, 0x6D80: true, 0x6240: true, 0x5034: true, 0x5035: true, 0x47E7: true,
+	// Cues, Attachments, Chapters, Tags
+	0x1C53BB6B: true, 0xBB: true, 0xB7: true, 0xDB: true, 0x1941A469: true, 0x61A7: true,
+	0x1043A770: true, 0x45B9: true, 0xB6: true, 0x80: true, 0x8F: true, 0x6944: true, 0x6911: true,
+	0x1254C367: true, 0x7373: true, 0x63C0: true, 0x67C8: true,
 }
 
 func ebmlVint(b []byte, keepMarker bool) (v uint64, n int) {
@@ -339,9 +349,31 @@ func ebmlVint(b []byte, keepMarker bool) (v uint64, n int) {
 	return v, n
 }
 
+// The elements that hold frames: SimpleBlock and Block (in a BlockGroup).
+const (
+	idSimpleBlock = 0xA3
+	idBlock       = 0xA1
+)
+
+// blockFrames is how many frames a block holds (Matroska, Block Structure): its
+// track number (a vint), a 16-bit timecode, the flags, whose bits 1 and 2 name
+// the lacing (0 none; Xiph, fixed-size and EBML otherwise), and for a laced
+// block one byte, the number of frames less one. A block too short to say holds
+// one, which the container reader refuses or reads as it will.
+func blockFrames(b []byte) int {
+	_, n := ebmlVint(b, false)
+	if n == 0 || len(b) < n+4 {
+		return 1
+	}
+	if b[n+2]>>1&3 == 0 {
+		return 1
+	}
+	return int(b[n+3]) + 1
+}
+
 // scanEBML counts and nests the elements as scanBoxes does the boxes.
 func scanEBML(data []byte, lim Limits) error {
-	count := 0
+	count, frames := 0, 0
 	var walk func(b []byte, depth int) error
 	walk = func(b []byte, depth int) error {
 		if depth > lim.MaxDepth {
@@ -367,6 +399,14 @@ func scanEBML(data []byte, lim Limits) error {
 			if ebmlMasters[uint32(id)] {
 				if err := walk(body[:size], depth+1); err != nil {
 					return err
+				}
+			} else if id == idSimpleBlock || id == idBlock {
+				// a block holds as many frames as its lacing says, and the container
+				// reader unlaces every block up front: they are counted here, before
+				// any is, as the samples a track may list
+				frames += blockFrames(body[:size])
+				if frames > lim.MaxTrackSamples {
+					return fail(CodeLimit, "the file holds more than %d frames", lim.MaxTrackSamples)
 				}
 			}
 			b = body[size:]

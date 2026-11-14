@@ -3,6 +3,7 @@ module github.com/go-slides/slides
 go 1.27.4
 
 require (
+	github.com/at-wat/ebml-go v0.19.4
 	github.com/coder/websocket v1.8.15
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-avkit/avkit v0.15.0
@@ -44,7 +45,6 @@ require (
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/asticode/go-astits v1.17.0 // indirect
-	github.com/at-wat/ebml-go v0.19.4 // indirect
 	github.com/breml/rootcerts v0.3.7 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/dop251/goja v0.0.0-20260926152631-39ec2650adc9 // indirect
