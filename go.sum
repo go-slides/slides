@@ -60,8 +60,8 @@ github.com/go-icons/twemoji v0.1.0 h1:kN/vxLmaoFj4kzzVIsI3KTX/PZXEGx1mT7UdO+MAPM
 github.com/go-icons/twemoji v0.1.0/go.mod h1:NnHpt8HWN2cBa5kQ3oRj/wjr0eGE7zAHBs84eGKeMJw=
 github.com/go-images/gif v0.2.0 h1:8Xl4Nan+PvyqH4wPre7wJUH61T2eJKOKonFKOdMdpkU=
 github.com/go-images/gif v0.2.0/go.mod h1:rjpP1X62GLs6pmdMxuvwBjpV4LYE4Ue6rPbeqANWHrQ=
-github.com/go-images/images v0.1.1-0.20261026203936-4ac989d310a1 h1:R7Phx1lhFniaqF+k7yE72HcadFeViKYXXb9w2puZJRI=
-github.com/go-images/images v0.1.1-0.20261026203936-4ac989d310a1/go.mod h1:TXN7V9gKgEe8L4GVYeTO01sQI6n5JUL5Q1xIl09qOio=
+github.com/go-images/images v0.3.0 h1:uj0bNC9HTvMZF4HvHf5XNVlXYB6zAr8uAdbieTMzuvE=
+github.com/go-images/images v0.3.0/go.mod h1:ep6TePdcpU6ESk2yHuapG9ybfznNsxgHOFOeRKsinZ8=
 github.com/go-images/jpeg v0.3.0 h1:i6CGNbN2YNEz8stBI0hXjN6UwVGwQ9zCh8LvFeD8fHg=
 github.com/go-images/jpeg v0.3.0/go.mod h1:3eUjtNscxUULLUH88DvMN8OKTq2C0/0AjubOjAHoHHk=
 github.com/go-images/jpeg2000 v0.14.0 h1:/nH3l5r95E7OkNZCfq7gmoDQvJzVAhmSw6rd2Ifk7jo=
