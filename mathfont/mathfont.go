@@ -43,8 +43,10 @@ import (
 // MaxFontBytes is the largest font accepted: ten times STIX Two Math.
 const MaxFontBytes = 8 << 20
 
-// ErrUnavailable is what Renderer returns when no font is there: no Provider
-// is registered, or its Font returned an error (wrapped: errors.Is).
+// ErrUnavailable is what Renderer returns when there is no usable font: no
+// Provider is registered, its Font returned an error, or the font it returned
+// is unusable (empty, too large, not OpenType, unreadable). errors.Is sees it
+// in each case; a new Register may change the answer.
 var ErrUnavailable = errors.New("mathfont: the math font is not available")
 
 // A Provider holds the font's bytes.

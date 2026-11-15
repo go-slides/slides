@@ -171,3 +171,34 @@ func TestRenderCacheRegisterWhileRendering(t *testing.T) {
 		t.Errorf("after the last Register: %.400s", page)
 	}
 }
+
+// badFont returns bytes that are not a font.
+type badFont struct{}
+
+func (badFont) Font() ([]byte, error) { return []byte("this is not an OpenType font"), nil }
+
+// TestRenderCacheRefreshesAnUnusableFont: a font that is returned and cannot be
+// used is ErrUnavailable like a missing one, so a later good Register renders
+// the formula's slide again, and only that one.
+func TestRenderCacheRefreshesAnUnusableFont(t *testing.T) {
+	t.Cleanup(restoreMathFont)
+	mathfont.Register(badFont{})
+	if _, err := mathfont.Renderer(); !errors.Is(err, mathfont.ErrUnavailable) {
+		t.Fatalf("an unusable font: %v, want ErrUnavailable", err)
+	}
+	c := &deck.RenderCache{}
+	if page := renderThrough(t, c); !strings.Contains(page, `class="math-error"`) {
+		t.Fatalf("no fallback with an unusable font: %.300s", page)
+	}
+	counts(t, c, 0, 4)
+	renderThrough(t, c)
+	counts(t, c, 4, 0)
+	f := &testFont{}
+	f.good.Store(true)
+	mathfont.Register(f)
+	page := renderThrough(t, c)
+	counts(t, c, 3, 1)
+	if strings.Contains(page, `class="math-error"`) || !strings.Contains(page, `class="slides-math"`) {
+		t.Errorf("after a good font: %.300s", page)
+	}
+}
