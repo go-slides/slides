@@ -1,4 +1,4 @@
-//go:build !slides_nomathfont
+//go:build !slides_nomathfont && !slides_noemoji
 
 package slides
 

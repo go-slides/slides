@@ -2,13 +2,11 @@ package deck
 
 import (
 	"bufio"
-	"encoding/base64"
 	"io"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
-	"github.com/go-icons/twemoji"
+	"github.com/go-slides/slides/emoji"
 	"github.com/yuin/goldmark/v2/ast"
 	"github.com/yuin/goldmark/v2/renderer"
 	ghtml "github.com/yuin/goldmark/v2/renderer/html"
@@ -26,8 +24,10 @@ import (
 // rewrites the rendered code HTML). Raw HTML, URLs, image alternative texts and
 // attribute values are left alone.
 //
-// The graphics come from github.com/go-icons/twemoji (CC-BY 4.0: see the
-// README for the attribution).
+// The graphics come from an emoji.Provider; the one go-slides ships is
+// github.com/go-icons/twemoji (CC-BY 4.0: see the README for the attribution),
+// and a build with the tag slides_noemoji links none (emoji stay text until a
+// host registers one).
 
 // EmojiCSS is the rule Marp Core adds to the theme for its emoji images
 // (themeSetPackOptions' before): one em square, aligned with the text.
@@ -37,30 +37,11 @@ const EmojiCSS = `img[data-marp-twemoji]{background:transparent;height:1em;margi
 // longest markdown-it-emoji name is 40 bytes.
 const maxShortcode = 64
 
-// srcs caches the data URI of a graphic by stem.
-var srcs sync.Map // string -> string
-
-// emojiSrc is the data: URI of the graphic for seq, or "" when the set has none.
-func emojiSrc(seq string) string {
-	stem := twemoji.Lookup(seq)
-	if stem == "" {
-		return ""
-	}
-	if v, ok := srcs.Load(stem); ok {
-		return v.(string)
-	}
-	svg, ok := twemoji.SVGByStem(stem)
-	if !ok {
-		return ""
-	}
-	uri := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
-	srcs.Store(stem, uri)
-	return uri
-}
-
-// writeEmoji writes the image for seq, spelled alt in the text.
+// writeEmoji writes the image for seq, spelled alt in the text, and says
+// whether the provider (package emoji) had one: when it has not, or has not
+// loaded its data yet, nothing is written and the text stays as written.
 func writeEmoji(b *strings.Builder, alt, seq string) bool {
-	src := emojiSrc(seq)
+	src := emoji.Src(seq)
 	if src == "" {
 		return false
 	}
@@ -85,7 +66,7 @@ func emojify(s string, shortcodes bool) string {
 		case c == ':' && shortcodes:
 			end := min(len(s), i+1+maxShortcode)
 			if j := strings.IndexByte(s[i+1:end], ':'); j >= 0 {
-				if seq, ok := twemoji.Shortcode(s[i+1 : i+1+j]); ok {
+				if seq, ok := emoji.Shortcode(s[i+1 : i+1+j]); ok {
 					b.WriteString(s[last:i])
 					last = i
 					if writeEmoji(&b, seq, seq) {
@@ -97,7 +78,7 @@ func emojify(s string, shortcodes bool) string {
 			}
 			i++
 		case c >= utf8.RuneSelf || (keycapBase(c) && i+1 < len(s) && s[i+1] >= utf8.RuneSelf):
-			if n := twemoji.Cut(s[i:]); n > 0 {
+			if n := emoji.Cut(s[i:]); n > 0 {
 				b.WriteString(s[last:i])
 				last = i
 				if writeEmoji(&b, s[i:i+n], s[i:i+n]) {
@@ -161,7 +142,7 @@ func expandShortcodes(s string) string {
 	if !strings.Contains(s, ":") {
 		return s
 	}
-	return twemoji.Replace(s, func(_, seq string) string { return seq })
+	return emoji.Replace(s, func(_, seq string) string { return seq })
 }
 
 // renderText is goldmark's text rendering, with emoji.
