@@ -1,3 +1,5 @@
+//go:build !slides_noemoji
+
 package slides
 
 import (

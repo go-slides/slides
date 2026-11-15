@@ -818,6 +818,39 @@ contributors, licensed [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 continued by the [jdecked/twemoji](https://github.com/jdecked/twemoji) project.
 Decks that show them should credit them.
 
+### Emoji data on demand
+
+The graphics (2 MB gzipped, which barely compresses) sit behind an
+`emoji.Provider` (package `emoji`): one method, `SVGByStem(stem)`, asked once
+for each graphic a deck uses. `emoji/embedded`, go-icons/twemoji's set, is the
+one the module ships and the `slides` command links, so the default build writes
+the same bytes as before. A host that must not link it (the playground's
+WebAssembly module, which would fetch the data when a deck needs it) builds with
+the tag `slides_noemoji` and registers a provider of its own with
+`emoji.Register`, now or later; `emoji.Stems()` lists the 4,009 stems it may be
+asked for. Measured on 2026-11-15 with `GOOS=js GOARCH=wasm go build
+./internal/wasmprobe`, gzip -9, on main with the math font (v0.22.0):
+10,273,795 bytes become 8,210,729, 2.06 MB less (8,012,854 become 5,939,008
+with `slides_novideo`).
+
+What stays in the binary is everything that recognizes an emoji, so that reading
+a text never calls a provider: the list of stems (69 KB), the 1,903 shortcode
+names (35 KB), the list of text-default characters (1 KB) and `emoji.Cut`
+(which allocates nothing). A heading's `id` and outline still read a shortcode
+as the emoji it stands for, with or without a provider.
+
+**Before the data arrives.** Rendering is synchronous and never waits. With no
+provider, or one that answers "none" because its data is not loaded, an emoji
+stays the text that was written (the Unicode character, or `:smile:` with its
+colons), with no warning. When the data has arrived, register the provider again
+and render the deck again: the images appear on that render. A provider must
+answer the same way for the same stem while it is registered.
+
+A provider is untrusted. An SVG is at most 256 KiB and must start with `<svg` or
+`<?xml`, a panic counts as "none" (contained once for each graphic, not for each
+character), and at most 8,192 images (16 MiB) are kept between renders; an
+answer out of bounds is "none".
+
 ## Terminal recordings
 
 An [asciinema](https://asciinema.org) recording is an image whose file ends in

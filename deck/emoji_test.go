@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-icons/twemoji"
+	"github.com/go-slides/slides/emoji"
 )
 
 var emojiImg = regexp.MustCompile(`<img class="emoji" draggable="false" alt="([^"]*)" src="data:image/svg\+xml;base64,([A-Za-z0-9+/=]+)" data-marp-twemoji=""/>`)
@@ -183,11 +184,11 @@ func TestEmojiHighlightedCode(t *testing.T) {
 
 // The image carries the graphic once per distinct emoji, from a cache.
 func TestEmojiSrcCached(t *testing.T) {
-	a, b := emojiSrc("😄"), emojiSrc("😄️")
+	a, b := emoji.Src("😄"), emoji.Src("😄️")
 	if a == "" || a != b {
 		t.Errorf("sources differ: %.40q %.40q", a, b)
 	}
-	if emojiSrc("not an emoji") != "" {
+	if emoji.Src("not an emoji") != "" {
 		t.Error("a source for no emoji")
 	}
 }
