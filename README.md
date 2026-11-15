@@ -643,7 +643,8 @@ a deck draws.
   [go-tex/math](https://github.com/go-tex/math) (STIX Two Math) into inline
   SVG sized in `em`, so they follow the text's size and sit on its baseline,
   in the HTML as in images and PDF. A formula that does not parse stays visible
-  as written.
+  as written. The font is a `mathfont.Provider`, loaded on demand: see
+  [Math font on demand](#math-font-on-demand).
 - **Code**: fenced blocks are coloured by
   [go-rouge](https://github.com/go-rouge/rouge) in highlight.js class names,
   which is what Marp's themes style. A language go-rouge does not know is
@@ -701,6 +702,37 @@ a deck draws.
   (`aria-describedby`), so a screen reader reads the note at the disc. The
   tint only fades in when the reader has not asked for reduced motion. Images,
   PDF, PPTX and ODP are byte for byte as before.
+
+### Math font on demand
+
+The font go-tex/math typesets with, STIX Two Math (838,508 bytes, 643,844
+gzipped), sits behind a `mathfont.Provider` (package `mathfont`): one method,
+`Font() ([]byte, error)`. `mathfont/embedded`, go-tex/math's own copy, is the
+one the module ships and the `slides` command links, so the default build writes
+the same bytes as before. A host that must not link it (the playground's
+WebAssembly module, which would fetch the font when a deck has a formula) builds
+with the tag `slides_nomathfont` and registers a provider of its own with
+`mathfont.Register`, now or later. go-tex/math needs no change: `math.New`
+already takes the font's bytes, and with nothing calling `math.DefaultFont` the
+linker leaves the font out of the module. Measured on 2026-11-15 with
+`GOOS=js GOARCH=wasm go build ./internal/wasmprobe`, gzip -9: 10,273,795 bytes
+become 9,619,232 (7,994,937 become 7,339,723 with `slides_novideo`), 655 KB
+less. go-tex/math's code (248 KB raw) stays: it is the typesetter.
+
+**Before the font arrives.** Rendering is synchronous and never waits. With no
+provider, or one whose `Font` returns an error because the bytes are not there
+yet, a formula is not typeset: it stays its TeX source, in
+`<span class="math-error" title="mathfont: the math font is not available: ...">`
+(the way a formula that does not parse is written), with no warning and no
+failure. When the font has arrived, register the provider again and render the
+deck again: the formulas are typeset on that render. A `Font` error is not
+remembered, so a provider that loads on first use needs no other call.
+
+A provider and its bytes are untrusted. The font is refused unless it is at
+most 8 MiB and starts with an OpenType, TrueType or collection signature; a font
+go-tex/math cannot read is an error, remembered (it is not parsed again) until
+the next `Register`; a panic in the provider, or while typesetting with its
+font, is an error. The font is parsed once per `Register`.
 
 ## PowerPoint and OpenDocument
 

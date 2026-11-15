@@ -45,6 +45,12 @@ jobs:
         run: |
           go vet -tags slides_novideo . ./video
           go test -tags slides_novideo . ./video
+      - name: Test the build a WebAssembly host links without the math font (slides_nomathfont)
+        run: |
+          go vet -tags slides_nomathfont . ./mathfont/...
+          go test -tags slides_nomathfont . ./mathfont/...
+      - name: Measure what slides_nomathfont takes out of the WebAssembly module
+        run: SLIDES_WASM_SIZE=1 go test -count=1 -run 'TestNoMathFontWasmSize' -v .
       - name: Smoke test the command
         run: |
           go build -o slides ./cmd/slides
