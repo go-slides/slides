@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-slides/slides/emoji"
+	"github.com/go-slides/slides/mathfont"
 	"github.com/yuin/goldmark/v2/parser"
 )
 
@@ -40,8 +42,31 @@ type RenderCache struct {
 
 // cachedSlide is a rendered slide and the key it was rendered for: its
 // source (a substring of the deck's, not a copy) and the rest (meta).
+//
+// A slide that fell back for lack of a provider (a formula left as source
+// because mathfont has no font, an emoji left as text because package emoji
+// has no picture) also keeps the Register count it was rendered at, and is
+// stale once that count has moved: the provider that arrived may typeset or
+// draw it. A slide with neither stays cached whatever is registered, and one
+// that falls back again is rendered once more per Register, not in a loop.
 type cachedSlide struct {
 	src, meta, html string
+	// mathFB and emojiFB: the render fell back; mathGen and emojiGen: the
+	// count of Register calls read before it (mathfont, emoji).
+	mathFB, emojiFB   bool
+	mathGen, emojiGen uint64
+}
+
+// Len is the number of slides the cache holds: at most those of the last render.
+func (c *RenderCache) Len() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.slides)
+}
+
+// stale reports that a provider was registered since e fell back for lack of one.
+func (e *cachedSlide) stale() bool {
+	return (e.mathFB && e.mathGen != mathfont.Generation()) || (e.emojiFB && e.emojiGen != emoji.Generation())
 }
 
 // referencesKey serialises link reference definitions, sorted by label.
@@ -219,13 +244,18 @@ func (d *Deck) RenderCached(opts RenderOptions, c *RenderCache) []Rendered {
 		low := strings.ToLower(src)
 		// a slide with a video reads a file the key does not hold
 		video := opts.Video != nil && (strings.Contains(low, ".mp4") || strings.Contains(low, ".m4v") || strings.Contains(low, ".webm"))
-		if ok && e.meta == meta && e.src == src && !(opts.Cast != nil && strings.Contains(low, ".cast")) && !video {
+		if ok && e.meta == meta && e.src == src && !(opts.Cast != nil && strings.Contains(low, ".cast")) && !video && !e.stale() {
 			c.Hits++
 		} else {
 			if r == nil {
 				r = d.newSlideRenderer(opts)
 			}
+			// the counts are read before the render: a Register during it
+			// leaves the slide stale rather than wrongly fresh
+			mathGen, emojiGen := mathfont.Generation(), emoji.Generation()
+			r.mathFellBack, r.emojiFellBack = false, false
 			e = cachedSlide{src: src, meta: meta, html: r.slide(s)}
+			e.mathFB, e.emojiFB, e.mathGen, e.emojiGen = r.mathFellBack, r.emojiFellBack, mathGen, emojiGen
 			c.Misses++
 		}
 		next[sum] = e

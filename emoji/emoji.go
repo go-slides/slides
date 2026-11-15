@@ -69,7 +69,10 @@ type state struct {
 	bytes atomic.Int64
 }
 
-var current atomic.Pointer[state]
+var (
+	current atomic.Pointer[state]
+	gen     atomic.Uint64
+)
 
 // Register makes p the Provider the render uses, from the next call on, and
 // drops what was cached from the one before. A nil p leaves no Provider: emoji
@@ -77,10 +80,20 @@ var current atomic.Pointer[state]
 func Register(p Provider) {
 	if p == nil {
 		current.Store(nil)
-		return
+	} else {
+		current.Store(&state{p: p})
 	}
-	current.Store(&state{p: p})
+	gen.Add(1) // after the store: a reader of the new count sees the new state
 }
+
+// Generation counts the calls of Register. A cache of renders (deck.RenderCache)
+// reads it before it renders and keeps the value with a render that left an
+// emoji as text, to render it again once the count has moved.
+func Generation() uint64 { return gen.Load() }
+
+// Known reports whether seq is an emoji of the set: one Src would give a
+// picture for, were a Provider registered with its graphic.
+func Known(seq string) bool { return stemOf(seq) != "" }
 
 // Registered reports whether a Provider is registered. It says nothing of
 // whether its data is loaded.

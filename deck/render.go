@@ -19,6 +19,7 @@ import (
 	"github.com/yuin/goldmark/v2/util"
 
 	"github.com/go-slides/slides/interp"
+	"github.com/go-slides/slides/mathfont"
 )
 
 // Frame is how a slide is wrapped.
@@ -153,6 +154,11 @@ type slideRenderer struct {
 	// plainBuf and plainBW receive goldmark's own rendering (renderViaPlain).
 	plainBuf bytes.Buffer
 	plainBW  *bufio.Writer
+	// mathFellBack and emojiFellBack say that the slide being written has a
+	// formula left as source for lack of the math font, or an emoji left as
+	// text for lack of its picture: RenderCache renders it again once a
+	// Provider is registered. They are cleared before each slide.
+	mathFellBack, emojiFellBack bool
 }
 
 // lineAttrs returns a block's source-line attributes when SourceLines
@@ -692,7 +698,7 @@ func (r *slideRenderer) renderCode(w util.BufWriter, source []byte, node ast.Nod
 	if r.deck.opts.NoEmoji {
 		return r.renderViaPlain(w, source, node, func(s string) string { return s })
 	}
-	return r.renderViaPlain(w, source, node, emojifyHTML)
+	return r.renderViaPlain(w, source, node, func(h string) string { return emojifyHTML(h, &r.emojiFellBack) })
 }
 
 // renderMath writes a formula through RenderOptions.Math. Without it, or
@@ -719,6 +725,7 @@ func (r *slideRenderer) renderMath(w util.BufWriter, _ []byte, node ast.Node, en
 	if r.opts.Math == nil {
 		_, _ = w.WriteString(escapeHTML(src))
 	} else if out, err := r.opts.Math(tex, display); err != nil {
+		r.mathFellBack = r.mathFellBack || mathfont.Unavailable(err)
 		_, _ = w.WriteString(`<span class="math-error" title="` + escapeHTML(err.Error()) + `">` + escapeHTML(src) + "</span>")
 	} else {
 		_, _ = w.WriteString(out)
@@ -1013,7 +1020,7 @@ func (r *slideRenderer) renderFencedCode(w util.BufWriter, source []byte, node a
 	if r.deck.opts.NoEmoji {
 		_, _ = w.WriteString(out.String())
 	} else {
-		_, _ = w.WriteString(emojifyHTML(out.String()))
+		_, _ = w.WriteString(emojifyHTML(out.String(), &r.emojiFellBack))
 	}
 	return ast.WalkSkipChildren, nil
 }

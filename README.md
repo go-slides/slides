@@ -726,7 +726,9 @@ yet, a formula is not typeset: it stays its TeX source, in
 (the way a formula that does not parse is written), with no warning and no
 failure. When the font has arrived, register the provider again and render the
 deck again: the formulas are typeset on that render. A `Font` error is not
-remembered, so a provider that loads on first use needs no other call.
+remembered, so a provider that loads on first use needs no other call. A
+`deck.RenderCache` renders again the slides that kept a formula as source once a
+provider is registered.
 
 A provider and its bytes are untrusted. The font is refused unless it is at
 most 8 MiB and starts with an OpenType, TrueType or collection signature; a font
@@ -844,7 +846,9 @@ provider, or one that answers "none" because its data is not loaded, an emoji
 stays the text that was written (the Unicode character, or `:smile:` with its
 colons), with no warning. When the data has arrived, register the provider again
 and render the deck again: the images appear on that render. A provider must
-answer the same way for the same stem while it is registered.
+answer the same way for the same stem while it is registered. A
+`deck.RenderCache` renders again the slides that kept an emoji as text once a
+provider is registered.
 
 A provider is untrusted. An SVG is at most 256 KiB and must start with `<svg` or
 `<?xml`, a panic counts as "none" (contained once for each graphic, not for each
@@ -1039,7 +1043,11 @@ In v0.8.0, `editor` keeps each open deck's rendered slides and, after an
 edit, re-renders only the slides whose source or inherited state (directives,
 page number, total, heading ids, link references, source lines) changed
 (`deck.RenderCache`, `Config.RenderCache`): the output is the same as a full
-render, byte for byte.
+render, byte for byte. A slide that fell back for lack of a provider (a formula
+left as TeX source without the math font, an emoji left as text without its
+picture) is rendered again after the next `mathfont.Register` or
+`emoji.Register`; the slides without a formula or an emoji stay cached, so a
+host that registers a provider late needs no cache flush of its own.
 
 ## License
 
