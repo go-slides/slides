@@ -1,3 +1,5 @@
+//go:build !slides_nomathfont
+
 package slides
 
 import (

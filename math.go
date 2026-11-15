@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"html"
 	"strings"
-	"sync"
 
 	"github.com/go-tex/math"
+
+	"github.com/go-slides/slides/mathfont"
 )
 
 // mathRef is the pixel size formulas are typeset at; every dimension is then
@@ -14,30 +15,30 @@ import (
 // text around it, as MathJax's output does in Marp.
 const mathRef = 100
 
-var (
-	mathOnce     sync.Once
-	mathRenderer *math.Renderer
-	mathErr      error
-)
-
-// Math typesets a formula with go-tex/math (STIX Two Math) into inline SVG.
-// An inline formula sits on the text's baseline; a display one is centred
-// on a line of its own.
+// Math typesets a formula with go-tex/math into inline SVG, with the font of
+// the registered mathfont.Provider (STIX Two Math unless the build has the tag
+// slides_nomathfont). An inline formula sits on the text's baseline; a display
+// one is centred on a line of its own. Without a font (no provider, or its
+// font has not arrived) it returns an error that wraps mathfont.ErrUnavailable,
+// and the deck keeps the formula's source.
 func Math(tex string, display bool) (string, error) {
-	mathOnce.Do(func() { mathRenderer, mathErr = math.New(math.DefaultFont()) })
-	if mathErr != nil {
-		return "", mathErr
+	r, err := mathfont.Renderer()
+	if err != nil {
+		return "", err
 	}
 	var (
 		svg string
 		m   math.Metrics
-		err error
 	)
-	if display {
-		svg, m, err = mathRenderer.RenderDisplaySVGMetrics(tex, mathRef)
-	} else {
-		svg, m, err = mathRenderer.RenderSVGMetrics(tex, mathRef)
-	}
+	err = mathfont.Safely(func() error {
+		var err error
+		if display {
+			svg, m, err = r.RenderDisplaySVGMetrics(tex, mathRef)
+		} else {
+			svg, m, err = r.RenderSVGMetrics(tex, mathRef)
+		}
+		return err
+	})
 	if err != nil {
 		return "", err
 	}
