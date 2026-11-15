@@ -43,8 +43,10 @@ import (
 // MaxFontBytes is the largest font accepted: ten times STIX Two Math.
 const MaxFontBytes = 8 << 20
 
-// ErrUnavailable is what Renderer returns when no font is there: no Provider
-// is registered, or its Font returned an error (wrapped: errors.Is).
+// ErrUnavailable is what Renderer returns when there is no usable font: no
+// Provider is registered, its Font returned an error, or the font it returned
+// is unusable (empty, too large, not OpenType, unreadable). errors.Is sees it
+// in each case; a new Register may change the answer.
 var ErrUnavailable = errors.New("mathfont: the math font is not available")
 
 // A Provider holds the font's bytes.
@@ -63,7 +65,10 @@ type state struct {
 	bad error // the font was returned, and is unusable: not asked again
 }
 
-var current atomic.Pointer[state]
+var (
+	current atomic.Pointer[state]
+	gen     atomic.Uint64
+)
 
 // Register makes p the Provider formulas are typeset with, from the next
 // formula on, and drops the font the one before gave. A nil p leaves none. It
@@ -71,10 +76,28 @@ var current atomic.Pointer[state]
 func Register(p Provider) {
 	if p == nil {
 		current.Store(nil)
-		return
+	} else {
+		current.Store(&state{p: p})
 	}
-	current.Store(&state{p: p})
+	gen.Add(1) // after the store: a reader of the new count sees the new state
 }
+
+// Generation counts the calls of Register. A cache of renders (deck.RenderCache)
+// reads it before it renders and keeps the value with a render that fell back
+// for lack of the font (Unavailable), to render it again once the count has
+// moved.
+func Generation() uint64 { return gen.Load() }
+
+// Unavailable reports whether err says the font is not there: no Provider, one
+// that has no font, or one whose font is unusable. A new Register may change it.
+func Unavailable(err error) bool { return errors.Is(err, ErrUnavailable) }
+
+// unusable is the error of a font that was returned and cannot be used: its
+// message is the cause's, and it is Unavailable.
+type unusable struct{ error }
+
+func (unusable) Is(target error) bool { return target == ErrUnavailable }
+func (u unusable) Unwrap() error      { return u.error }
 
 // Registered reports whether a Provider is registered, not whether it has the
 // font.
@@ -102,8 +125,8 @@ func Renderer() (*math.Renderer, error) {
 	}
 	r, err := build(font)
 	if err != nil {
-		s.bad = err
-		return nil, err
+		s.bad = unusable{err}
+		return nil, s.bad
 	}
 	s.r = r
 	return r, nil

@@ -72,7 +72,7 @@ func TestEmojify(t *testing.T) {
 		{"\xff😄", true, []string{"😄"}, "\xff"},
 	}
 	for _, c := range cases {
-		got := emojify(c.in, c.shortcodes)
+		got := emojify(c.in, c.shortcodes, nil)
 		alts := emojiAlts(t, got)
 		rest := emojiImg.ReplaceAllString(got, "")
 		if strings.Join(alts, "|") != strings.Join(c.want, "|") || rest != c.rest {
@@ -82,7 +82,7 @@ func TestEmojify(t *testing.T) {
 }
 
 func TestEmojifyHTML(t *testing.T) {
-	got := emojifyHTML(`<span class="x" title="😄">😄 &lt;b&gt;</span> 🚀<` + "\n")
+	got := emojifyHTML(`<span class="x" title="😄">😄 &lt;b&gt;</span> 🚀<`+"\n", nil)
 	if alts := emojiAlts(t, got); strings.Join(alts, "") != "😄🚀" {
 		t.Errorf("alts %q in %.200s", alts, got)
 	}
@@ -92,7 +92,7 @@ func TestEmojifyHTML(t *testing.T) {
 	if !strings.HasSuffix(got, "<\n") {
 		t.Errorf("an unclosed < was lost: %q", got[len(got)-5:])
 	}
-	if emojifyHTML("<b>ascii</b>") != "<b>ascii</b>" {
+	if emojifyHTML("<b>ascii</b>", nil) != "<b>ascii</b>" {
 		t.Error("ascii HTML changed")
 	}
 }

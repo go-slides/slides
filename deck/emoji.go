@@ -40,9 +40,14 @@ const maxShortcode = 64
 // writeEmoji writes the image for seq, spelled alt in the text, and says
 // whether the provider (package emoji) had one: when it has not, or has not
 // loaded its data yet, nothing is written and the text stays as written.
-func writeEmoji(b *strings.Builder, alt, seq string) bool {
+// fellBack, when not nil, is set when the emoji is of the set and has no
+// picture: a Provider registered later may give one (see RenderCache).
+func writeEmoji(b *strings.Builder, alt, seq string, fellBack *bool) bool {
 	src := emoji.Src(seq)
 	if src == "" {
+		if fellBack != nil && emoji.Known(seq) {
+			*fellBack = true
+		}
 		return false
 	}
 	b.WriteString(`<img class="emoji" draggable="false" alt="`)
@@ -55,7 +60,7 @@ func writeEmoji(b *strings.Builder, alt, seq string) bool {
 
 // emojify returns s, a run of HTML text (no tags), with its emoji replaced
 // by images: Unicode emoji, and :shortcodes: when shortcodes is set.
-func emojify(s string, shortcodes bool) string {
+func emojify(s string, shortcodes bool, fellBack *bool) string {
 	if !needsEmoji(s, shortcodes) {
 		return s
 	}
@@ -69,7 +74,7 @@ func emojify(s string, shortcodes bool) string {
 				if seq, ok := emoji.Shortcode(s[i+1 : i+1+j]); ok {
 					b.WriteString(s[last:i])
 					last = i
-					if writeEmoji(&b, seq, seq) {
+					if writeEmoji(&b, seq, seq, fellBack) {
 						i += j + 2
 						last = i
 						continue
@@ -81,7 +86,7 @@ func emojify(s string, shortcodes bool) string {
 			if n := emoji.Cut(s[i:]); n > 0 {
 				b.WriteString(s[last:i])
 				last = i
-				if writeEmoji(&b, s[i:i+n], s[i:i+n]) {
+				if writeEmoji(&b, s[i:i+n], s[i:i+n], fellBack) {
 					i += n
 					last = i
 					continue
@@ -113,7 +118,7 @@ func needsEmoji(s string, shortcodes bool) bool {
 
 // emojifyHTML replaces the Unicode emoji in the text of rendered HTML, outside
 // its tags (Marp Core does this to code spans and code blocks).
-func emojifyHTML(h string) string {
+func emojifyHTML(h string, fellBack *bool) string {
 	if !needsEmoji(h, false) {
 		return h
 	}
@@ -121,10 +126,10 @@ func emojifyHTML(h string) string {
 	for len(h) > 0 {
 		lt := strings.IndexByte(h, '<')
 		if lt < 0 {
-			b.WriteString(emojify(h, false))
+			b.WriteString(emojify(h, false, fellBack))
 			break
 		}
-		b.WriteString(emojify(h[:lt], false))
+		b.WriteString(emojify(h[:lt], false, fellBack))
 		gt := strings.IndexByte(h[lt:], '>')
 		if gt < 0 {
 			b.WriteString(h[lt:])
@@ -185,7 +190,7 @@ func (r *slideRenderer) renderText(writer io.Writer, source []byte, node ast.Nod
 	}
 	// Entities may spell an emoji (&#x1F604;): look at the text as it is
 	// written: decoded and escaped.
-	_, _ = w.WriteString(emojify(string(util.EscapeHTML([]byte(value.Value(source)))), true))
+	_, _ = w.WriteString(emojify(string(util.EscapeHTML([]byte(value.Value(source)))), true, &r.emojiFellBack))
 	writeBreak(w, n)
 	return ast.WalkContinue, nil
 }
@@ -231,5 +236,5 @@ func (r *slideRenderer) renderCodeSpan(w util.BufWriter, source []byte, n ast.No
 	if !entering {
 		return ast.WalkContinue, nil
 	}
-	return r.renderViaPlain(w, source, n, emojifyHTML)
+	return r.renderViaPlain(w, source, n, func(h string) string { return emojifyHTML(h, &r.emojiFellBack) })
 }
