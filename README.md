@@ -719,6 +719,17 @@ linker leaves the font out of the module. Measured on 2026-11-15 with
 become 9,619,232 (7,994,937 become 7,339,723 with `slides_novideo`), 655 KB
 less. go-tex/math's code (248 KB raw) stays: it is the typesetter.
 
+**The font is trusted input.** `mathfont` refuses a font over 8 MiB, without an
+OpenType signature, or one that panics the parser, and, before parsing, drops
+the tables go-tex/math never reads (GSUB, GPOS, GDEF, kern, the variation
+tables) and refuses a `cmap` or `MATH` table whose declared counts would
+allocate over 64 MiB: go-opentype v0.21.1 sizes slices from counts in the file
+before checking them, so a font of a few hundred bytes can ask for gigabytes,
+and an out-of-memory cannot be recovered. Those are the cases found, not every
+case: give `mathfont.Register` a provider whose font you trust (the embedded
+one, or a copy checked against a known hash) until go-opentype bounds its
+allocations (go-opentype/opentype#75).
+
 **Before the font arrives.** Rendering is synchronous and never waits. With no
 provider, or one whose `Font` returns an error because the bytes are not there
 yet, a formula is not typeset: it stays its TeX source, in
