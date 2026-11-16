@@ -726,9 +726,11 @@ tables) and refuses a `cmap` or `MATH` table whose declared counts would
 allocate over 64 MiB: go-opentype v0.21.1 sizes slices from counts in the file
 before checking them, so a font of a few hundred bytes can ask for gigabytes,
 and an out-of-memory cannot be recovered. Those are the cases found, not every
-case: give `mathfont.Register` a provider whose font you trust (the embedded
-one, or a copy checked against a known hash) until go-opentype bounds its
-allocations (go-opentype/opentype#75).
+case. CFF outlines, the shipped STIX font's among them, are not bounded by this
+guard (a charstring's subroutine calls are not counted): give
+`mathfont.Register` a provider whose font you trust (the embedded one, or a copy
+checked against a known hash) until go-opentype bounds its allocations
+(go-opentype/opentype#75).
 
 **Before the font arrives.** Rendering is synchronous and never waits. With no
 provider, or one whose `Font` returns an error because the bytes are not there

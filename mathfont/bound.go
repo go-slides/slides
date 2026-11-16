@@ -22,8 +22,9 @@ const MaxParseBytes = 64 << 20
 // TrueType fonts: the worst glyph 101,395 bytes (Apple Symbols), the largest
 // total 15,625,865 (Apple Symbols; Arial Unicode, 281,719,255, is over
 // MaxFontBytes). The margins are 40 and 8. STIX Two Math has CFF outlines: its
-// glyf cost is 0. The worst case a hostile font can keep alive through the
-// cache is MaxOutlineBytes, not 4,096 times MaxGlyphBytes.
+// glyf cost is 0. go-tex/math caches a path per (glyph, pixel size), so what a
+// hostile font can keep alive is MaxOutlineBytes times the number of sizes a
+// deck uses, not 4,096 times MaxGlyphBytes and not exactly MaxOutlineBytes.
 const (
 	MaxGlyphBytes   = 4 << 20
 	MaxOutlineBytes = 128 << 20

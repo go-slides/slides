@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/go-opentype/fonts/gomono"
+	"github.com/go-opentype/fonts/goregular"
 	"github.com/go-tex/math"
 )
 
@@ -142,4 +144,24 @@ func TestManyGlyphsAreRefusedByTheTotal(t *testing.T) {
 		t.Fatalf("worst %d (cap %d), total %d (cap %d), err %v", worst, MaxGlyphBytes, total, MaxOutlineBytes, err)
 	}
 	t.Logf("40 glyphs: worst %d, total %d", worst, total)
+}
+
+// TestTrueTypeFontsPassTheGuard runs in CI on real TrueType outlines (the Go
+// fonts), which STIX's CFF outlines cannot check: the guard accepts them, and
+// their glyph costs stay far under the caps.
+func TestTrueTypeFontsPassTheGuard(t *testing.T) {
+	for name, font := range map[string][]byte{"Go Regular": goregular.TTF, "Go Mono Bold": gomono.BoldTTF} {
+		tb := tablesOf(font)
+		if tb["glyf"] == nil {
+			t.Fatalf("%s: no glyf table", name)
+		}
+		worst, total, err := glyfCost(tb)
+		if err != nil || worst == 0 || worst > MaxGlyphBytes/4 || total > MaxOutlineBytes/4 {
+			t.Errorf("%s: worst %d (cap %d), total %d (cap %d), err %v", name, worst, MaxGlyphBytes, total, MaxOutlineBytes, err)
+		}
+		if _, err := bound(font); err != nil {
+			t.Errorf("%s refused: %v", name, err)
+		}
+		t.Logf("%s: worst glyph %d bytes, total %d bytes", name, worst, total)
+	}
 }
