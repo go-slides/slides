@@ -9,7 +9,7 @@ require (
 	github.com/go-avkit/avkit v0.17.0
 	github.com/go-avkit/decode v0.5.4
 	github.com/go-compressions/xz v0.3.1
-	github.com/go-filesystems/inflight v0.2.1-0.20261116154050-fdc7c83e56c0
+	github.com/go-filesystems/inflight v0.3.0
 	github.com/go-gfx/oksvg v0.4.0
 	github.com/go-icons/twemoji v0.1.0
 	github.com/go-odf/odf v0.11.0
