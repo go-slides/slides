@@ -29,6 +29,23 @@
 // again) until the next Register; a panic in a Provider, or in typesetting with
 // its font, is an error. The font is parsed once per Register, and the parsed
 // renderer is shared by all goroutines, as go-tex/math's is.
+//
+// # Trusted input, until go-opentype bounds its allocations
+//
+// The checks above bound the bytes, not what parsing them allocates:
+// go-opentype v0.21.1 sizes slices from counts the font declares before it
+// checks them against the bytes present, and an out-of-memory is not
+// recoverable. Before parsing, Register's font is therefore reduced to the
+// tables go-tex/math reads (the layout, variation and CFF2 tables are dropped
+// or refused), and the cmap and MATH tables are refused when the counts they
+// declare would allocate more than MaxParseBytes. TrueType outlines (glyf) are
+// costed per glyph and in total (MaxGlyphBytes, MaxOutlineBytes). CFF outlines,
+// which STIX Two Math itself uses, are NOT covered: the charstring interpreter
+// bounds the depth of subroutine calls but not their number, and 668 bytes of
+// font allocate 954 MB (go-opentype/opentype#75). That covers every other case
+// found (bomb_test.go), not every case there could be: take the font from a source
+// the host trusts, such as the embedded one or a copy checked against a known
+// hash, until the upstream bound lands (go-opentype/opentype#75).
 package mathfont
 
 import (
@@ -156,6 +173,11 @@ func build(font []byte) (r *math.Renderer, err error) {
 			r, err = nil, fmt.Errorf("mathfont: the font cannot be read: %v", v)
 		}
 	}()
+	if string(font[:4]) != "ttcf" { // a collection is refused by the parser as it is
+		if font, err = bound(font); err != nil {
+			return nil, fmt.Errorf("mathfont: the font is refused: %w", err)
+		}
+	}
 	r, err = math.New(font)
 	if err != nil {
 		return nil, fmt.Errorf("mathfont: the font cannot be read: %w", err)
