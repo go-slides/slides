@@ -35,7 +35,7 @@ func runCalibration() {
 			[]string{"-child-alloc", "64", "-child-grand"}},
 	}
 	for _, c := range cases {
-		ps, wall, s, err := runSampled(self, c.args, os.TempDir(), io.Discard)
+		ps, wall, s, err := runSampled(self, c.args, os.TempDir(), nil, io.Discard)
 		if err != nil {
 			fatal(err)
 		}

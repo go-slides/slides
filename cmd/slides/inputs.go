@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,8 +12,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 
+	"github.com/go-filesystems/inflight"
 	"github.com/go-slides/slides/internal/glob"
 	"github.com/go-slides/slides/internal/serve"
 )
@@ -198,54 +199,37 @@ func (o *options) workers(jobs int) int {
 func runJobs(e env, o *options, jobs []job, build func(env, *options, job) error) error {
 	n := o.workers(len(jobs))
 	type result struct {
-		j   job
-		err error
+		j      job
+		err    error
+		stderr bytes.Buffer
 	}
-	var (
-		mu      sync.Mutex
-		results []result
-		next    int
-		wg      sync.WaitGroup
-	)
-	take := func() (job, bool) {
-		mu.Lock()
-		defer mu.Unlock()
-		if next >= len(jobs) || e.ctx.Err() != nil {
-			return job{}, false
-		}
-		j := jobs[next]
-		next++
-		return j, true
-	}
-	for range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				j, ok := take()
-				if !ok {
-					return
-				}
-				var out io.Writer = e.stdout
-				var errBuf bytes.Buffer
-				je := env{ctx: e.ctx, stdout: out, stderr: &errBuf}
-				if n == 1 {
-					je.stderr = e.stderr
-				}
-				jo, err := o.forJob(j)
-				if err == nil {
-					err = build(je, jo, j)
-				}
-				mu.Lock()
-				if n > 1 {
-					io.Copy(e.stderr, &errBuf)
-				}
-				results = append(results, result{j, err})
-				mu.Unlock()
+	// The fleet's shared scheduler runs the builds on n goroutines and hands
+	// each to emit in the order of the command line: the messages of a deck
+	// come out as one block, decks in order, whatever the builds' speeds. A
+	// build's failure is its result, not an error of the run, so that no
+	// failing deck stops the others.
+	var results []*result
+	runErr := inflight.Ordered(e.ctx, len(jobs), n,
+		func(ctx context.Context, i int) (*result, error) {
+			r := &result{j: jobs[i]}
+			je := env{ctx: ctx, stdout: e.stdout, stderr: &r.stderr}
+			if n == 1 {
+				je.stderr = e.stderr
 			}
-		}()
-	}
-	wg.Wait()
+			jo, err := o.forJob(r.j)
+			if err == nil {
+				err = build(je, jo, r.j)
+			}
+			r.err = err
+			return r, nil
+		},
+		func(_ int, r *result) error {
+			if n > 1 {
+				io.Copy(e.stderr, &r.stderr)
+			}
+			results = append(results, r)
+			return nil
+		})
 	var failed []string
 	var first error
 	for _, r := range results {
@@ -258,6 +242,9 @@ func runJobs(e env, o *options, jobs []job, build func(env, *options, job) error
 	}
 	switch {
 	case first == nil:
+		if runErr != nil {
+			return runErr
+		}
 		return e.ctx.Err()
 	case len(results) == 1 && len(jobs) == 1:
 		return first

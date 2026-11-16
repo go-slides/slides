@@ -3,85 +3,13 @@ package export
 import (
 	"bytes"
 	"context"
-	"errors"
 	"image"
-	"runtime"
-	"sync/atomic"
 	"testing"
-	"time"
 )
 
-// TestOrderedBound checks that results come out in order and that no more
-// than workers of them exist at once, even when emit is the slow side.
-func TestOrderedBound(t *testing.T) {
-	for _, workers := range []int{1, 3, 8} {
-		var live, peak atomic.Int32
-		var got []int
-		err := ordered(context.Background(), 40, workers, func(_ context.Context, i int) (int, error) {
-			n := live.Add(1)
-			for {
-				p := peak.Load()
-				if n <= p || peak.CompareAndSwap(p, n) {
-					break
-				}
-			}
-			time.Sleep(time.Duration(40-i) * 50 * time.Microsecond) // later items finish first
-			return i, nil
-		}, func(i, v int) error {
-			if i != v {
-				t.Errorf("emit(%d, %d)", i, v)
-			}
-			got = append(got, v)
-			time.Sleep(100 * time.Microsecond)
-			live.Add(-1) // emitted: the result is no longer held
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(got) != 40 {
-			t.Fatalf("workers %d: %d results", workers, len(got))
-		}
-		if p := peak.Load(); p > int32(workers) {
-			t.Errorf("workers %d: %d results alive at once", workers, p)
-		}
-	}
-}
-
-// TestOrderedErrors checks that a failing item or emit stops the run, is
-// returned, and leaves no goroutine behind.
-func TestOrderedErrors(t *testing.T) {
-	before := runtime.NumGoroutine()
-	boom := errors.New("boom")
-	err := ordered(context.Background(), 100, 4, func(ctx context.Context, i int) (int, error) {
-		if i == 7 {
-			return 0, boom
-		}
-		return i, nil
-	}, func(int, int) error { return nil })
-	if !errors.Is(err, boom) {
-		t.Errorf("work error: %v", err)
-	}
-	err = ordered(context.Background(), 100, 4, func(_ context.Context, i int) (int, error) { return i, nil },
-		func(i, _ int) error {
-			if i == 3 {
-				return boom
-			}
-			return nil
-		})
-	if !errors.Is(err, boom) {
-		t.Errorf("emit error: %v", err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := ordered(ctx, 100, 4, func(_ context.Context, i int) (int, error) { return i, nil }, func(int, int) error { return nil }); err == nil {
-		t.Error("a cancelled context must stop the run")
-	}
-	time.Sleep(10 * time.Millisecond)
-	if after := runtime.NumGoroutine(); after > before {
-		t.Errorf("%d goroutines before, %d after", before, after)
-	}
-}
+// The scheduler itself (order, bound, first error, no leaked goroutine) is
+// tested where it lives, go-filesystems/inflight's Ordered; what is tested
+// here is that the slides come out of it identical at any worker count.
 
 // TestEachMatchesSerial renders the same deck with one worker and with
 // several: the images must be identical, which also exercises one Engine

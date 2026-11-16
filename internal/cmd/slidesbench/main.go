@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -41,6 +42,7 @@ func main() {
 		rounds    = flag.Int("rounds", 5, "measured rounds (one warm-up round is run first and discarded)")
 		modes     = flag.String("modes", "html,pdf,png,pptx", "comma-separated modes: html, pdf, png (every slide), pptx")
 		decks     = flag.String("decks", "", "comma-separated deck names to keep (default: all)")
+		cores     = flag.String("cores", "", "comma-separated core counts (numbers or \"all\") for a multi-core table: go-slides runs once per count with GOMAXPROCS=N (rows go-slides@N), marp-cli once (its cores are Chrome's and cannot be bounded)")
 		oracle    = flag.String("oracle", "testdata/oracle", "directory of the oracle decks")
 		slidesBin = flag.String("slides", "", "go-slides binary (default: built from ./cmd/slides)")
 		baseBin   = flag.String("baseline", "", "an older go-slides binary to measure alongside, as go-slides@base (before/after an optimisation)")
@@ -68,7 +70,7 @@ func main() {
 		runCalibration()
 		return
 	}
-	if err := bench(*rounds, splitList(*modes), splitList(*decks), *oracle, *slidesBin, *baseBin, *marpBin, *work, *jsonOut, *maxLoad, *wait); err != nil {
+	if err := bench(*rounds, splitList(*modes), splitList(*decks), splitList(*cores), *oracle, *slidesBin, *baseBin, *marpBin, *work, *jsonOut, *maxLoad, *wait); err != nil {
 		fatal(err)
 	}
 }
@@ -142,7 +144,7 @@ func (r Run) Peak() int64 { return max(r.TreePeak, r.MaxRSS) }
 
 type deckFile struct{ name, path string }
 
-func bench(rounds int, modes, keep []string, oracle, slidesBin, baseBin, marpBin, work, jsonOut string, maxLoad float64, wait time.Duration) error {
+func bench(rounds int, modes, keep, cores []string, oracle, slidesBin, baseBin, marpBin, work, jsonOut string, maxLoad float64, wait time.Duration) error {
 	if rounds < 1 {
 		return errors.New("-rounds must be at least 1")
 	}
@@ -185,12 +187,18 @@ func bench(rounds int, modes, keep []string, oracle, slidesBin, baseBin, marpBin
 		return err
 	}
 	env := environment(slidesBin, marpBin)
-	tools := []tool{{"go-slides", slidesBin, slidesArgs}, {"marp", marpBin, marpArgs}}
+	tools := []tool{{"go-slides", slidesBin, slidesArgs, nil}, {"marp", marpBin, marpArgs, nil}}
+	if len(cores) > 0 {
+		if tools, err = coreTools(slidesBin, marpBin, cores); err != nil {
+			return err
+		}
+		env.GOMAXPROCS = "set per row (go-slides@N)"
+	}
 	if baseBin != "" {
 		if baseBin, err = filepath.Abs(baseBin); err != nil {
 			return err
 		}
-		tools = append(tools, tool{"go-slides@base", baseBin, slidesArgs})
+		tools = append(tools, tool{"go-slides@base", baseBin, slidesArgs, nil})
 		if bi, err := buildinfo.ReadFile(baseBin); err == nil {
 			env.BaselineVersion = bi.Main.Version
 		}
@@ -288,6 +296,27 @@ type tool struct {
 	name string
 	bin  string
 	args func(deck, out, mode string) []string
+	env  []string // added to the environment, as NAME=value
+}
+
+// coreTools is the tools of a multi-core table (-cores): go-slides at each
+// count, by GOMAXPROCS, and marp-cli once. marp-cli's cores are Chrome's, which
+// it does not let the caller bound (its -P only spreads several files over
+// several browsers), so its figure does not depend on the count and one row
+// stands for every N; a count of 0 means every CPU.
+func coreTools(slidesBin, marpBin string, counts []string) ([]tool, error) {
+	var tools []tool
+	for _, c := range counts {
+		n, err := strconv.Atoi(c)
+		if c == "all" {
+			n, err = runtime.NumCPU(), nil
+		}
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("-cores: %q is not a count of at least 1 or \"all\"", c)
+		}
+		tools = append(tools, tool{fmt.Sprintf("go-slides@%d", n), slidesBin, slidesArgs, []string{fmt.Sprintf("GOMAXPROCS=%d", n)}})
+	}
+	return append(tools, tool{"marp", marpBin, marpArgs, nil}), nil
 }
 
 func slidesArgs(deck, out, mode string) []string {
@@ -330,7 +359,7 @@ func measure(t tool, d deckFile, mode, work string) Run {
 		return r
 	}
 	var stderr bytes.Buffer
-	ps, wall, s, err := runSampled(t.bin, t.args(d.path, filepath.Join(outDir, "deck"), mode), outDir, &stderr)
+	ps, wall, s, err := runSampled(t.bin, t.args(d.path, filepath.Join(outDir, "deck"), mode), outDir, t.env, &stderr)
 	r.WallMS = float64(wall.Microseconds()) / 1000
 	r.TreePeak, r.TreeProcs, r.Leaked = s.peak, s.procs, s.leaked
 	if ru, ok := rusage(ps); ok {
@@ -384,7 +413,7 @@ type sample struct {
 // waits for standard input otherwise), samples its process tree until it
 // exits, and kills — by PID, after checking the start time — any
 // descendant still alive afterwards.
-func runSampled(bin string, args []string, dir string, stderr io.Writer) (*os.ProcessState, time.Duration, sample, error) {
+func runSampled(bin string, args []string, dir string, env []string, stderr io.Writer) (*os.ProcessState, time.Duration, sample, error) {
 	var s sample
 	devnull, err := os.Open(os.DevNull)
 	if err != nil {
@@ -393,6 +422,9 @@ func runSampled(bin string, args []string, dir string, stderr io.Writer) (*os.Pr
 	defer devnull.Close()
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...) // the last value of a name wins
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, io.Discard, stderr
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
