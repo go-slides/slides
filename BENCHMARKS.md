@@ -5,6 +5,54 @@ tool whose output it reproduces, on the same decks and the same machine.
 Every figure below comes from `internal/cmd/slidesbench` and the Go
 benchmarks in this repository; the commands to reproduce them are at the end.
 
+## Cores
+
+Measured on 2026-11-16 (Apple M4 Max, 16 CPUs, macOS 27.2.1; 1-minute load
+average 4.3 at the start, below the harness's limit of 8, re-checked before
+every round), go-slides v0.25.0 plus this change, marp-cli 4.5.1 with Chrome
+157; `slidesbench -cores 1,2,4,all -modes pdf,png,pptx -rounds 5`, median of
+5 interleaved rounds after a warm-up. go-slides runs once per core count with
+`GOMAXPROCS=N` (`@1` is the single-core table, the figure to compare with
+marp-cli; slides render on `min(N, 4)` workers, see `export.DefaultWorkers`).
+marp-cli is measured once and appears in every row: its cores are Chrome's,
+which the caller cannot bound, and its `-P` only spreads several *files*
+over several browsers, so a single deck's time does not depend on N. Wall
+time in ms:
+
+| Deck | Mode | go-slides @1 | @2 | @4 | @16 | marp-cli |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 100 slides | PNG | 2,629 | 1,387 | 906 | **765** | 5,181 |
+| gaia, 20 | PNG | 745 | 395 | 225 | **222** | 2,316 |
+| math and code, 20 | PNG | 590 | 331 | 200 | **192** | 2,122 |
+| gaia, 20 | PDF | 87 | 65 | 57 | **59** | 1,382 |
+| math and code, 20 | PDF | 801 | 588 | 576 | **582** | 1,447 |
+| gaia, 20 | PPTX | 98 | 77 | 70 | **70** | 3,036 |
+| math and code, 20 | PPTX | 911 | 625 | 593 | **605** | 2,502 |
+| 100 slides | PDF | 3,166 | 2,573 | 2,545 | 2,568 | **1,513** |
+| 100 slides | PPTX | 3,299 | 2,560 | 2,547 | 2,586 | 7,238 |
+
+Reading it:
+
+- **PNG scales with the cores** (3.4× at 16 for the 100 slides; 3.0–3.4× for
+  the 20-slide decks) and is 6.8× faster than marp-cli at 16 cores and 2.0×
+  at one. The workers stop at four (`DefaultWorkers`), which is the memory
+  bound: 4 → 16 cores gains the last 15 % through the garbage collector and
+  the encoders, not through more slides at once, for 7 MiB more heap; the
+  earlier measurement of 4 → 8 workers (below) is 21 % for 15 % more heap.
+- **PDF and PPTX scale less** because the writer, which is serial, is most of
+  the time once the layouts are done: 1.4×–1.5× from 1 to 4 cores.
+- **Open defect, not caused by this change** (`@base` = v0.25.0 gives
+  2,685 ms and 2,061 MiB for the 100-slide PDF, 2,684 ms for the PPTX, equal
+  to the table within noise): the 100-slide PDF and PPTX take 2.6 s and
+  about 2 GiB, against 0.2 s and 114 MiB in the Vector PDF table below, and
+  the PDF is slower than marp-cli's 1.5 s. It does not scale with the cores
+  (a serial phase) and is the one row where marp-cli wins.
+- The scheduler is the fleet's shared one,
+  [go-filesystems/inflight](https://github.com/go-filesystems/inflight)
+  `Ordered`: bounded, results in index order, first error in index order. The
+  decks of a multi-file build (`-P`) use it too, so their messages and the
+  list of failed decks come out in command-line order.
+
 ## Editable PPTX
 
 `--pptx` now writes editable slides — text boxes in the deck's embedded

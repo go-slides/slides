@@ -625,6 +625,21 @@ never held in memory as images. Against marp-cli 4.5.1 on the same machine, a
 against 1.8 s, in a ninth of the memory; the PDF is 758 KiB against marp-cli's
 837 KiB (10 MiB when its pages were images). See [BENCHMARKS.md](BENCHMARKS.md).
 
+On several cores (wall time in ms, `slidesbench -cores 1,2,4,all`, M4 Max,
+marp-cli 4.5.1, whose time does not depend on the cores):
+
+| Deck, mode | go-slides, 1 core | 2 | 4 | 16 | marp-cli |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 100 slides, PNG | 2,629 | 1,387 | 906 | **765** | 5,181 |
+| gaia 20, PNG | 745 | 395 | 225 | **222** | 2,316 |
+| gaia 20, PDF | 87 | 65 | 57 | **59** | 1,382 |
+| math and code 20, PPTX | 911 | 625 | 593 | **605** | 2,502 |
+
+The slides, and the decks of a multi-file build, are scheduled by
+go-filesystems/inflight's `Ordered`: bounded, output in order. The 100-slide
+PDF and PPTX are an open defect (2.6 s, 2 GiB), see
+[BENCHMARKS.md](BENCHMARKS.md#cores).
+
 Lato (Regular, Bold, Black) and Roboto Mono (Regular, Bold) are embedded
 upright and italic, so gaia's headings, code and emphasis render with their
 own faces. Each face is parsed the first time a slide draws it, so a deck in
