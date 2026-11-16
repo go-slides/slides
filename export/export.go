@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-filesystems/inflight"
 	"github.com/go-pdfkit/pdfkit"
 	"github.com/go-webengine/engine"
 	"github.com/go-webengine/engine/paint"
@@ -64,7 +65,9 @@ type Options struct {
 // workers render a deck faster; each holds one slide's layout and image, so
 // more workers also hold more memory. Measured on 10 slides (BENCHMARKS.md):
 // 1 → 2 workers saves 47 % of the time, 2 → 4 another 27 %, 4 → 8 only 21 %
-// for 15 % more heap; 4 keeps the heap near one worker's.
+// for 15 % more heap; 4 keeps the heap near one worker's. The cap is the
+// memory bound: Options.Workers raises it for a host with the memory to spend,
+// and the scheduler is the fleet's shared one (inflight.Ordered).
 func DefaultWorkers() int { return min(runtime.GOMAXPROCS(0), 4) }
 
 // Rasterize renders every slide of b, which must have been rendered in
@@ -242,61 +245,12 @@ func eachSlide[T any](ctx context.Context, b *doc.Doc, opts Options, produce fun
 	if workers <= 0 {
 		workers = DefaultWorkers()
 	}
-	return ordered(ctx, len(b.Slides), workers, render, emit)
+	// The fleet's shared scheduler: bounded, results in slide order.
+	return inflight.Ordered(ctx, len(b.Slides), workers, render, emit)
 }
 
 // fits reports whether a slide has a fitting heading (<!-- fit -->).
 func fits(html string) bool { return strings.Contains(html, "data-fit-content") }
-
-// ordered runs work(0), …, work(n-1) on up to workers goroutines and hands
-// the results to emit in index order. A token is taken before item i starts
-// and given back once emit has had it, so at most workers results exist at
-// any time, being computed or waiting for their turn. No goroutine outlives
-// the call.
-func ordered[T any](ctx context.Context, n, workers int, work func(context.Context, int) (T, error), emit func(int, T) error) error {
-	type result struct {
-		v   T
-		err error
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	var wg sync.WaitGroup
-	defer wg.Wait()
-	defer cancel() // runs first: the producer and the workers stop, then Wait
-	results := make([]chan result, n)
-	for i := range results {
-		results[i] = make(chan result, 1) // a worker never blocks on its send
-	}
-	tokens := make(chan struct{}, workers)
-	wg.Go(func() {
-		for i := range n {
-			select {
-			case tokens <- struct{}{}:
-			case <-ctx.Done():
-				return
-			}
-			wg.Go(func() {
-				v, err := work(ctx, i)
-				results[i] <- result{v, err}
-			})
-		}
-	})
-	for i := range n {
-		var r result
-		select {
-		case r = <-results[i]:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		if r.err != nil {
-			return r.err
-		}
-		if err := emit(i, r.v); err != nil {
-			return err
-		}
-		<-tokens
-	}
-	return nil
-}
 
 func copyRect(dst, src *image.RGBA) {
 	r := dst.Bounds().Intersect(src.Bounds())

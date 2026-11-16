@@ -50,6 +50,8 @@ github.com/go-browserhttp/browserhttp v0.2.0 h1:3RcjOQVHgqhSOmI5cfsURpexw/vetoDU
 github.com/go-browserhttp/browserhttp v0.2.0/go.mod h1:VJiwBxLetXdc8eDadOcNbiO0EelNQPny0cLZhg1hTKU=
 github.com/go-compressions/xz v0.3.1 h1:z4U2wNrV71pgUvxkSlBuoZc7JCJ7d+Tb3tSjyMeGhKc=
 github.com/go-compressions/xz v0.3.1/go.mod h1:ZbYM2CbKR8SZzq6rqhqlWFnBaXrNhWwQyTSslnYQ0FU=
+github.com/go-filesystems/inflight v0.2.1-0.20261116154050-fdc7c83e56c0 h1:TVxu49ZsQ9+s6D4v2RQhIAxGIwuxUUKiNQ/D5QB7Rmw=
+github.com/go-filesystems/inflight v0.2.1-0.20261116154050-fdc7c83e56c0/go.mod h1:RA1/w2Hbza3HvTw+ZfABSw8lh6zmixEUPsulzbeaarA=
 github.com/go-gfx/gfx v0.37.0 h1:nQH23BtuJ1pqXqvg0s7FHSI1c/ewg9nnBl3Nc3cYCik=
 github.com/go-gfx/gfx v0.37.0/go.mod h1:4OenoKrgdht6UXYf5SV8w2tb41hfAdy4QoxJRPsRDz4=
 github.com/go-gfx/oksvg v0.4.0 h1:FqZldnC3TlHEZ8TwglqWyVO6y+C4eeWfAhL1SDoD628=

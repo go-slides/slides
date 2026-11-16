@@ -235,6 +235,32 @@ func TestOneBadDeckDoesNotStopTheOthers(t *testing.T) {
 	}
 }
 
+// The decks that fail are reported in the order they were given, whatever the
+// builds' speeds and -P: the run is deterministic (inflight.Ordered).
+func TestFailedDecksAreReportedInOrder(t *testing.T) {
+	dir := t.TempDir()
+	var args []string
+	for i := range 12 {
+		name := fmt.Sprintf("bad%02d.md", i)
+		write(t, dir, name, "<!-- _kind: nosuchkind -->\n\n# bad")
+		args = append(args, filepath.Join(dir, name))
+	}
+	for _, p := range []string{"1", "4", "16"} {
+		_, _, err := run(t, append([]string{"build", "-P", p}, args...)...)
+		if err == nil {
+			t.Fatalf("-P %s: no error", p)
+		}
+		last := -1
+		for i := range 12 {
+			at := strings.Index(err.Error(), fmt.Sprintf("bad%02d.md:", i))
+			if at <= last {
+				t.Fatalf("-P %s: bad%02d.md reported out of order:\n%v", p, i, err)
+			}
+			last = at
+		}
+	}
+}
+
 func TestInputDirDoesNotFollowLinksOutOfItself(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symbolic links")
