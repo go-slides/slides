@@ -137,6 +137,8 @@ var bombs = []bomb{
 		t["MATH"] = append(m, gi...)
 		return sfnt(t)
 	}},
+	// glyf.go:261-270, read when a glyph is typeset: composites of composites.
+	{"glyf-composite-chain", func(f bool) []byte { return glyfChain(int(pick(f, 1000, 5))) }},
 	// math.go:444, 502: a glyph construction of n variants shared by every offset.
 	{"math-variants-shared", func(f bool) []byte {
 		count, n := int(pick(f, 30000, 1000)), int(pick(f, 8000, 2000))
@@ -154,6 +156,46 @@ var bombs = []bomb{
 		t["MATH"] = append(m, v...)
 		return sfnt(t)
 	}},
+}
+
+// glyfChain: glyph 0 is one point; glyph i (1..8) is a composite of k copies of
+// glyph i-1. Loading glyph 8 (the parser allows 8 levels) expands to k^8
+// contours, each component decoded and copied separately (glyf.go:261-270). The
+// cmap maps "1" to glyph 8.
+func glyfChain(k int) []byte {
+	const levels = 8
+	// glyph 0: one contour, one on-curve point, no coordinate bytes (flags 0x31)
+	glyphs := [][]byte{{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x31, 0}}
+	for i := 1; i <= levels; i++ {
+		g := append([]byte{0xFF, 0xFF}, make([]byte, 8)...)
+		for c := 0; c < k; c++ {
+			fl := 0x0002 // arguments are x/y offsets, bytes
+			if c < k-1 {
+				fl |= 0x0020 // more components
+			}
+			g = append(p16(p16(g, fl), i-1), 0, 0)
+		}
+		if len(g)%2 != 0 {
+			g = append(g, 0)
+		}
+		glyphs = append(glyphs, g)
+	}
+	var glyf, loca []byte
+	for _, g := range glyphs {
+		loca = p32(loca, int64(len(glyf)))
+		glyf = append(glyf, g...)
+	}
+	loca = p32(loca, int64(len(glyf)))
+	t := baseTables()
+	t["head"][51] = 1 // indexToLocFormat: long
+	t["maxp"] = []byte{0, 1, 0, 0, 0, byte(len(glyphs))}
+	t["hmtx"] = make([]byte, 4+2*(len(glyphs)-1))
+	t["loca"], t["glyf"] = loca, glyf
+	cmap := make([]byte, 262) // format 0: 256 glyph ids
+	binary.BigEndian.PutUint16(cmap[2:], 262)
+	cmap['1'+6] = levels
+	t["cmap"] = append([]byte{0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 12}, cmap...) // platform 0 (Unicode)
+	return sfnt(t)
 }
 
 // fmt14Nested is a format 14 subtable with one record whose default (or
@@ -222,7 +264,9 @@ func TestUpstreamAllocatesFromDeclaredCounts(t *testing.T) {
 			font := b.font(false)
 			n := allocated(func() {
 				defer func() { _ = recover() }()
-				_, _ = math.New(font)
+				if r, err := math.New(font); err == nil {
+					_, _ = r.RenderSVG("1", 40) // glyph outlines are decoded when typeset
+				}
 			})
 			if n < 1<<20 {
 				t.Logf("upstream now bounds %s (%d bytes allocated): the guard case can go", b.name, n)

@@ -72,6 +72,15 @@ func bound(font []byte) ([]byte, error) {
 		}
 		cost += c
 	}
+	// The glyph outlines are decoded when a glyph is typeset, not at parse time,
+	// and each glyph on its own: the bound is on the worst single glyph.
+	worst, err := glyfCost(tables)
+	if err != nil {
+		return nil, err
+	}
+	if worst > MaxParseBytes {
+		return nil, fmt.Errorf("%w: typesetting one glyph would allocate over the %d bytes allowed (%d counted)", errBound, MaxParseBytes, worst)
+	}
 	if cost > MaxParseBytes {
 		return nil, fmt.Errorf("%w: parsing it would allocate over the %d bytes allowed (%d counted before stopping)", errBound, MaxParseBytes, cost)
 	}
@@ -336,6 +345,118 @@ func variantsCost(t *u) (int64, error) {
 		}
 	}
 	return cost, nil
+}
+
+// satCap saturates glyph costs: past it the font is refused anyway, and the
+// arithmetic cannot overflow an int64.
+const satCap = int64(1) << 50
+
+func sat(v int64) int64 {
+	if v > satCap || v < 0 {
+		return satCap
+	}
+	return v
+}
+
+// glyfCost returns the most bytes go-opentype v0.21.1 (glyf.go:85-273) allocates
+// loading any one glyph. A composite decodes and copies every component record
+// separately, so a glyph that references another k times costs k times it, and
+// the cost multiplies along the chain (the parser caps only the depth, at 8). It
+// reads loca and glyf as the parser does; a glyph the parser would reject costs
+// what was allocated before the rejection. Each glyph is costed once.
+func glyfCost(tables map[string][]byte) (int64, error) {
+	glyf, loca, head, maxp := tables["glyf"], tables["loca"], tables["head"], tables["maxp"]
+	if glyf == nil || loca == nil || len(head) < 52 || len(maxp) < 6 {
+		return 0, nil
+	}
+	numGlyphs := int(binary.BigEndian.Uint16(maxp[4:]))
+	long := binary.BigEndian.Uint16(head[50:]) != 0
+	entry := 2
+	if long {
+		entry = 4
+	}
+	if len(loca) < (numGlyphs+1)*entry {
+		return 0, nil // the parser refuses the table
+	}
+	at := func(i int) int64 {
+		if long {
+			return int64(binary.BigEndian.Uint32(loca[i*4:]))
+		}
+		return int64(binary.BigEndian.Uint16(loca[i*2:])) * 2
+	}
+	type cost struct{ size, alloc int64 } // expanded outline bytes; bytes allocated loading
+	const point, header = 24, 24          // outlinePoint, contour slice header
+	memo := make([]*cost, numGlyphs)
+	onPath := make([]bool, numGlyphs)
+	var load func(g, depth int) (cost, error)
+	load = func(g, depth int) (cost, error) {
+		if memo[g] != nil {
+			return *memo[g], nil
+		}
+		if onPath[g] || depth > 64 {
+			return cost{}, truncated("cyclic or very deeply nested composite glyphs")
+		}
+		start, end := at(g), at(g+1)
+		if start > end || end > int64(len(glyf)) || end-start < 10 {
+			memo[g] = &cost{}
+			return cost{}, nil
+		}
+		onPath[g] = true
+		defer func() { onPath[g] = false }()
+		b := glyf[start:end]
+		n := int(int16(binary.BigEndian.Uint16(b)))
+		var c cost
+		if n >= 0 {
+			points := int64(0)
+			if n > 0 && 10+2*n <= len(b) {
+				points = int64(binary.BigEndian.Uint16(b[10+2*(n-1):])) + 1
+			}
+			c.size = points*point + int64(n)*header
+			c.alloc = c.size + points*17 + int64(n)*2
+		} else {
+			r := &u{b: b}
+			for pos := 10; ; {
+				flags, gid := r.u16(pos), r.u16(pos+2)
+				pos += 4
+				if flags&0x0001 != 0 {
+					pos += 4
+				} else {
+					pos += 2
+				}
+				switch {
+				case flags&0x0008 != 0:
+					pos += 2
+				case flags&0x0040 != 0:
+					pos += 4
+				case flags&0x0080 != 0:
+					pos += 8
+				}
+				if r.bad || pos > len(b) || gid >= numGlyphs || flags&0x0002 == 0 {
+					break // the parser stops with an error here
+				}
+				sub, err := load(gid, depth+1)
+				if err != nil {
+					return cost{}, err
+				}
+				c.size = sat(c.size + sub.size)
+				c.alloc = sat(c.alloc + sub.alloc + 2*sub.size)
+				if flags&0x0020 == 0 {
+					break
+				}
+			}
+		}
+		memo[g] = &c
+		return c, nil
+	}
+	var worst int64
+	for g := 0; g < numGlyphs; g++ {
+		c, err := load(g, 0)
+		if err != nil {
+			return 0, err
+		}
+		worst = max(worst, c.alloc)
+	}
+	return worst, nil
 }
 
 // rebuild assembles an sfnt from the tables, in tag order, 4-byte aligned. The
