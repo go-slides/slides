@@ -15,6 +15,20 @@ import (
 // above any real math font (STIX Two Math needs well under 8 MiB).
 const MaxParseBytes = 64 << 20
 
+// Glyph outlines are decoded when a glyph is typeset and then kept for as long
+// as the renderer lives (go-tex/math's path cache has no bound), so what a font
+// may cost is bounded twice: per glyph and over all its glyphs, as glyfCost
+// counts them. Both are set from TestGlyfBudgets, which measured seven system
+// TrueType fonts: the worst glyph 101,395 bytes (Apple Symbols), the largest
+// total 15,625,865 (Apple Symbols; Arial Unicode, 281,719,255, is over
+// MaxFontBytes). The margins are 40 and 8. STIX Two Math has CFF outlines: its
+// glyf cost is 0. The worst case a hostile font can keep alive through the
+// cache is MaxOutlineBytes, not 4,096 times MaxGlyphBytes.
+const (
+	MaxGlyphBytes   = 4 << 20
+	MaxOutlineBytes = 128 << 20
+)
+
 // keep is the set of sfnt tables handed to the parser: the ones go-tex/math
 // reads (outlines, metrics, character map, MATH) and the hinting programs.
 // Everything else, the layout (GSUB, GPOS, GDEF, kern) and variation tables
@@ -74,12 +88,15 @@ func bound(font []byte) ([]byte, error) {
 	}
 	// The glyph outlines are decoded when a glyph is typeset, not at parse time,
 	// and each glyph on its own: the bound is on the worst single glyph.
-	worst, err := glyfCost(tables)
+	worst, total, err := glyfCost(tables)
 	if err != nil {
 		return nil, err
 	}
-	if worst > MaxParseBytes {
-		return nil, fmt.Errorf("%w: typesetting one glyph would allocate over the %d bytes allowed (%d counted)", errBound, MaxParseBytes, worst)
+	if worst > MaxGlyphBytes {
+		return nil, fmt.Errorf("%w: typesetting one glyph would allocate over the %d bytes allowed (%d counted)", errBound, MaxGlyphBytes, worst)
+	}
+	if total > MaxOutlineBytes {
+		return nil, fmt.Errorf("%w: typesetting its glyphs would allocate over the %d bytes allowed (%d counted)", errBound, MaxOutlineBytes, total)
 	}
 	if cost > MaxParseBytes {
 		return nil, fmt.Errorf("%w: parsing it would allocate over the %d bytes allowed (%d counted before stopping)", errBound, MaxParseBytes, cost)
@@ -364,10 +381,10 @@ func sat(v int64) int64 {
 // the cost multiplies along the chain (the parser caps only the depth, at 8). It
 // reads loca and glyf as the parser does; a glyph the parser would reject costs
 // what was allocated before the rejection. Each glyph is costed once.
-func glyfCost(tables map[string][]byte) (int64, error) {
+func glyfCost(tables map[string][]byte) (worst, total int64, err error) {
 	glyf, loca, head, maxp := tables["glyf"], tables["loca"], tables["head"], tables["maxp"]
 	if glyf == nil || loca == nil || len(head) < 52 || len(maxp) < 6 {
-		return 0, nil
+		return 0, 0, nil
 	}
 	numGlyphs := int(binary.BigEndian.Uint16(maxp[4:]))
 	long := binary.BigEndian.Uint16(head[50:]) != 0
@@ -376,7 +393,7 @@ func glyfCost(tables map[string][]byte) (int64, error) {
 		entry = 4
 	}
 	if len(loca) < (numGlyphs+1)*entry {
-		return 0, nil // the parser refuses the table
+		return 0, 0, nil // the parser refuses the table
 	}
 	at := func(i int) int64 {
 		if long {
@@ -412,7 +429,9 @@ func glyfCost(tables map[string][]byte) (int64, error) {
 				points = int64(binary.BigEndian.Uint16(b[10+2*(n-1):])) + 1
 			}
 			c.size = points*point + int64(n)*header
-			c.alloc = c.size + points*17 + int64(n)*2
+			// The points are appended contour by contour (glyf.go:159-165), so
+			// the slices grow by doubling: count twice the points.
+			c.alloc = 2*c.size + points*17 + int64(n)*2
 		} else {
 			r := &u{b: b}
 			for pos := 10; ; {
@@ -448,15 +467,15 @@ func glyfCost(tables map[string][]byte) (int64, error) {
 		memo[g] = &c
 		return c, nil
 	}
-	var worst int64
 	for g := 0; g < numGlyphs; g++ {
 		c, err := load(g, 0)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		worst = max(worst, c.alloc)
+		total = sat(total + c.alloc)
 	}
-	return worst, nil
+	return worst, total, nil
 }
 
 // rebuild assembles an sfnt from the tables, in tag order, 4-byte aligned. The

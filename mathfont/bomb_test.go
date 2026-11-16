@@ -139,6 +139,10 @@ var bombs = []bomb{
 	}},
 	// glyf.go:261-270, read when a glyph is typeset: composites of composites.
 	{"glyf-composite-chain", func(f bool) []byte { return glyfChain(int(pick(f, 1000, 5))) }},
+	// glyf.go:122-169 and go-tex/math's unbounded path cache: glyphs each under
+	// the per-glyph cap, together over the total. 40 glyphs of about 3.9 MB
+	// counted is 156 MB, in a 20 KB font.
+	{"glyf-many-glyphs", func(f bool) []byte { return glyfManyGlyphs(int(pick(f, 40, 2))) }},
 	// math.go:444, 502: a glyph construction of n variants shared by every offset.
 	{"math-variants-shared", func(f bool) []byte {
 		count, n := int(pick(f, 30000, 1000)), int(pick(f, 8000, 2000))
@@ -180,6 +184,30 @@ func glyfChain(k int) []byte {
 		}
 		glyphs = append(glyphs, g)
 	}
+	return glyfFont(glyphs, levels)
+}
+
+// glyfManyGlyphs: n distinct simple glyphs of 59,904 points each (a repeated
+// flag byte, no coordinate bytes), every one under MaxGlyphBytes by itself.
+func glyfManyGlyphs(n int) []byte {
+	glyphs := [][]byte{nil} // glyph 0 is empty
+	for i := 0; i < n; i++ {
+		g := p16(append(p16(nil, 1), make([]byte, 8)...), 59904-1) // one contour
+		g = p16(g, 0)                                              // instrLen
+		for r := 0; r < 234; r++ {
+			g = append(g, 0x39, 255) // on-curve, same x, same y, repeated 255 more times
+		}
+		if len(g)%2 != 0 {
+			g = append(g, 0)
+		}
+		glyphs = append(glyphs, g)
+	}
+	return glyfFont(glyphs, 1)
+}
+
+// glyfFont assembles a TrueType-outline font from glyph programs, "1" mapping to
+// glyph mapTo.
+func glyfFont(glyphs [][]byte, mapTo int) []byte {
 	var glyf, loca []byte
 	for _, g := range glyphs {
 		loca = p32(loca, int64(len(glyf)))
@@ -188,12 +216,12 @@ func glyfChain(k int) []byte {
 	loca = p32(loca, int64(len(glyf)))
 	t := baseTables()
 	t["head"][51] = 1 // indexToLocFormat: long
-	t["maxp"] = []byte{0, 1, 0, 0, 0, byte(len(glyphs))}
+	t["maxp"] = p16([]byte{0, 1, 0, 0}, len(glyphs))
 	t["hmtx"] = make([]byte, 4+2*(len(glyphs)-1))
 	t["loca"], t["glyf"] = loca, glyf
 	cmap := make([]byte, 262) // format 0: 256 glyph ids
 	binary.BigEndian.PutUint16(cmap[2:], 262)
-	cmap['1'+6] = levels
+	cmap['1'+6] = byte(mapTo)
 	t["cmap"] = append([]byte{0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 12}, cmap...) // platform 0 (Unicode)
 	return sfnt(t)
 }

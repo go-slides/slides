@@ -38,8 +38,12 @@
 // recoverable. Before parsing, Register's font is therefore reduced to the
 // tables go-tex/math reads (the layout, variation and CFF2 tables are dropped
 // or refused), and the cmap and MATH tables are refused when the counts they
-// declare would allocate more than MaxParseBytes. That covers every case found
-// (bomb_test.go), not every case there could be: take the font from a source
+// declare would allocate more than MaxParseBytes. TrueType outlines (glyf) are
+// costed per glyph and in total (MaxGlyphBytes, MaxOutlineBytes). CFF outlines,
+// which STIX Two Math itself uses, are NOT covered: the charstring interpreter
+// bounds the depth of subroutine calls but not their number, and 668 bytes of
+// font allocate 954 MB (go-opentype/opentype#75). That covers every other case
+// found (bomb_test.go), not every case there could be: take the font from a source
 // the host trusts, such as the embedded one or a copy checked against a known
 // hash, until the upstream bound lands (go-opentype/opentype#75).
 package mathfont
