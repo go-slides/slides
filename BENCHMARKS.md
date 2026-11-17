@@ -7,11 +7,12 @@ benchmarks in this repository; the commands to reproduce them are at the end.
 
 ## Cores
 
-Measured on 2026-11-16 (Apple M4 Max, 16 CPUs, macOS 27.2.1; 1-minute load
-average 4.3 at the start, below the harness's limit of 8, re-checked before
-every round), go-slides v0.25.0 plus this change, marp-cli 4.5.1 with Chrome
-157; `slidesbench -cores 1,2,4,all -modes pdf,png,pptx -rounds 5`, median of
-5 interleaved rounds after a warm-up. go-slides runs once per core count with
+Measured on 2026-11-17 (Apple M4 Max, 16 CPUs, macOS 27.2.1; 1-minute load
+average 5.7 at the start, below the harness's limit of 8, re-checked before
+every round), go-slides v0.26.0 with go-webengine/engine v0.48.0, marp-cli
+4.5.1 with Chrome 157; `slidesbench -cores 1,2,4,all -modes pdf,png,pptx
+-rounds 5 -baseline <v0.26.0>`, median of 5 interleaved rounds after a
+warm-up. go-slides runs once per core count with
 `GOMAXPROCS=N` (`@1` is the single-core table, the figure to compare with
 marp-cli; slides render on `min(N, 4)` workers, see `export.DefaultWorkers`).
 marp-cli is measured once and appears in every row: its cores are Chrome's,
@@ -21,32 +22,41 @@ time in ms:
 
 | Deck | Mode | go-slides @1 | @2 | @4 | @16 | marp-cli |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 100 slides | PNG | 2,629 | 1,387 | 906 | **765** | 5,181 |
-| gaia, 20 | PNG | 745 | 395 | 225 | **222** | 2,316 |
-| math and code, 20 | PNG | 590 | 331 | 200 | **192** | 2,122 |
-| gaia, 20 | PDF | 87 | 65 | 57 | **59** | 1,382 |
-| math and code, 20 | PDF | 801 | 588 | 576 | **582** | 1,447 |
-| gaia, 20 | PPTX | 98 | 77 | 70 | **70** | 3,036 |
-| math and code, 20 | PPTX | 911 | 625 | 593 | **605** | 2,502 |
-| 100 slides | PDF | 3,166 | 2,573 | 2,545 | 2,568 | **1,513** |
-| 100 slides | PPTX | 3,299 | 2,560 | 2,547 | 2,586 | 7,238 |
+| 100 slides | PNG | 2,628 | 1,397 | 899 | **766** | 5,197 |
+| gaia, 20 | PNG | 731 | 394 | 227 | **222** | 2,331 |
+| math and code, 20 | PNG | 600 | 333 | 199 | **192** | 2,140 |
+| gaia, 20 | PDF | 85 | 64 | 57 | **58** | 1,411 |
+| math and code, 20 | PDF | 278 | 183 | 139 | **135** | 1,457 |
+| gaia, 20 | PPTX | 99 | 77 | 69 | **70** | 3,110 |
+| math and code, 20 | PPTX | 395 | 268 | 189 | **179** | 2,527 |
+| 100 slides | PDF | 544 | 331 | 247 | **256** | 1,534 |
+| 100 slides | PPTX | 692 | 435 | 317 | **276** | 7,248 |
 
 Reading it:
 
+- **go-slides is faster than marp-cli on every row, at every core count**,
+  one core included: the 100-slide PDF in 544 ms against 1,534 ms (2.8×), the
+  100-slide PPTX in 692 ms against 7,248 ms (10×).
 - **PNG scales with the cores** (3.4× at 16 for the 100 slides; 3.0–3.4× for
   the 20-slide decks) and is 6.8× faster than marp-cli at 16 cores and 2.0×
   at one. The workers stop at four (`DefaultWorkers`), which is the memory
   bound: 4 → 16 cores gains the last 15 % through the garbage collector and
   the encoders, not through more slides at once, for 7 MiB more heap; the
   earlier measurement of 4 → 8 workers (below) is 21 % for 15 % more heap.
-- **PDF and PPTX scale less** because the writer, which is serial, is most of
-  the time once the layouts are done: 1.4×–1.5× from 1 to 4 cores.
-- **Open defect, not caused by this change** (`@base` = v0.25.0 gives
-  2,685 ms and 2,061 MiB for the 100-slide PDF, 2,684 ms for the PPTX, equal
-  to the table within noise): the 100-slide PDF and PPTX take 2.6 s and
-  about 2 GiB, against 0.2 s and 114 MiB in the Vector PDF table below, and
-  the PDF is slower than marp-cli's 1.5 s. It does not scale with the cores
-  (a serial phase) and is the one row where marp-cli wins.
+- **PDF and PPTX scale less** because the writer, which is serial, is a
+  larger share of the time: 2.2× (PDF) and 2.5× (PPTX) from 1 to 16 cores for
+  the 100 slides, 1.5×–2.2× for the 20-slide decks.
+- **The v0.18.0–v0.26.0 regression is fixed**
+  ([#117](https://github.com/go-slides/slides/issues/117),
+  [go-webengine/engine#443](https://github.com/go-webengine/engine/issues/443)):
+  the engine rebuilt the static instances of a variable font for every page.
+  `@base` = v0.26.0 on the same rounds: the 100-slide PDF took 2,611 ms and
+  2,182 MiB at 16 cores, now 256 ms and 169 MiB; the PPTX 2,571 ms and
+  1,992 MiB, now 276 ms and 193 MiB; the math-and-code PDF 589 ms and 505 MiB,
+  now 135 ms and 167 MiB. The PDFs are also smaller: the 100-slide one
+  embedded its font 102 times (1,005.5 KiB) and now embeds it 3 times
+  (792.4 KiB); its 100 pages, drawn at 72 dpi, are pixel-identical to
+  v0.26.0's. PNG, which does not use the instances, is unchanged.
 - The scheduler is the fleet's shared one,
   [go-filesystems/inflight](https://github.com/go-filesystems/inflight)
   `Ordered`: bounded, results in index order, first error in index order. The
