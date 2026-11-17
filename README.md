@@ -621,24 +621,30 @@ Several and split backgrounds (`![bg left:40%]`) render as Marp's layers do.
 
 Slides render four at a time and are written as they come, so a long deck is
 never held in memory as images. Against marp-cli 4.5.1 on the same machine, a
-100-slide deck exports to PNG in 0.97 s against 5.4 s and to PDF in 0.31 s
-against 1.8 s, in a ninth of the memory; the PDF is 758 KiB against marp-cli's
-837 KiB (10 MiB when its pages were images). See [BENCHMARKS.md](BENCHMARKS.md).
+100-slide deck exports to PNG in 0.77 s against 5.2 s and to PDF in 0.26 s
+against 1.5 s, in a seventh of the memory; the PDF is 792 KiB against
+marp-cli's 836 KiB (10 MiB when its pages were images). See [BENCHMARKS.md](BENCHMARKS.md).
 
 On several cores (wall time in ms, `slidesbench -cores 1,2,4,all`, M4 Max,
 marp-cli 4.5.1, whose time does not depend on the cores):
 
 | Deck, mode | go-slides, 1 core | 2 | 4 | 16 | marp-cli |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 100 slides, PNG | 2,629 | 1,387 | 906 | **765** | 5,181 |
-| gaia 20, PNG | 745 | 395 | 225 | **222** | 2,316 |
-| gaia 20, PDF | 87 | 65 | 57 | **59** | 1,382 |
-| math and code 20, PPTX | 911 | 625 | 593 | **605** | 2,502 |
+| 100 slides, PNG | 2,628 | 1,397 | 899 | **766** | 5,197 |
+| 100 slides, PDF | 544 | 331 | 247 | **256** | 1,534 |
+| 100 slides, PPTX | 692 | 435 | 317 | **276** | 7,248 |
+| gaia 20, PNG | 731 | 394 | 227 | **222** | 2,331 |
+| gaia 20, PDF | 85 | 64 | 57 | **58** | 1,411 |
+| math and code 20, PPTX | 395 | 268 | 189 | **179** | 2,527 |
 
-The slides, and the decks of a multi-file build, are scheduled by
-go-filesystems/inflight's `Ordered`: bounded, output in order. The 100-slide
-PDF and PPTX are an open defect (2.6 s, 2 GiB), see
-[BENCHMARKS.md](BENCHMARKS.md#cores).
+go-slides is faster than marp-cli on every deck and mode measured, on one
+core as on sixteen. The slides, and the decks of a multi-file build, are
+scheduled by go-filesystems/inflight's `Ordered`: bounded, output in order.
+From v0.18.0 to v0.26.0 the 100-slide PDF and PPTX took about 2.6 s and
+2 GiB, because the engine rebuilt a variable font's instances for every page.
+With go-webengine/engine v0.48.0 they take 0.26–0.28 s and under 200 MiB
+([#117](https://github.com/go-slides/slides/issues/117), see
+[BENCHMARKS.md](BENCHMARKS.md#cores)).
 
 Lato (Regular, Bold, Black) and Roboto Mono (Regular, Bold) are embedded
 upright and italic, so gaia's headings, code and emphasis render with their
