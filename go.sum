@@ -40,10 +40,10 @@ github.com/go-avkit/avkit v0.19.1 h1:oBtm8S0RQ/W07fjnZ8u311E75gHcaLi+IDDNVjz2pto
 github.com/go-avkit/avkit v0.19.1/go.mod h1:itL/gmFP0/hIVAQgxn0JTTvlGgY9vi5uL8XI2sOQl/c=
 github.com/go-avkit/bitstream v0.4.0 h1:cpPNgKWeAjEpTzjORXPH4Advu2BdtCBHloQXSwgl+pk=
 github.com/go-avkit/bitstream v0.4.0/go.mod h1:aA50I8nXKyJu6ElfTHM957BRrx5JjgSYUxs++n5VM8o=
-github.com/go-avkit/decode v0.11.0 h1:/R9nRDEyCsXaHQYw+af2zD4EYDWWsvyVulcSUSnc+to=
-github.com/go-avkit/decode v0.11.0/go.mod h1:J/UtGfch2UXdCLjlcReavSgCIA9iSOf7M3N/RcbzwZQ=
-github.com/go-avkit/h264 v0.9.0 h1:yrXbVFZCfZhG9okTJqITHdldVciXMw0ioPaH/NorWsQ=
-github.com/go-avkit/h264 v0.9.0/go.mod h1:LcFlgGaV0CHWk4oEpO3GWv+93vylXsuJeepcDW9Md3I=
+github.com/go-avkit/decode v0.12.0 h1:bvo+zsVhMQDLMzzwjDVg2UUBpxmobzbita+T1jcsyCA=
+github.com/go-avkit/decode v0.12.0/go.mod h1:2IK6RUdwFIEplKT5IrDpk74y727TSMvumaTr0os4KMs=
+github.com/go-avkit/h264 v0.11.0 h1:/30tcroBNf/bDfMzstb1hTshuEW/iC9XkfAmfYjXSZ4=
+github.com/go-avkit/h264 v0.11.0/go.mod h1:3SbX9ORCbwsOebgZUf0oEEnBk6MSgb2wKP0EaiksAgY=
 github.com/go-avkit/h265 v0.22.0 h1:0CPI7xwWrxGYOK9zcAXznbVLBz7nWeTBRGxfwaExJk0=
 github.com/go-avkit/h265 v0.22.0/go.mod h1:u5U+6CDxmxTmcwu+rzfqQ6WQgWmQKz0v6laZn7RBYeY=
 github.com/go-browserhttp/browserhttp v0.2.0 h1:3RcjOQVHgqhSOmI5cfsURpexw/vetoDUoLXKzgTCSac=
@@ -94,8 +94,8 @@ github.com/go-opentype/opentype v0.22.0 h1:AWxuNf8g6F5lFZ6wrp0Z097yrNANbE0F4b+et
 github.com/go-opentype/opentype v0.22.0/go.mod h1:xzFnB0oUWXuU1AxQl0CgtQpV8iWY7f5/RRGc9diiBZs=
 github.com/go-pdfkit/pdfkit v0.24.0 h1:Fa1pKdruJlWsGYHasDjngFOKZcE+PccdGxcbUKQx3P8=
 github.com/go-pdfkit/pdfkit v0.24.0/go.mod h1:XF5T4lAKlfleY927itwr5ZlB2r/MfvdejVrJE9gia4E=
-github.com/go-pdfkit/reader v0.17.0 h1:17MUgAowqA5G6KJQxOpLSyEgy3qeITkBRgFYA1hbRHQ=
-github.com/go-pdfkit/reader v0.17.0/go.mod h1:EYHHREPKT/orDzlGiFPnPVPPuaRDLiAYezIr0cCFXaA=
+github.com/go-pdfkit/reader v0.19.1 h1:D0lPFwUbTLsqQPZluKX7ghqgIPaHLOhf/HRAYsWEHog=
+github.com/go-pdfkit/reader v0.19.1/go.mod h1:EYHHREPKT/orDzlGiFPnPVPPuaRDLiAYezIr0cCFXaA=
 github.com/go-regexp/engine v0.4.2 h1:oI69hZyQyZH2n5w0UI7UEO7CaTa7hy3VSgKo76EJB4g=
 github.com/go-regexp/engine v0.4.2/go.mod h1:fWnPvSuE4HIVpBQIHMiaPMEE7InDc00KeoPr/QNFGwA=
 github.com/go-richdoc/richdoc v0.10.0 h1:+BsIDF1iX1QNzk96uMX6VbsVmiGwXoabFdBkI+01UBQ=
