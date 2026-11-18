@@ -7,9 +7,9 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-avkit/avkit v0.19.1
-	github.com/go-avkit/decode v0.9.0
+	github.com/go-avkit/decode v0.11.0
 	github.com/go-compressions/xz v0.3.1
-	github.com/go-filesystems/inflight v0.3.0
+	github.com/go-filesystems/inflight v0.5.0
 	github.com/go-gfx/oksvg v0.4.0
 	github.com/go-icons/twemoji v0.1.0
 	github.com/go-odf/odf v0.11.0
@@ -33,7 +33,7 @@ require (
 	github.com/zclconf/go-cty v1.20.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/mod v0.43.0
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/sys v0.50.0
 	rsc.io/pdf v0.1.1
 )
@@ -52,9 +52,9 @@ require (
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/ebitengine/purego v0.11.3 // indirect
 	github.com/evanw/esbuild v0.28.2 // indirect
-	github.com/gen2brain/h265 v0.2.4 // indirect
 	github.com/go-avkit/bitstream v0.4.0 // indirect
 	github.com/go-avkit/h264 v0.9.0 // indirect
+	github.com/go-avkit/h265 v0.22.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
 	github.com/go-dsp/signal v0.2.0 // indirect
 	github.com/go-fft/fft v0.38.0 // indirect
@@ -73,6 +73,7 @@ require (
 	github.com/go-simd/floats v0.24.0 // indirect
 	github.com/go-simd/highway v0.0.14 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
+	github.com/go-videodsp/kernels v0.19.0 // indirect
 	github.com/go-webengine/esbuildsandbox v0.1.0 // indirect
 	github.com/go-widgets/painter v0.16.0 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
@@ -89,9 +90,9 @@ require (
 	github.com/tetratelabs/wazero v1.12.0 // indirect
 	github.com/tphakala/go-mp3 v0.3.0 // indirect
 	github.com/tphakala/simd v1.16.0 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/image v0.47.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
 )
