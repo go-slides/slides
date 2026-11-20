@@ -7,7 +7,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-avkit/avkit v0.19.1
-	github.com/go-avkit/decode v0.12.0
+	github.com/go-avkit/decode v0.13.0
 	github.com/go-compressions/xz v0.3.1
 	github.com/go-filesystems/inflight v0.5.0
 	github.com/go-gfx/oksvg v0.4.0
@@ -54,7 +54,7 @@ require (
 	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/go-avkit/bitstream v0.4.0 // indirect
 	github.com/go-avkit/h264 v0.11.0 // indirect
-	github.com/go-avkit/h265 v0.22.0 // indirect
+	github.com/go-avkit/h265 v0.23.0 // indirect
 	github.com/go-browserhttp/browserhttp v0.2.0 // indirect
 	github.com/go-dsp/signal v0.2.0 // indirect
 	github.com/go-fft/fft v0.38.0 // indirect
