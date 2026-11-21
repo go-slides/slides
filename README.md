@@ -740,18 +740,26 @@ linker leaves the font out of the module. Measured on 2026-11-15 with
 become 9,619,232 (7,994,937 become 7,339,723 with `slides_novideo`), 655 KB
 less. go-tex/math's code (248 KB raw) stays: it is the typesetter.
 
-**The font is trusted input.** `mathfont` refuses a font over 8 MiB, without an
-OpenType signature, or one that panics the parser, and, before parsing, drops
-the tables go-tex/math never reads (GSUB, GPOS, GDEF, kern, the variation
-tables) and refuses a `cmap` or `MATH` table whose declared counts would
-allocate over 64 MiB: go-opentype v0.21.1 sizes slices from counts in the file
-before checking them, so a font of a few hundred bytes can ask for gigabytes,
-and an out-of-memory cannot be recovered. Those are the cases found, not every
-case. CFF outlines, the shipped STIX font's among them, are not bounded by this
-guard (a charstring's subroutine calls are not counted): give
-`mathfont.Register` a provider whose font you trust (the embedded one, or a copy
-checked against a known hash) until go-opentype bounds its allocations
-(go-opentype/opentype#75).
+**The font is untrusted input, and bounded.** `mathfont` refuses a font over 8
+MiB, without an OpenType signature, or one that panics the parser. go-opentype
+v0.23.0 checks every count a font declares against the bytes present (cmap,
+CFF2, GSUB/GPOS, MATH, the variation tables), decodes a shared sub-table once,
+and gives each glyph a budget (a composite at most 65,535 points, a CFF
+charstring at most 131,072 operators and 65,536 points): a font of a few hundred
+bytes that declares gigabytes is an error, and a glyph that expands into millions
+of points is not drawn (go-opentype/opentype#75, go-slides/slides#111). What
+go-opentype cannot bound is the sum over glyphs, because go-tex/math keeps the
+path of every glyph and size it typesets, so `mathfont` bounds that itself,
+before parsing: a TrueType font is refused when loading its glyphs would
+allocate over 128 MiB (8 times the largest system font measured), a CFF font,
+the shipped STIX font's kind, when its glyphs would keep over 64 MiB of path
+text (STIX Two Math keeps 8.2 MB, a margin of 8). It also drops the tables
+go-tex/math never reads (GSUB, GPOS, GDEF, kern, the variation tables). Refusing
+a hostile font costs time (a few seconds of glyph decoding at most) and no more
+memory than one glyph; a font that passes is bounded in memory. The bombs are
+tests (`mathfont/bomb_test.go`), under a small allocation ceiling. These are
+the bounds of go-opentype v0.23.0 and go-tex/math v0.50.0; a font from a source
+you trust is still the safer choice.
 
 **Before the font arrives.** Rendering is synchronous and never waits. With no
 provider, or one whose `Font` returns an error because the bytes are not there

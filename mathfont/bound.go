@@ -5,36 +5,52 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
+
+	"github.com/go-opentype/opentype"
 )
 
-// MaxParseBytes bounds what reading a font may allocate, as estimated from the
-// counts the font declares (see bound). The 8 MiB file limit does not bound it:
-// go-opentype v0.21.1 sizes slices from counts in the file before it checks them
-// against the bytes present, and one table can be referenced many times, so a
-// few hundred bytes can ask for gigabytes (go-slides/slides#111). 64 MiB is far
-// above any real math font (STIX Two Math needs well under 8 MiB).
-const MaxParseBytes = 64 << 20
+// What go-opentype bounds, and what it leaves to this package. Since v0.23.0
+// (go-opentype/opentype#75) Parse checks every count a font declares against the
+// bytes present, decodes a shared sub-table once, and charges every glyph a
+// budget (a composite or a charstring emits at most 65,535 points, a charstring
+// runs at most 131,072 operators): a font cannot make Parse allocate more than
+// 1 MiB plus 64 bytes per input byte, nor make one glyph cost more than a few
+// milliseconds. What it cannot bound is the SUM over glyphs: go-tex/math keeps
+// the SVG path of every (glyph, pixel size) it typesets, with no limit, so a font
+// of thousands of glyphs, each within its own budget, keeps gigabytes alive.
+// That is bounded here, once for each kind of outline, by MaxOutlineBytes
+// (TrueType) and MaxPathBytes (CFF).
 
-// Glyph outlines are decoded when a glyph is typeset and then kept for as long
-// as the renderer lives (go-tex/math's path cache has no bound), so what a font
-// may cost is bounded twice: per glyph and over all its glyphs, as glyfCost
-// counts them. Both are set from TestGlyfBudgets, which measured seven system
-// TrueType fonts: the worst glyph 101,395 bytes (Apple Symbols), the largest
-// total 15,625,865 (Apple Symbols; Arial Unicode, 281,719,255, is over
-// MaxFontBytes). The margins are 40 and 8. STIX Two Math has CFF outlines: its
-// glyf cost is 0. go-tex/math caches a path per (glyph, pixel size), so what a
-// hostile font can keep alive is MaxOutlineBytes times the number of sizes a
-// deck uses, not 4,096 times MaxGlyphBytes and not exactly MaxOutlineBytes.
-const (
-	MaxGlyphBytes   = 4 << 20
-	MaxOutlineBytes = 128 << 20
-)
+// MaxOutlineBytes bounds the outlines of a TrueType (glyf) font, as glyfCost
+// counts them: the bytes go-opentype allocates loading every glyph once, which
+// is about 3.8 times the path text go-tex/math keeps for it. It was set from
+// TestGlyfBudgets, which measured seven system fonts: the largest total is
+// 15,625,865 (Apple Symbols), a margin of 8; Arial Unicode (281,719,255) is over
+// MaxFontBytes. go-tex/math caches a path per (glyph, pixel size), so what a
+// hostile font keeps alive is the bound times the number of sizes a deck uses.
+const MaxOutlineBytes = 128 << 20
+
+// MaxPathBytes bounds the outlines of a CFF font, as the SVG path text of all its
+// glyphs at one size, which is what go-tex/math keeps. A CFF charstring cannot be
+// costed without running it (subroutines fan out), so the font's glyphs are run,
+// once, by go-opentype, and the run stops at the bound. STIX Two Math, 6,760
+// glyphs, is 8,202,727 bytes at 80 px (7,429,115 at 10 px, 8,713,974 at 1000 px)
+// and runs in 74 ms: the margin is 8
+// (7.7 at 1000 px). The upper bound without running them,
+// 65,536 points per glyph, would allow gigabytes for STIX's glyph count.
+const MaxPathBytes = 64 << 20
+
+// pathPx is the pixel size the CFF glyphs are run at. The text of a path hardly
+// depends on it (see MaxPathBytes).
+const pathPx = 80
 
 // keep is the set of sfnt tables handed to the parser: the ones go-tex/math
 // reads (outlines, metrics, character map, MATH) and the hinting programs.
 // Everything else, the layout (GSUB, GPOS, GDEF, kern) and variation tables
-// above all, is dropped before parsing: go-tex/math never reads them, and each
-// sizes allocations from counts in the file.
+// above all, is dropped before parsing: go-tex/math never reads them, so there
+// is no reason to give them to a parser. This is defence in depth, not a
+// bound: go-opentype checks them since v0.23.0.
 var keep = map[string]bool{
 	"head": true, "maxp": true, "hhea": true, "hmtx": true, "loca": true,
 	"glyf": true, "CFF ": true, "cmap": true, "MATH": true, "OS/2": true,
@@ -43,10 +59,10 @@ var keep = map[string]bool{
 
 var errBound = errors.New("the font declares more than it holds")
 
-// bound checks, without allocating from any count it reads, that parsing the
-// font stays within MaxParseBytes, and returns the font reduced to the tables
-// in keep. It refuses a variable-CFF (CFF2) font, which carries counts
-// go-opentype sizes the same way.
+// bound returns the font reduced to the tables in keep, after checking, without
+// allocating from any count it reads, that the table directory lies within the
+// font, and that the outlines go-tex/math will cache stay within MaxOutlineBytes
+// (TrueType) or MaxPathBytes (CFF).
 func bound(font []byte) ([]byte, error) {
 	if len(font) < 12 {
 		return nil, fmt.Errorf("%w: short header", errBound)
@@ -64,45 +80,65 @@ func bound(font []byte) ([]byte, error) {
 		if off+length > int64(len(font)) {
 			return nil, fmt.Errorf("%w: table %q is out of range", errBound, tag)
 		}
-		if tag == "CFF2" {
-			return nil, errors.New("a variable CFF (CFF2) font is not supported")
-		}
 		if _, dup := tables[tag]; !keep[tag] || dup {
 			continue
 		}
 		tables[tag] = font[off : off+length]
 	}
-	var cost int64
-	if b, ok := tables["cmap"]; ok {
-		c, err := cmapCost(b)
-		if err != nil {
-			return nil, err
-		}
-		cost += c
-	}
-	if b, ok := tables["MATH"]; ok {
-		c, err := mathCost(b)
-		if err != nil {
-			return nil, err
-		}
-		cost += c
-	}
-	// The glyph outlines are decoded when a glyph is typeset, not at parse time,
-	// and each glyph on its own: the bound is on the worst single glyph.
-	worst, total, err := glyfCost(tables)
+	total, err := glyfCost(tables)
 	if err != nil {
 		return nil, err
-	}
-	if worst > MaxGlyphBytes {
-		return nil, fmt.Errorf("%w: typesetting one glyph would allocate over the %d bytes allowed (%d counted)", errBound, MaxGlyphBytes, worst)
 	}
 	if total > MaxOutlineBytes {
 		return nil, fmt.Errorf("%w: typesetting its glyphs would allocate over the %d bytes allowed (%d counted)", errBound, MaxOutlineBytes, total)
 	}
-	if cost > MaxParseBytes {
-		return nil, fmt.Errorf("%w: parsing it would allocate over the %d bytes allowed (%d counted before stopping)", errBound, MaxParseBytes, cost)
+	slim := rebuild(font[:4], tables)
+	if tables["CFF "] != nil {
+		if err := cffPaths(slim); err != nil {
+			return nil, err
+		}
 	}
-	return rebuild(font[:4], tables), nil
+	return slim, nil
+}
+
+// scanBudget bounds the wall-clock time cffPaths may spend. go-opentype bounds
+// the work of one glyph (131,072 operators), not of all of them, and a glyph
+// that runs its operators and draws nothing adds nothing to the path total:
+// measured, such glyphs cost 1.24 ms each, so 65,535 of them are 81 s. STIX Two
+// Math scans in 74 ms: the margin is 67, which leaves room for a host many
+// times slower (a WebAssembly page, a race build), and a hostile font costs at
+// most these seconds, once per load. A var so that a test can change it.
+var scanBudget = 5 * time.Second
+
+// cffPaths runs every glyph of a CFF font, as go-tex/math will when it typesets,
+// and refuses the font when a glyph is over go-opentype's budget (real fonts
+// have none: 155 were measured upstream), when the paths together are over
+// MaxPathBytes, or when the run takes over scanBudget. The run stops at the
+// first refusal. What this bounds: the path text kept (exactly) and the time
+// spent here (by the clock, so a slow machine may refuse a font a fast one
+// accepts, which is the safe side). What it does not: the time of typesetting
+// with a font that passed, which is at most what the scan took.
+func cffPaths(font []byte) error {
+	f, err := opentype.Parse(font)
+	if err != nil {
+		return fmt.Errorf("%w: %v", errBound, err)
+	}
+	face := f.NewFace(pathPx)
+	var total int
+	deadline := time.Now().Add(scanBudget)
+	for g := 0; g < f.NumGlyphs(); g++ {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%w: reading its glyphs takes over %v (stopped at glyph %d)", errBound, scanBudget, g)
+		}
+		d, ok := face.GlyphSVGPath(opentype.GlyphIndex(g))
+		if !ok {
+			return fmt.Errorf("%w: glyph %d is over the outline budget", errBound, g)
+		}
+		if total += len(d); total > MaxPathBytes {
+			return fmt.Errorf("%w: its glyphs would keep over the %d bytes of paths allowed (%d counted at glyph %d)", errBound, MaxPathBytes, total, g)
+		}
+	}
+	return nil
 }
 
 // u reads big-endian integers at off of b, remembering a short read instead of
@@ -120,249 +156,8 @@ func (r *u) u16(off int) int {
 	return int(binary.BigEndian.Uint16(r.b[off:]))
 }
 
-func (r *u) u32(off int) int64 {
-	if off < 0 || off+4 > len(r.b) {
-		r.bad = true
-		return 0
-	}
-	return int64(binary.BigEndian.Uint32(r.b[off:]))
-}
-
-// has reports whether n records of size bytes lie at off, without multiplying
-// an unbounded count into an int.
-func (r *u) has(off int, n int64, size int) bool {
-	return off >= 0 && off <= len(r.b) && n >= 0 && n <= int64(len(r.b)-off)/int64(size)
-}
-
 func truncated(what string) error {
 	return fmt.Errorf("%w: %s", errBound, what)
-}
-
-// cmapCost estimates what go-opentype allocates reading every subtable of the
-// cmap table (it reads them all, and the records may share one offset).
-func cmapCost(b []byte) (int64, error) {
-	r := &u{b: b}
-	n := r.u16(2)
-	if r.bad || !r.has(4, int64(n), 8) {
-		return 0, truncated("cmap records")
-	}
-	var cost int64
-	for i := 0; i < n; i++ {
-		off := r.u32(4 + i*8 + 4)
-		if r.bad || off+2 > int64(len(b)) {
-			return 0, truncated("cmap subtable offset")
-		}
-		sub := &u{b: b[off:]}
-		switch format := sub.u16(0); format {
-		case 8:
-			groups := sub.u32(12 + 8192)
-			if sub.bad || !sub.has(12+8192+4, groups, 12) {
-				return 0, truncated("cmap format 8 groups")
-			}
-			cost += 8192 + groups*16
-		case 10:
-			chars := sub.u32(16)
-			if sub.bad || !sub.has(20, chars, 2) {
-				return 0, truncated("cmap format 10 glyphs")
-			}
-			cost += chars * 2
-		case 12, 13:
-			groups := sub.u32(12)
-			if sub.bad || !sub.has(16, groups, 12) {
-				return 0, truncated("cmap groups")
-			}
-			cost += groups * 16
-		case 14:
-			recs := sub.u32(6)
-			if sub.bad || !sub.has(10, recs, 11) {
-				return 0, truncated("cmap format 14 records")
-			}
-			cost += recs * 64
-			for j := int64(0); j < recs; j++ {
-				at := 10 + int(j)*11
-				for k, size := range [2]int{4, 5} {
-					o := sub.u32(at + 3 + k*4)
-					if o == 0 {
-						continue
-					}
-					if o+4 > int64(len(sub.b)) {
-						return 0, truncated("cmap format 14 table offset")
-					}
-					cnt := sub.u32(int(o))
-					if !sub.has(int(o)+4, cnt, size) {
-						return 0, truncated("cmap format 14 mappings")
-					}
-					cost += cnt * 16
-				}
-			}
-		default:
-			// Formats 0, 2, 4 and 6 size their slices by 16-bit counts and by the
-			// bytes that remain: the remainder of the table over-counts, soundly.
-			cost += int64(len(sub.b))
-		}
-		if cost > MaxParseBytes {
-			return cost, nil
-		}
-	}
-	return cost, nil
-}
-
-// covCost checks a Coverage table at off of b and returns the work it asks for:
-// format 2 expands every range into a map, so overlapping ranges cost time
-// quadratic in the file.
-func covCost(r *u, off int) (int64, error) {
-	if off < 0 || off+4 > len(r.b) {
-		return 0, truncated("coverage offset")
-	}
-	cnt := r.u16(off + 2)
-	switch f := r.u16(off); f {
-	case 1:
-		if !r.has(off+4, int64(cnt), 2) {
-			return 0, truncated("coverage glyphs")
-		}
-		return int64(cnt) * 16, nil
-	case 2:
-		if !r.has(off+4, int64(cnt), 6) {
-			return 0, truncated("coverage ranges")
-		}
-		var span int64
-		for i := 0; i < cnt; i++ {
-			s, e := r.u16(off+4+i*6), r.u16(off+6+i*6)
-			if e >= s {
-				span += int64(e-s) + 1
-			}
-			if span > 1<<20 {
-				return 0, truncated("coverage ranges span too many glyphs")
-			}
-		}
-		return span * 16, nil
-	}
-	return 0, truncated("coverage format")
-}
-
-// mathCost estimates what go-opentype allocates reading the MATH table, where
-// one MathKern or MathGlyphConstruction may be referenced by thousands of
-// records.
-func mathCost(b []byte) (int64, error) {
-	r := &u{b: b}
-	constOff, giOff, varOff := r.u16(4), r.u16(6), r.u16(8)
-	if r.bad {
-		return 0, truncated("MATH header")
-	}
-	var cost int64
-	if giOff != 0 {
-		g := &u{b: b[min(giOff, len(b)):]}
-		for i := 0; i < 2; i++ { // italics correction, top accent attachment
-			o := g.u16(i * 2)
-			if o == 0 {
-				continue
-			}
-			t := &u{b: g.b[min(o, len(g.b)):]}
-			cnt := t.u16(2)
-			if t.bad || !t.has(4, int64(cnt), 4) {
-				return 0, truncated("MATH per-glyph values")
-			}
-			c, err := covCost(t, t.u16(0))
-			if err != nil {
-				return 0, err
-			}
-			cost += int64(cnt)*4 + c
-		}
-		if o := g.u16(4); o != 0 { // extended shape coverage
-			t := &u{b: g.b[min(o, len(g.b)):]}
-			c, err := covCost(t, 0)
-			if err != nil {
-				return 0, err
-			}
-			cost += c
-		}
-		if o := g.u16(6); o != 0 {
-			c, err := kernInfoCost(&u{b: g.b[min(o, len(g.b)):]})
-			if err != nil {
-				return 0, err
-			}
-			cost += c
-		}
-		if g.bad {
-			return 0, truncated("MATH glyph info")
-		}
-	}
-	if varOff != 0 {
-		c, err := variantsCost(&u{b: b[min(varOff, len(b)):]})
-		if err != nil {
-			return 0, err
-		}
-		cost += c
-	}
-	_ = constOff
-	return cost, nil
-}
-
-func kernInfoCost(t *u) (int64, error) {
-	cnt := t.u16(2)
-	if t.bad || !t.has(4, int64(cnt), 8) {
-		return 0, truncated("MATH kern info")
-	}
-	cost := int64(cnt) * 80
-	for i := 0; i < cnt; i++ {
-		for c := 0; c < 4; c++ {
-			o := t.u16(4 + i*8 + c*2)
-			if o == 0 {
-				continue
-			}
-			if o+2 > len(t.b) {
-				return 0, truncated("MATH kern offset")
-			}
-			n := t.u16(o)
-			if !t.has(o+2, int64(n), 4) {
-				return 0, truncated("MATH kern heights")
-			}
-			cost += int64(n)*8 + 64
-			if cost > MaxParseBytes {
-				return cost, nil
-			}
-		}
-	}
-	cov, err := covCost(t, t.u16(0))
-	return cost + cov, err
-}
-
-func variantsCost(t *u) (int64, error) {
-	vc, hc := t.u16(6), t.u16(8)
-	if t.bad || !t.has(10, int64(vc)+int64(hc), 2) {
-		return 0, truncated("MATH variants")
-	}
-	var cost int64
-	for i := 0; i < vc+hc; i++ {
-		o := t.u16(10 + i*2)
-		if o+4 > len(t.b) {
-			return 0, truncated("MATH construction offset")
-		}
-		cost += 8
-		if (i < vc && t.u16(2) == 0) || (i >= vc && t.u16(4) == 0) {
-			continue // an empty axis: the construction is not read
-		}
-		c := &u{b: t.b[o:]}
-		asm, n := c.u16(0), c.u16(2)
-		if !c.has(4, int64(n), 4) {
-			return 0, truncated("MATH variant records")
-		}
-		cost += int64(n)*8 + 64
-		if asm != 0 {
-			if asm+6 > len(c.b) {
-				return 0, truncated("MATH assembly offset")
-			}
-			p := c.u16(asm + 4)
-			if !c.has(asm+6, int64(p), 10) {
-				return 0, truncated("MATH assembly parts")
-			}
-			cost += int64(p)*16 + 64
-		}
-		if cost > MaxParseBytes {
-			return cost, nil
-		}
-	}
-	return cost, nil
 }
 
 // satCap saturates glyph costs: past it the font is refused anyway, and the
@@ -376,16 +171,18 @@ func sat(v int64) int64 {
 	return v
 }
 
-// glyfCost returns the most bytes go-opentype v0.21.1 (glyf.go:85-273) allocates
-// loading any one glyph. A composite decodes and copies every component record
-// separately, so a glyph that references another k times costs k times it, and
-// the cost multiplies along the chain (the parser caps only the depth, at 8). It
-// reads loca and glyf as the parser does; a glyph the parser would reject costs
-// what was allocated before the rejection. Each glyph is costed once.
-func glyfCost(tables map[string][]byte) (worst, total int64, err error) {
+// glyfCost returns the bytes go-opentype (glyf.go) allocates loading every
+// glyph of a TrueType-outline font once: the total MaxOutlineBytes bounds. A
+// composite decodes and copies every component record separately, so a glyph
+// that references another k times costs k times it, and the cost multiplies
+// along the chain; go-opentype refuses a glyph over 65,535 points, but this
+// counts it first, which is the safe side. It reads loca and glyf as the parser
+// does; a glyph the parser would reject costs what was allocated before the
+// rejection. Each glyph is costed once.
+func glyfCost(tables map[string][]byte) (total int64, err error) {
 	glyf, loca, head, maxp := tables["glyf"], tables["loca"], tables["head"], tables["maxp"]
 	if glyf == nil || loca == nil || len(head) < 52 || len(maxp) < 6 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	numGlyphs := int(binary.BigEndian.Uint16(maxp[4:]))
 	long := binary.BigEndian.Uint16(head[50:]) != 0
@@ -394,7 +191,7 @@ func glyfCost(tables map[string][]byte) (worst, total int64, err error) {
 		entry = 4
 	}
 	if len(loca) < (numGlyphs+1)*entry {
-		return 0, 0, nil // the parser refuses the table
+		return 0, nil // the parser refuses the table
 	}
 	at := func(i int) int64 {
 		if long {
@@ -471,12 +268,11 @@ func glyfCost(tables map[string][]byte) (worst, total int64, err error) {
 	for g := 0; g < numGlyphs; g++ {
 		c, err := load(g, 0)
 		if err != nil {
-			return 0, 0, err
+			return 0, err
 		}
-		worst = max(worst, c.alloc)
 		total = sat(total + c.alloc)
 	}
-	return worst, total, nil
+	return total, nil
 }
 
 // rebuild assembles an sfnt from the tables, in tag order, 4-byte aligned. The

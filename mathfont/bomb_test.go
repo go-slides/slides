@@ -14,12 +14,13 @@ import (
 )
 
 // Font bombs (go-slides/slides#111): fonts under MaxFontBytes with a valid
-// signature whose tables declare counts far beyond the bytes they hold, or
-// share one sub-table among thousands of records. go-opentype v0.21.1 sizes
-// slices from those counts before it checks them, so parsing one allocates up
-// to tens of gigabytes; an out-of-memory cannot be recovered. Each bomb builds
-// at full size (full=true: the font a host would be handed) and scaled
-// (full=false: the same shape, small enough to run unguarded and measure).
+// signature whose tables declare counts far beyond the bytes they hold, share
+// one sub-table among thousands of records, or hold glyphs that each expand
+// into millions of points. go-opentype v0.21.1 sized slices from those counts
+// before it checked them, so parsing one allocated tens of gigabytes (an
+// out-of-memory cannot be recovered); since v0.23.0 it refuses them, and the
+// rows marked up say how. Each bomb builds at full size (full=true: the font a
+// host would be handed) and scaled (full=false: the same shape, small).
 
 func p16(b []byte, v int) []byte   { return binary.BigEndian.AppendUint16(b, uint16(v)) }
 func p32(b []byte, v int64) []byte { return binary.BigEndian.AppendUint32(b, uint32(v)) }
@@ -64,6 +65,15 @@ func fmt12(format int, groups int64) []byte {
 type bomb struct {
 	name string
 	font func(full bool) []byte
+	// up is what go-opentype v0.23.0 does with the font on its own, with no
+	// guard here: "refused" (math.New fails), "bounded" (it reads the font
+	// within a small allocation: a shared sub-table is decoded once, a table
+	// go-tex/math ignores is not a risk), "glyph" (it reads the font and
+	// refuses the glyph when it is typeset: the formula comes out empty), or ""
+	// (it does not bound it: the sum over glyphs is this package's).
+	up string
+	// budget is the bytes refusing the font may allocate, 8 MiB when zero.
+	budget uint64
 }
 
 // dropped names the bombs whose hostile table is one go-tex/math never reads:
@@ -79,25 +89,25 @@ func pick(full bool, huge, small int64) int64 {
 
 var bombs = []bomb{
 	// cmap.go:283, 357, 444, 618: a 32-bit count of 12- or 2-byte records.
-	{"cmap12-groups", func(f bool) []byte { return withCmap(fmt12(12, pick(f, 0xFFFFFFFF, 1<<20))) }},
-	{"cmap13-groups", func(f bool) []byte { return withCmap(fmt12(13, pick(f, 0xFFFFFFFF, 1<<20))) }},
-	{"cmap8-groups", func(f bool) []byte {
+	{name: "cmap12-groups", up: "refused", font: func(f bool) []byte { return withCmap(fmt12(12, pick(f, 0xFFFFFFFF, 1<<20))) }},
+	{name: "cmap13-groups", up: "refused", font: func(f bool) []byte { return withCmap(fmt12(13, pick(f, 0xFFFFFFFF, 1<<20))) }},
+	{name: "cmap8-groups", up: "refused", font: func(f bool) []byte {
 		s := p32(p32(p16(p16(nil, 8), 0), 0), 0)
 		s = append(s, make([]byte, 8192)...)
 		return withCmap(p32(s, pick(f, 0xFFFFFFFF, 1<<20)))
 	}},
-	{"cmap10-chars", func(f bool) []byte {
+	{name: "cmap10-chars", up: "refused", font: func(f bool) []byte {
 		s := p32(p32(p32(p32(p16(p16(nil, 10), 0), 0), 0), 0), pick(f, 0xFFFFFFFF, 1<<22))
 		return withCmap(s)
 	}},
 	// cmap.go:827, 873, 898: format 14 (variation selectors), three nested counts.
-	{"cmap14-records", func(f bool) []byte {
+	{name: "cmap14-records", up: "refused", font: func(f bool) []byte {
 		return withCmap(p32(p32(p16(nil, 14), 0), pick(f, 0xFFFFFFFF, 1<<20)))
 	}},
-	{"cmap14-default-ranges", func(f bool) []byte { return withCmap(fmt14Nested(pick(f, 0xFFFFFFFF, 1<<20), true)) }},
-	{"cmap14-nondefault-mappings", func(f bool) []byte { return withCmap(fmt14Nested(pick(f, 0xFFFFFFFF, 1<<20), false)) }},
+	{name: "cmap14-default-ranges", up: "refused", font: func(f bool) []byte { return withCmap(fmt14Nested(pick(f, 0xFFFFFFFF, 1<<20), true)) }},
+	{name: "cmap14-nondefault-mappings", up: "refused", font: func(f bool) []byte { return withCmap(fmt14Nested(pick(f, 0xFFFFFFFF, 1<<20), false)) }},
 	// cmap.go:827+: records that share one subtable, each sized to the bytes present.
-	{"cmap-shared-subtable", func(f bool) []byte {
+	{name: "cmap-shared-subtable", up: "bounded", font: func(f bool) []byte {
 		records, groups := int(pick(f, 8000, 50)), int(pick(f, 2000, 100000))
 		offs := make([]int64, records)
 		body := fmt12(12, int64(groups))
@@ -107,7 +117,7 @@ var bombs = []bomb{
 		return sfnt(t)
 	}},
 	// gpos.go:503: class1Count*class2Count ints, both 16-bit, no bytes read.
-	{"gpos-pairpos2-grid", func(f bool) []byte {
+	{name: "gpos-pairpos2-grid", up: "bounded", font: func(f bool) []byte {
 		n := int(pick(f, 65535, 2048))
 		sub := p16(p16(p16(p16(p16(p16(p16(p16(nil, 2), 0), 0), 0), 0), 0), n), n)
 		g := []byte{0, 1, 0, 0, 0, 10, 0, 12, 0, 14} // version, script/feature/lookup offsets
@@ -118,7 +128,7 @@ var bombs = []bomb{
 		return sfnt(t)
 	}},
 	// math.go:421-425: a MathKern of n heights shared by every corner of every record.
-	{"math-kern-shared", func(f bool) []byte {
+	{name: "math-kern-shared", up: "bounded", font: func(f bool) []byte {
 		records, n := int(pick(f, 8000, 1000)), int(pick(f, 8000, 2000))
 		covAt := 4 + 8*records
 		kernAt := covAt + 4
@@ -138,13 +148,21 @@ var bombs = []bomb{
 		return sfnt(t)
 	}},
 	// glyf.go:261-270, read when a glyph is typeset: composites of composites.
-	{"glyf-composite-chain", func(f bool) []byte { return glyfChain(int(pick(f, 1000, 5))) }},
+	{name: "glyf-composite-chain", up: "glyph", font: func(f bool) []byte { return glyfChain(int(pick(f, 1000, 5))) }},
+	// go-opentype/opentype#75: charstring subroutines that call each other k
+	// times draw k^10 lines (the depth was capped, not the number of calls).
+	{name: "cff-fanout", up: "glyph", font: func(f bool) []byte { return cffFanout(int(pick(f, 8, 4))) }},
+	// 400 glyphs of 40,000 lines each, sharing their subroutines: 120 MB of path
+	// text kept by go-tex/math's cache, from a font of a few hundred bytes.
+	// Refusing it runs glyphs until the total is over, which is time and
+	// churn, not memory: 2 GB allocated in all, 110 glyphs live at a time.
+	{name: "cff-many-glyphs", budget: 4 << 30, font: func(f bool) []byte { return cffManyGlyphs(int(pick(f, 400, 40))) }},
 	// glyf.go:122-169 and go-tex/math's unbounded path cache: glyphs each under
 	// the per-glyph cap, together over the total. 40 glyphs of about 3.9 MB
 	// counted is 156 MB, in a 20 KB font.
-	{"glyf-many-glyphs", func(f bool) []byte { return glyfManyGlyphs(int(pick(f, 40, 2))) }},
+	{name: "glyf-many-glyphs", font: func(f bool) []byte { return glyfManyGlyphs(int(pick(f, 40, 2))) }},
 	// math.go:444, 502: a glyph construction of n variants shared by every offset.
-	{"math-variants-shared", func(f bool) []byte {
+	{name: "math-variants-shared", up: "bounded", font: func(f bool) []byte {
 		count, n := int(pick(f, 30000, 1000)), int(pick(f, 8000, 2000))
 		covAt := 10 + 2*count
 		v := p16(p16(p16(p16(p16(nil, 0), covAt), 0), count), 0)
@@ -252,13 +270,18 @@ func allocated(f func()) uint64 {
 }
 
 // TestBombsAreRefused: through Provider, every bomb is an error naming the
-// refusal, within a small allocation. Run under a small limit, never against
-// the host's memory: GOMEMLIMIT=256MiB (and ulimit -v where it is enforced).
+// refusal, within a small allocation: by go-opentype's own error for what it
+// bounds at parse time ("cannot be read"), by this package's for the rest
+// ("refused"). Run under a small limit, never against the host's memory:
+// GOMEMLIMIT=256MiB (and ulimit -v where it is enforced).
 func TestBombsAreRefused(t *testing.T) {
-	const budget = 8 << 20
 	for _, b := range bombs {
 		t.Run(b.name, func(t *testing.T) {
 			reset(t)
+			budget := b.budget
+			if budget == 0 {
+				budget = 8 << 20
+			}
 			font := b.font(true)
 			if len(font) > MaxFontBytes {
 				t.Fatalf("the bomb is %d bytes, over MaxFontBytes", len(font))
@@ -266,42 +289,91 @@ func TestBombsAreRefused(t *testing.T) {
 			Register(fn(func() ([]byte, error) { return font, nil }))
 			var err error
 			n := allocated(func() { _, err = Renderer() })
-			if dropped[b.name] {
+			switch {
+			case dropped[b.name]:
 				// What is left once the table is removed is a valid font.
 				if err != nil {
 					t.Fatalf("a font whose only hostile table is dropped: %v", err)
 				}
-			} else if err == nil || !Unavailable(err) || !strings.Contains(err.Error(), "refused") {
+			case b.up == "refused":
+				if err == nil || !Unavailable(err) || !strings.Contains(err.Error(), "a declared count exceeds the data present") {
+					t.Fatalf("not refused by go-opentype: %v", err)
+				}
+			case b.up == "bounded":
+				if err != nil {
+					t.Fatalf("go-opentype bounds this font, the guard has no reason to refuse it: %v", err)
+				}
+			case err == nil || !Unavailable(err) || !strings.Contains(err.Error(), "refused"):
 				t.Fatalf("not refused: %v", err)
 			}
 			if n > budget {
 				t.Errorf("refusing allocated %d bytes, over %d", n, budget)
 			}
-			t.Logf("%d-byte font refused after %d bytes: %v", len(font), n, err)
+			t.Logf("%d-byte font gave %v after %d bytes", len(font), err, n)
 		})
 	}
 }
 
-// TestUpstreamAllocatesFromDeclaredCounts is the finding, measured: each bomb
-// at a scale that is safe to run, handed straight to go-tex/math with no guard.
-// It logs how much the parser allocated for how many bytes of font; it never
-// fails, and says so when upstream starts to bound the case.
-func TestUpstreamAllocatesFromDeclaredCounts(t *testing.T) {
+// TestUpstreamBoundsWhatItCovers is the finding of go-opentype/opentype#75, as
+// fixed in v0.23.0: each bomb handed straight to go-tex/math with no guard, at
+// full size, is refused when parsed, or read within a small allocation, or its
+// glyph is refused when it is typeset (the formula comes out with no path, and
+// an error is not an option: go-tex/math skips a glyph it cannot draw). The
+// glyph rows are opentype#75's two reproducers, composites of composites (k^8
+// contours) and charstring subroutines (k^10 lines). A bomb marked up "" is the
+// sum over glyphs that go-opentype cannot bound: it must be read, and kept.
+func TestUpstreamBoundsWhatItCovers(t *testing.T) {
+	const budget = 32 << 20
+	const tex = "1"
 	for _, b := range bombs {
 		t.Run(b.name, func(t *testing.T) {
-			font := b.font(false)
+			font := b.font(true)
+			var err, rerr error
+			var svg string
 			n := allocated(func() {
-				defer func() { _ = recover() }()
-				if r, err := math.New(font); err == nil {
-					_, _ = r.RenderSVG("1", 40) // glyph outlines are decoded when typeset
+				var r *math.Renderer
+				if r, err = math.New(font); err == nil {
+					svg, rerr = r.RenderSVG(tex, 40)
 				}
 			})
-			if n < 1<<20 {
-				t.Logf("upstream now bounds %s (%d bytes allocated): the guard case can go", b.name, n)
-				return
+			switch b.up {
+			case "refused":
+				if err == nil || !strings.Contains(err.Error(), "a declared count exceeds the data present") {
+					t.Fatalf("go-opentype read it: %v", err)
+				}
+			case "bounded", "glyph":
+				if err != nil || rerr != nil {
+					t.Fatalf("go-opentype refused it whole: %v, %v", err, rerr)
+				}
+				if b.up == "glyph" && strings.Contains(svg, "<path") {
+					t.Errorf("the glyph was drawn: %s", svg)
+				}
+			default:
+				if b.up != "" || err != nil || rerr != nil || !strings.Contains(svg, "<path") {
+					t.Fatalf("go-opentype does not bound this one, and reads it: %v, %v", err, rerr)
+				}
+				n = 0 // the paths kept are the finding, not the allocation
 			}
-			t.Logf("%s: %d-byte font -> %d bytes allocated (x%d)", b.name, len(font), n, n/uint64(len(font)))
+			if n > budget {
+				t.Errorf("%d bytes allocated, over %d", n, budget)
+			}
+			t.Logf("%s: %d-byte font -> %d bytes allocated", b.name, len(font), n)
 		})
+	}
+}
+
+// TestGlyphBombsDrawWhenSmall is the control of the two glyph reproducers: the
+// same fonts with a fan-out of 2 are drawn, so that "no path" above is the
+// refusal and not a font that cannot draw at all.
+func TestGlyphBombsDrawWhenSmall(t *testing.T) {
+	for name, font := range map[string][]byte{"composite": glyfChain(2), "cff": cffFanout(2)} {
+		r, err := math.New(font)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if svg, err := r.RenderSVG("1", 40); err != nil || !strings.Contains(svg, "<path") {
+			t.Errorf("%s: %v %s", name, err, svg)
+		}
 	}
 }
 
@@ -360,5 +432,18 @@ func TestCorpusHoldsTheBombs(t *testing.T) {
 		if err != nil || string(got) != want[n] {
 			t.Errorf("corpus file %s is missing or stale: run UPDATE_CORPUS=1 go test ./mathfont -run TestCorpusHoldsTheBombs (%v)", n, err)
 		}
+	}
+}
+
+// TestAParserPanicIsAnError: go-opentype no longer panics on the bombs, but a
+// font that makes it panic is still an error the host can read, not a crash.
+func TestAParserPanicIsAnError(t *testing.T) {
+	reset(t)
+	old := newRenderer
+	t.Cleanup(func() { newRenderer = old })
+	newRenderer = func([]byte) (*math.Renderer, error) { panic("index out of range") }
+	Register(fn(func() ([]byte, error) { return stix(), nil }))
+	if _, err := Renderer(); err == nil || !Unavailable(err) || !strings.Contains(err.Error(), "cannot be read: index out of range") {
+		t.Fatalf("got %v", err)
 	}
 }
