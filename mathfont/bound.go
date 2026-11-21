@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/go-opentype/opentype"
 )
@@ -20,7 +19,9 @@ import (
 // the SVG path of every (glyph, pixel size) it typesets, with no limit, so a font
 // of thousands of glyphs, each within its own budget, keeps gigabytes alive.
 // That is bounded here, once for each kind of outline, by MaxOutlineBytes
-// (TrueType) and MaxPathBytes (CFF).
+// (TrueType, costed from the tables without decoding a glyph), and by
+// MaxFontWork and MaxPathBytes (CFF, which can only be costed by running its
+// charstrings, with go-opentype's own cost).
 
 // MaxOutlineBytes bounds the outlines of a TrueType (glyf) font, as glyfCost
 // counts them: the bytes go-opentype allocates loading every glyph once, which
@@ -38,7 +39,12 @@ const MaxOutlineBytes = 128 << 20
 // glyphs, is 8,202,727 bytes at 80 px (7,429,115 at 10 px, 8,713,974 at 1000 px)
 // and runs in 74 ms: the margin is 8
 // (7.7 at 1000 px). The upper bound without running them,
-// 65,536 points per glyph, would allow gigabytes for STIX's glyph count.
+// 65,536 points per glyph, would allow gigabytes for STIX's glyph count. Since
+// MaxFontWork, a font reaches this bound only with glyphs denser than STIX's
+// (49 bytes of path per operator; the bound is 1.35 million operators); it stays
+// as the exact limit on what go-tex/math keeps, whatever the density. No test
+// builds such a font (the per-glyph point budget refuses the fixtures first), so
+// scanGlyphs takes the limits as arguments and the test gives it a small one.
 const MaxPathBytes = 64 << 20
 
 // pathPx is the pixel size the CFF glyphs are run at. The text of a path hardly
@@ -101,41 +107,50 @@ func bound(font []byte) ([]byte, error) {
 	return slim, nil
 }
 
-// scanBudget bounds the wall-clock time cffPaths may spend. go-opentype bounds
-// the work of one glyph (131,072 operators), not of all of them, and a glyph
-// that runs its operators and draws nothing adds nothing to the path total:
-// measured, such glyphs cost 1.24 ms each, so 65,535 of them are 81 s. STIX Two
-// Math scans in 74 ms: the margin is 67, which leaves room for a host many
-// times slower (a WebAssembly page, a race build), and a hostile font costs at
-// most these seconds, once per load. A var so that a test can change it.
-var scanBudget = 5 * time.Second
+// MaxFontWork bounds the work of reading every glyph of a CFF font, in the unit
+// go-opentype's Face.GlyphSVGPathCost reports: charstring operators run, the
+// subroutines and accents (seac) they call included. go-opentype bounds the
+// work of one glyph (131,072 operators), not of all of them, and a glyph that
+// runs its operators and draws nothing adds nothing to the path total, so
+// MaxPathBytes alone cannot stop 65,535 such glyphs (2.6 billion operators at
+// the interpreter's measured 30 ns each, about 80 s). The sum of the costs is
+// deterministic: the same font is accepted or refused on every host, however
+// slow, and no clock is read. STIX Two Math, 6,760 glyphs, costs 166,885
+// operators in total (1,267 for its busiest glyph); the bound is 1,350,000, a
+// margin of 8, which is about 40 ms of interpretation.
+const MaxFontWork = 1_350_000
 
 // cffPaths runs every glyph of a CFF font, as go-tex/math will when it typesets,
 // and refuses the font when a glyph is over go-opentype's budget (real fonts
-// have none: 155 were measured upstream), when the paths together are over
-// MaxPathBytes, or when the run takes over scanBudget. The run stops at the
-// first refusal. What this bounds: the path text kept (exactly) and the time
-// spent here (by the clock, so a slow machine may refuse a font a fast one
-// accepts, which is the safe side). What it does not: the time of typesetting
-// with a font that passed, which is at most what the scan took.
-func cffPaths(font []byte) error {
+// have none: 155 were measured upstream), when the work of all the glyphs is
+// over MaxFontWork, or when the paths together are over MaxPathBytes. The run
+// stops at the first refusal, so its own cost is bounded by MaxFontWork plus one
+// glyph. What this bounds: the path text kept (exactly) and the work done here
+// and by typesetting with a font that passed (by the operators, not the clock).
+func cffPaths(font []byte) error { return scanGlyphs(font, MaxFontWork, MaxPathBytes) }
+
+// scanGlyphs is cffPaths with its two limits as arguments, so that a test can
+// reach the second one with a font small enough to build.
+func scanGlyphs(font []byte, maxWork, maxBytes int) error {
 	f, err := opentype.Parse(font)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errBound, err)
 	}
 	face := f.NewFace(pathPx)
-	var total int
-	deadline := time.Now().Add(scanBudget)
+	var bytes, work int
 	for g := 0; g < f.NumGlyphs(); g++ {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("%w: reading its glyphs takes over %v (stopped at glyph %d)", errBound, scanBudget, g)
-		}
-		d, ok := face.GlyphSVGPath(opentype.GlyphIndex(g))
-		if !ok {
+		d, cost, err := face.GlyphSVGPathCost(opentype.GlyphIndex(g))
+		if errors.Is(err, opentype.ErrOutlineBudget) {
 			return fmt.Errorf("%w: glyph %d is over the outline budget", errBound, g)
 		}
-		if total += len(d); total > MaxPathBytes {
-			return fmt.Errorf("%w: its glyphs would keep over the %d bytes of paths allowed (%d counted at glyph %d)", errBound, MaxPathBytes, total, g)
+		if err != nil {
+			return fmt.Errorf("%w: glyph %d: %v", errBound, g, err)
+		}
+		if work += cost; work > maxWork {
+			return fmt.Errorf("%w: reading its glyphs would take over the %d operators allowed (%d counted at glyph %d)", errBound, maxWork, work, g)
+		}
+		if bytes += len(d); bytes > maxBytes {
+			return fmt.Errorf("%w: its glyphs would keep over the %d bytes of paths allowed (%d counted at glyph %d)", errBound, maxBytes, bytes, g)
 		}
 	}
 	return nil

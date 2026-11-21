@@ -16,7 +16,7 @@ require (
 	github.com/go-ooxml/ooxml v0.8.0
 	github.com/go-ooxml/opc v0.2.1
 	github.com/go-opentype/fonts v0.14.0
-	github.com/go-opentype/opentype v0.23.0
+	github.com/go-opentype/opentype v0.25.0
 	github.com/go-pdfkit/pdfkit v0.24.0
 	github.com/go-pdfkit/reader v0.19.1
 	github.com/go-richdoc/richdoc v0.10.0
