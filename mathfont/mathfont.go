@@ -50,7 +50,7 @@
 // is refused when its glyf table would allocate over MaxOutlineBytes loading
 // all its glyphs (counted from the table, without decoding any), a CFF font
 // when its glyphs, run once by go-opentype, would keep over MaxPathBytes of
-// path text (STIX Two Math keeps 8.2 MB: the margin is 7.8). The font is also
+// path text (STIX Two Math keeps 8.2 MB: the margin is 8). The font is also
 // reduced to the tables go-tex/math reads (the layout, variation and CFF2 tables
 // are dropped), so the parser is not given what nothing uses. A font that
 // passes all of it is bounded in memory; refusing a hostile one costs time, at

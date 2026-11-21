@@ -753,7 +753,7 @@ path of every glyph and size it typesets, so `mathfont` bounds that itself,
 before parsing: a TrueType font is refused when loading its glyphs would
 allocate over 128 MiB (8 times the largest system font measured), a CFF font,
 the shipped STIX font's kind, when its glyphs would keep over 64 MiB of path
-text (STIX Two Math keeps 8.2 MB, a margin of 7.8). It also drops the tables
+text (STIX Two Math keeps 8.2 MB, a margin of 8). It also drops the tables
 go-tex/math never reads (GSUB, GPOS, GDEF, kern, the variation tables). Refusing
 a hostile font costs time (a few seconds of glyph decoding at most) and no more
 memory than one glyph; a font that passes is bounded in memory. The bombs are

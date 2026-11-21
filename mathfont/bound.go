@@ -35,7 +35,8 @@ const MaxOutlineBytes = 128 << 20
 // costed without running it (subroutines fan out), so the font's glyphs are run,
 // once, by go-opentype, and the run stops at the bound. STIX Two Math, 6,760
 // glyphs, is 8,202,727 bytes at 80 px (7,429,115 at 10 px, 8,713,974 at 1000 px)
-// and runs in 74 ms: the margin is 7.8. The upper bound without running them,
+// and runs in 74 ms: the margin is 8
+// (7.7 at 1000 px). The upper bound without running them,
 // 65,536 points per glyph, would allow gigabytes for STIX's glyph count.
 const MaxPathBytes = 64 << 20
 
