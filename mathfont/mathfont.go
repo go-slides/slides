@@ -30,22 +30,36 @@
 // its font, is an error. The font is parsed once per Register, and the parsed
 // renderer is shared by all goroutines, as go-tex/math's is.
 //
-// # Trusted input, until go-opentype bounds its allocations
+// # An untrusted font
 //
-// The checks above bound the bytes, not what parsing them allocates:
-// go-opentype v0.21.1 sizes slices from counts the font declares before it
-// checks them against the bytes present, and an out-of-memory is not
-// recoverable. Before parsing, Register's font is therefore reduced to the
-// tables go-tex/math reads (the layout, variation and CFF2 tables are dropped
-// or refused), and the cmap and MATH tables are refused when the counts they
-// declare would allocate more than MaxParseBytes. TrueType outlines (glyf) are
-// costed per glyph and in total (MaxGlyphBytes, MaxOutlineBytes). CFF outlines,
-// which STIX Two Math itself uses, are NOT covered: the charstring interpreter
-// bounds the depth of subroutine calls but not their number, and 668 bytes of
-// font allocate 954 MB (go-opentype/opentype#75). That covers every other case
-// found (bomb_test.go), not every case there could be: take the font from a source
-// the host trusts, such as the embedded one or a copy checked against a known
-// hash, until the upstream bound lands (go-opentype/opentype#75).
+// The checks above bound the bytes, not what reading them allocates, and a font
+// declares counts that a parser must not believe. go-opentype v0.23.0 checks
+// every count a font declares against the bytes present (cmap, CFF2, GSUB and
+// GPOS, MATH, the variation tables), decodes a shared sub-table once, and
+// charges each glyph a budget: a composite is at most 65,535 points, a CFF
+// charstring at most 131,072 operators and 65,536 points, and a glyph over it is
+// not drawn (go-opentype/opentype#75, go-slides/slides#111). A font that
+// declares more than it holds is therefore an error from the parser, and a
+// glyph that expands into millions of points comes out empty, within a few
+// milliseconds and megabytes (bomb_test.go has both).
+//
+// What go-opentype cannot bound is the sum over the glyphs: go-tex/math keeps
+// the path of every glyph it typesets, at every size, for as long as the
+// renderer lives, with no limit, so thousands of glyphs each within their own
+// budget keep gigabytes. That is bounded here, before parsing: a TrueType font
+// is refused when its glyf table would allocate over MaxOutlineBytes loading
+// all its glyphs (counted from the table, without decoding any), a CFF font
+// when its glyphs, run once by go-opentype, would keep over MaxPathBytes of
+// path text (STIX Two Math keeps 8.2 MB: the margin is 7.8). The font is also
+// reduced to the tables go-tex/math reads (the layout, variation and CFF2 tables
+// are dropped), so the parser is not given what nothing uses. A font that
+// passes all of it is bounded in memory; refusing a hostile one costs time, at
+// most a few seconds of glyph decoding, and no more memory than a glyph needs.
+//
+// This is the guarantee of a font from any source, the embedded one or one a
+// host fetches. Take the font from a source the host trusts all the same when
+// the deck is: the bounds are those of go-opentype v0.23.0 and of what
+// go-tex/math v0.50.0 keeps, and a later version of either may keep more.
 package mathfont
 
 import (
@@ -178,12 +192,15 @@ func build(font []byte) (r *math.Renderer, err error) {
 			return nil, fmt.Errorf("mathfont: the font is refused: %w", err)
 		}
 	}
-	r, err = math.New(font)
+	r, err = newRenderer(font)
 	if err != nil {
 		return nil, fmt.Errorf("mathfont: the font cannot be read: %w", err)
 	}
 	return r, nil
 }
+
+// newRenderer is math.New; a test replaces it with a parser that panics.
+var newRenderer = math.New
 
 // signature: "OTTO" (CFF outlines), 00 01 00 00 or "true" (TrueType outlines),
 // "ttcf" (a collection).
