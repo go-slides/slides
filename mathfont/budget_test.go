@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-opentype/fonts/gomono"
 	"github.com/go-opentype/fonts/goregular"
@@ -170,10 +169,8 @@ func TestManyGlyphsAreRefusedByTheTotal(t *testing.T) {
 		t.Fatalf("total %d (cap %d), err %v", total, MaxOutlineBytes, err)
 	}
 	t.Logf("40 glyphs: total %d", total)
-	defer func(d time.Duration) { scanBudget = d }(scanBudget)
-	scanBudget = time.Minute // the total refuses, not the clock, even under -race
 	_, err = bound(cffManyGlyphs(400))
-	if err == nil || !strings.Contains(err.Error(), "of paths allowed") {
+	if err == nil || !strings.Contains(err.Error(), "operators allowed") {
 		t.Fatalf("400 CFF glyphs of 40,000 lines: %v", err)
 	}
 	t.Log(err)

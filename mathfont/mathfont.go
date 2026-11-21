@@ -49,16 +49,19 @@
 // budget keep gigabytes. That is bounded here, before parsing: a TrueType font
 // is refused when its glyf table would allocate over MaxOutlineBytes loading
 // all its glyphs (counted from the table, without decoding any), a CFF font
-// when its glyphs, run once by go-opentype, would keep over MaxPathBytes of
-// path text (STIX Two Math keeps 8.2 MB: the margin is 8). The font is also
-// reduced to the tables go-tex/math reads (the layout, variation and CFF2 tables
-// are dropped), so the parser is not given what nothing uses. A font that
-// passes all of it is bounded in memory; refusing a hostile one costs time, at
-// most a few seconds of glyph decoding, and no more memory than a glyph needs.
+// when its glyphs, run once by go-opentype, would run over MaxFontWork
+// charstring operators in all (STIX Two Math is 166,885: the margin is 8) or
+// keep over MaxPathBytes of path text (STIX Two Math keeps 8.2 MB: the margin is
+// 8). The work bound counts operators, never time, so a font is accepted or
+// refused alike on every host. The font is also reduced to the tables
+// go-tex/math reads (the layout, variation and CFF2 tables are dropped), so the
+// parser is not given what nothing uses. A font that passes all of it is bounded
+// in memory and in work; refusing a hostile one costs milliseconds and no more
+// memory than a glyph needs.
 //
 // This is the guarantee of a font from any source, the embedded one or one a
 // host fetches. Take the font from a source the host trusts all the same when
-// the deck is: the bounds are those of go-opentype v0.23.0 and of what
+// the deck is: the bounds are those of go-opentype v0.25.0 and of what
 // go-tex/math v0.50.0 keeps, and a later version of either may keep more.
 package mathfont
 
