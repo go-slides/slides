@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/go-opentype/opentype"
 )
@@ -100,11 +101,23 @@ func bound(font []byte) ([]byte, error) {
 	return slim, nil
 }
 
+// scanBudget bounds the wall-clock time cffPaths may spend. go-opentype bounds
+// the work of one glyph (131,072 operators), not of all of them, and a glyph
+// that runs its operators and draws nothing adds nothing to the path total:
+// measured, such glyphs cost 1.24 ms each, so 65,535 of them are 81 s. STIX Two
+// Math scans in 74 ms: the margin is 67, which leaves room for a host many
+// times slower (a WebAssembly page, a race build), and a hostile font costs at
+// most these seconds, once per load. A var so that a test can change it.
+var scanBudget = 5 * time.Second
+
 // cffPaths runs every glyph of a CFF font, as go-tex/math will when it typesets,
 // and refuses the font when a glyph is over go-opentype's budget (real fonts
-// have none: 155 were measured upstream) or when the paths together are over
-// MaxPathBytes. The run stops at the first refusal: a font of 65,535 glyphs each
-// just under its budget would otherwise cost minutes.
+// have none: 155 were measured upstream), when the paths together are over
+// MaxPathBytes, or when the run takes over scanBudget. The run stops at the
+// first refusal. What this bounds: the path text kept (exactly) and the time
+// spent here (by the clock, so a slow machine may refuse a font a fast one
+// accepts, which is the safe side). What it does not: the time of typesetting
+// with a font that passed, which is at most what the scan took.
 func cffPaths(font []byte) error {
 	f, err := opentype.Parse(font)
 	if err != nil {
@@ -112,7 +125,11 @@ func cffPaths(font []byte) error {
 	}
 	face := f.NewFace(pathPx)
 	var total int
+	deadline := time.Now().Add(scanBudget)
 	for g := 0; g < f.NumGlyphs(); g++ {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%w: reading its glyphs takes over %v (stopped at glyph %d)", errBound, scanBudget, g)
+		}
 		d, ok := face.GlyphSVGPath(opentype.GlyphIndex(g))
 		if !ok {
 			return fmt.Errorf("%w: glyph %d is over the outline budget", errBound, g)
